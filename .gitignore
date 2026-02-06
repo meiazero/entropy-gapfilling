@@ -218,6 +218,7 @@ __marimo__/
 outputs/
 outputs-*/
 results
+preprocessed/
 
 # Apache parquet
 *.parquet

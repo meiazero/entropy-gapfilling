@@ -59,3 +59,54 @@ split
 train 52842
 test 14849
 val 10225
+
+=== Preprocessing ===
+
+The preprocessing step converts GeoTIFF patches to NPY arrays for fast loading.
+Run once before experiments:
+
+    make preprocess          # full dataset
+    make preprocess-resume   # resume interrupted run
+
+Or directly:
+
+    uv run python scripts/preprocess_dataset.py --limit 10   # small-scale test
+
+--- Output structure ---
+
+Output is written to {project_root}/preprocessed/, not inside the source data directory.
+
+    preprocessed/
+      {split}/{satellite}/{patch_id:07d}_{variant}.npy
+      manifest.csv
+
+Example: preprocessed/train/sentinel2/0000001_clean.npy
+
+--- Variants ---
+
+    clean          Ground truth image (no gaps)
+    degraded_inf   Degraded with infinite SNR threshold
+    degraded_40    Degraded with 40 dB SNR threshold
+    degraded_30    Degraded with 30 dB SNR threshold
+    degraded_20    Degraded with 20 dB SNR threshold
+    mask           Binary gap mask
+
+--- Array layout ---
+
+    Images: (H, W, C) = (64, 64, 4), dtype float32
+    Masks:  (H, W)    = (64, 64),    dtype float32
+
+--- Mask convention ---
+
+Source GeoTIFFs use 1=valid, 0=gap.
+Preprocessed NPY files use 1=gap, 0=valid (inverted at preprocessing time).
+This matches the convention expected by all pipeline interpolation methods.
+
+--- Manifest columns ---
+
+patch_id, satellite, split, source_file, acquisition_date, bands, crs,
+col_off, row_off, height, width, n_bands, clean_path, mask_path,
+degraded_inf_path, degraded_40_path, degraded_30_path, degraded_20_path,
+gap_fraction
+
+Paths in the manifest are relative to the preprocessed/ directory.

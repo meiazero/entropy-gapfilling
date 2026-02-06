@@ -132,7 +132,7 @@ clean-results: ## Clean experiment results (keep preprocessed data)
 .PHONY: clean-all
 clean-all: clean clean-results ## Clean everything including preprocessed data
 	@echo "Cleaning preprocessed data..."
-	@rm -rf "$${PDI_DATA_ROOT:-/opt/datasets/satellite-images}/preprocessed"
+	@rm -rf preprocessed
 	@echo "All cleaned"
 
 .PHONY: help
