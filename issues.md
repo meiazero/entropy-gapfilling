@@ -62,16 +62,6 @@
 - [ ] Return entropy map with same spatial dimensions as input
 - [ ] Optimize for large images (memory-efficient windowing)
 
-### Issue #6: Implement patch segmentation with overlap
-
-**Description:** Create `src/pdi_pipeline/windowing.py` to segment images into 64x64 patches with configurable overlap (as defined in parametrizations). Should yield patch coordinates and handle image boundaries.
-
-- [ ] Extract 64x64 patches with configurable overlap stride
-- [ ] Handle boundary patches (padding or discard)
-- [ ] Return patch coordinates for spatial reconstruction
-- [ ] Compute per-patch entropy statistics (mean, std, min, max)
-- [ ] Classify patches into entropy bins (low, medium, high) for stratified analysis
-
 ### Issue #7: Precompute entropy maps during preprocessing
 
 **Description:** Extend the preprocessing pipeline (Issue #1) to precompute and save entropy maps at all three window scales (7x7, 15x15, 31x31) alongside the NPY patches. This avoids recomputation during experiments.
