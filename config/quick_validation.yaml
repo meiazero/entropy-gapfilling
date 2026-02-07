@@ -1,0 +1,16 @@
+experiment:
+  name: "quick_validation"
+  seeds: [42]
+  noise_levels: ["inf"]
+  satellites: ["sentinel2"]
+  entropy_windows: [7, 15, 31]
+  max_patches: 50
+  output_dir: "results/"
+
+methods:
+  spatial:
+    - { name: "nearest" }
+    - { name: "bilinear" }
+    - { name: "bicubic" }
+
+metrics: ["psnr", "ssim", "rmse", "sam"]

@@ -1,0 +1,34 @@
+experiment:
+  name: "paper_results"
+  seeds: [42, 123, 456, 789, 1011, 1213, 1415, 1617, 1819, 2021]
+  noise_levels: ["inf", "40", "30", "20"]
+  satellites: ["sentinel2", "landsat8", "landsat9", "modis"]
+  entropy_windows: [7, 15, 31]
+  max_patches: null
+  output_dir: "results/"
+
+methods:
+  spatial:
+    - { name: "nearest" }
+    - { name: "bilinear" }
+    - { name: "bicubic" }
+    - { name: "lanczos", params: { a: 3 } }
+  kernel:
+    - { name: "idw", params: { power: 2.0 } }
+    - { name: "rbf", params: { kernel: "thin_plate_spline" } }
+    - { name: "spline" }
+  geostatistical:
+    - { name: "kriging" }
+    - { name: "dineof" }
+  transform:
+    - { name: "dct" }
+    - { name: "wavelet" }
+    - { name: "tv", params: { max_iterations: 100 } }
+  compressive:
+    - { name: "l1_dct" }
+    - { name: "l1_wavelet" }
+  patch_based:
+    - { name: "non_local" }
+    - { name: "exemplar_based" }
+
+metrics: ["psnr", "ssim", "rmse", "sam"]
