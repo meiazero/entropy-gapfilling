@@ -57,6 +57,41 @@ class TemporalSplineInterpolator(BaseMethod):
         self.smoothing = smoothing
         self.degree = degree
 
+    def _fit_pixel_timeseries(
+        self,
+        time_series: np.ndarray,
+        time_mask: np.ndarray,
+        time_indices: np.ndarray,
+    ) -> np.ndarray | None:
+        """Fit a spline to one pixel's time series and return interpolated missing values.
+
+        Returns None if fitting fails or there are too few valid points.
+        """
+        valid_times = time_indices[~time_mask]
+        valid_values = time_series[~time_mask]
+
+        if len(valid_times) < 2:
+            return None
+
+        try:
+            spline_degree = int(min(self.degree, len(valid_times) - 1, 5))
+            spline_degree = max(1, spline_degree)
+            k = cast(Literal[1, 2, 3, 4, 5], spline_degree)
+            spline = UnivariateSpline(
+                valid_times,
+                valid_values,
+                k=k,
+                s=self.smoothing,
+            )
+
+            missing_times = time_indices[time_mask]
+            if len(missing_times) > 0:
+                return np.asarray(spline(missing_times), dtype=np.float32)
+        except Exception:  # noqa: S110
+            pass
+
+        return None
+
     def apply(
         self,
         degraded: np.ndarray,
@@ -87,91 +122,35 @@ class TemporalSplineInterpolator(BaseMethod):
         else:
             mask_3d = mask_arr.astype(bool)
 
-        is_multichannel = degraded.ndim == 4
         n_timesteps = degraded.shape[0]
         time_indices = np.arange(n_timesteps, dtype=np.float32)
+        height, width = degraded.shape[1], degraded.shape[2]
+        n_channels = degraded.shape[3] if degraded.ndim == 4 else 1
 
         reconstructed = degraded.copy().astype(np.float32)
 
-        if is_multichannel:
-            height, width, channels = degraded.shape[1:]
-            for h in range(height):
-                for w in range(width):
-                    for c in range(channels):
-                        # Get time series for this pixel and channel
-                        time_series = degraded[:, h, w, c].astype(np.float32)
-                        time_mask = mask_3d[:, h, w]
+        for h in range(height):
+            for w in range(width):
+                time_mask = mask_3d[:, h, w]
+                for c in range(n_channels):
+                    if degraded.ndim == 4:
+                        ts = degraded[:, h, w, c].astype(np.float32)
+                    else:
+                        ts = degraded[:, h, w].astype(np.float32)
 
-                        # Find valid time points
-                        valid_times = time_indices[~time_mask]
-                        valid_values = time_series[~time_mask]
-
-                        if len(valid_times) < 2:
-                            continue
-
-                        try:
-                            # Fit spline to valid data
-                            spline_degree = int(
-                                min(self.degree, len(valid_times) - 1, 5)
-                            )
-                            spline_degree = max(1, spline_degree)
-                            k = cast(Literal[1, 2, 3, 4, 5], spline_degree)
-                            spline = UnivariateSpline(
-                                valid_times,
-                                valid_values,
-                                k=k,
-                                s=self.smoothing,
-                            )
-
-                            # Interpolate missing values
-                            missing_times = time_indices[time_mask]
-                            if len(missing_times) > 0:
-                                interpolated_values = spline(missing_times)
-                                reconstructed[missing_times, h, w, c] = (
-                                    interpolated_values
-                                )
-                        except Exception:  # noqa: S112  # noqa: S112
-                            # Spline fitting failed for this pixel, skip it
-                            continue
-        else:
-            height, width = degraded.shape[1:]
-            for h in range(height):
-                for w in range(width):
-                    # Get time series for this pixel
-                    time_series = degraded[:, h, w].astype(np.float32)
-                    time_mask = mask_3d[:, h, w]
-
-                    # Find valid time points
-                    valid_times = time_indices[~time_mask]
-                    valid_values = time_series[~time_mask]
-
-                    if len(valid_times) < 2:
-                        continue
-
-                    try:
-                        # Fit spline to valid data
-                        spline_degree = int(
-                            min(self.degree, len(valid_times) - 1, 5)
-                        )
-                        spline_degree = max(1, spline_degree)
-                        k = cast(Literal[1, 2, 3, 4, 5], spline_degree)
-                        spline = UnivariateSpline(
-                            valid_times,
-                            valid_values,
-                            k=k,
-                            s=self.smoothing,
-                        )
-
-                        # Interpolate missing values
+                    interpolated = self._fit_pixel_timeseries(
+                        ts, time_mask, time_indices
+                    )
+                    if interpolated is not None:
                         missing_times = time_indices[time_mask]
-                        if len(missing_times) > 0:
-                            interpolated_values = spline(missing_times)
-                            reconstructed[missing_times, h, w] = (
-                                interpolated_values
+                        if degraded.ndim == 4:
+                            reconstructed[
+                                missing_times.astype(int), h, w, c
+                            ] = interpolated
+                        else:
+                            reconstructed[missing_times.astype(int), h, w] = (
+                                interpolated
                             )
-                    except Exception:  # noqa: S112
-                        # Spline fitting failed for this pixel, skip it
-                        continue
 
         return self._finalize(reconstructed)
 
@@ -218,6 +197,34 @@ class TemporalFourierInterpolator(BaseMethod):
         self.n_harmonics = n_harmonics
         self.period = period
 
+    def _fit_pixel_fourier(
+        self,
+        time_series: np.ndarray,
+        time_mask: np.ndarray,
+        design_matrix_full: np.ndarray,
+    ) -> np.ndarray | None:
+        """Fit Fourier coefficients for one pixel's time series and return interpolated missing values.
+
+        Returns None if fitting fails or there are too few valid points.
+        """
+        valid_mask = ~time_mask
+        if valid_mask.sum() < (1 + 2 * self.n_harmonics):
+            return None
+
+        x_valid = design_matrix_full[valid_mask]
+        y_valid = time_series[valid_mask]
+
+        try:
+            coeffs, *_ = np.linalg.lstsq(x_valid, y_valid, rcond=None)
+
+            if time_mask.sum() > 0:
+                x_missing = design_matrix_full[time_mask]
+                return np.asarray(x_missing @ coeffs, dtype=np.float32)
+        except Exception:  # noqa: S110
+            pass
+
+        return None
+
     def apply(
         self,
         degraded: np.ndarray,
@@ -247,92 +254,38 @@ class TemporalFourierInterpolator(BaseMethod):
         else:
             mask_3d = mask_arr.astype(bool)
 
-        is_multichannel = degraded.ndim == 4
         n_timesteps = degraded.shape[0]
         time_indices = np.arange(n_timesteps, dtype=np.float32)
+        height, width = degraded.shape[1], degraded.shape[2]
+        n_channels = degraded.shape[3] if degraded.ndim == 4 else 1
 
-        # Determine period
         period = self.period if self.period is not None else n_timesteps
 
         reconstructed = degraded.copy().astype(np.float32)
 
-        # Build design matrix for Fourier series
-        # X = [1, cos(2πt/T), sin(2πt/T), cos(4πt/T), sin(4πt/T), ...]
         design_matrix_full = np.ones((n_timesteps, 1 + 2 * self.n_harmonics))
         for k in range(1, self.n_harmonics + 1):
             omega_k = 2 * np.pi * k / period
             design_matrix_full[:, 2 * k - 1] = np.cos(omega_k * time_indices)
             design_matrix_full[:, 2 * k] = np.sin(omega_k * time_indices)
 
-        if is_multichannel:
-            height, width, channels = degraded.shape[1:]
-            for h in range(height):
-                for w in range(width):
-                    for c in range(channels):
-                        # Get time series for this pixel and channel
-                        time_series = degraded[:, h, w, c].astype(np.float32)
-                        time_mask = mask_3d[:, h, w]
+        for h in range(height):
+            for w in range(width):
+                time_mask = mask_3d[:, h, w]
+                for c in range(n_channels):
+                    if degraded.ndim == 4:
+                        ts = degraded[:, h, w, c].astype(np.float32)
+                    else:
+                        ts = degraded[:, h, w].astype(np.float32)
 
-                        # Find valid time points
-                        valid_mask = ~time_mask
-                        if valid_mask.sum() < (1 + 2 * self.n_harmonics):
-                            continue
-
-                        # Subset design matrix and data to valid times
-                        X_valid = design_matrix_full[valid_mask]
-                        y_valid = time_series[valid_mask]
-
-                        try:
-                            # Fit Fourier coefficients via least squares
-                            coeffs, *_ = np.linalg.lstsq(
-                                X_valid, y_valid, rcond=None
-                            )
-
-                            # Reconstruct missing values
-                            missing_times = time_mask
-                            if missing_times.sum() > 0:
-                                X_missing = design_matrix_full[missing_times]
-                                interpolated_values = X_missing @ coeffs
-                                reconstructed[missing_times, h, w, c] = (
-                                    interpolated_values
-                                )
-                        except Exception:  # noqa: S112  # noqa: S112
-                            # Spline fitting failed for this pixel, skip it
-                            continue
-        else:
-            height, width = degraded.shape[1:]
-            for h in range(height):
-                for w in range(width):
-                    # Get time series for this pixel
-                    time_series = degraded[:, h, w].astype(np.float32)
-                    time_mask = mask_3d[:, h, w]
-
-                    # Find valid time points
-                    valid_mask = ~time_mask
-                    if valid_mask.sum() < (1 + 2 * self.n_harmonics):
-                        continue
-
-                    # Subset design matrix and data to valid times
-                    X_valid = design_matrix_full[valid_mask]
-                    y_valid = time_series[valid_mask]
-
-                    try:
-                        # Fit Fourier coefficients via least squares
-                        coeffs, *_ = np.linalg.lstsq(
-                            X_valid, y_valid, rcond=None
-                        )
-
-                        # Reconstruct missing values
-                        missing_times = time_mask
-                        if missing_times.sum() > 0:
-                            X_missing = design_matrix_full[missing_times]
-                            interpolated_values = X_missing @ coeffs
-                            reconstructed[missing_times, h, w] = (
-                                interpolated_values
-                            )
-                    except Exception:  # noqa: S112
-                        # Fourier fitting failed for this pixel, skip it
-                        continue
+                    interpolated = self._fit_pixel_fourier(
+                        ts, time_mask, design_matrix_full
+                    )
+                    if interpolated is not None:
+                        if degraded.ndim == 4:
+                            reconstructed[time_mask, h, w, c] = interpolated
+                        else:
+                            reconstructed[time_mask, h, w] = interpolated
 
         return self._finalize(reconstructed)
 
@@ -422,16 +375,7 @@ class SpaceTimeKriging(BaseMethod):
         dy: np.ndarray,
         dx: np.ndarray,
     ) -> np.ndarray:
-        """Compute space-time covariance using separable exponential model.
-
-        Args:
-            dt: Temporal lags
-            dy: Spatial lags in y direction
-            dx: Spatial lags in x direction
-
-        Returns:
-            Covariance values
-        """
+        """Compute space-time covariance using separable exponential model."""
         spatial_distance = np.sqrt(dy * dy + dx * dx)
         return np.asarray(
             self.sill
@@ -465,7 +409,6 @@ class SpaceTimeKriging(BaseMethod):
         if local.size <= self.max_points:
             return local
 
-        # Select closest points by scaled distance
         dy_local = dy[local].astype(np.float32)
         dx_local = dx[local].astype(np.float32)
         dt_local = dt[local].astype(np.float32)
@@ -489,20 +432,7 @@ class SpaceTimeKriging(BaseMethod):
         target_y: int,
         target_x: int,
     ) -> float:
-        """Solve space-time kriging system and predict value.
-
-        Args:
-            obs_t: Observation time indices
-            obs_y: Observation y coordinates
-            obs_x: Observation x coordinates
-            obs_values: Observation values
-            target_t: Target time index
-            target_y: Target y coordinate
-            target_x: Target x coordinate
-
-        Returns:
-            Predicted value
-        """
+        """Solve space-time kriging system and predict value."""
         n_points = obs_values.size
         if n_points == 0:
             return float("nan")
@@ -513,7 +443,6 @@ class SpaceTimeKriging(BaseMethod):
         obs_y_f = obs_y.astype(np.float32)
         obs_x_f = obs_x.astype(np.float32)
 
-        # Build covariance matrix
         dt_matrix = obs_t_f[:, None] - obs_t_f[None, :]
         dy_matrix = obs_y_f[:, None] - obs_y_f[None, :]
         dx_matrix = obs_x_f[:, None] - obs_x_f[None, :]
@@ -523,13 +452,11 @@ class SpaceTimeKriging(BaseMethod):
             covariance + np.eye(n_points, dtype=np.float32) * self.nugget
         )
 
-        # Build right-hand side (covariances to target)
         dt0 = obs_t_f - np.float32(target_t)
         dy0 = obs_y_f - np.float32(target_y)
         dx0 = obs_x_f - np.float32(target_x)
         covariance_0 = self._covariance(dt0, dy0, dx0)
 
-        # Build kriging system
         system = np.zeros((n_points + 1, n_points + 1), dtype=np.float32)
         system[:n_points, :n_points] = covariance
         system[:n_points, n_points] = 1.0
@@ -584,7 +511,7 @@ class SpaceTimeKriging(BaseMethod):
             else max(height, width)
         )
         spatial_radius = max(1, spatial_radius)
-        time_radius = max(1, spatial_radius)
+        time_radius = max(1, int(np.ceil(3.0 * self.range_time)))
 
         is_multichannel = image_float.ndim == 4
         reconstructed = image_float.copy()

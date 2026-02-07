@@ -70,6 +70,67 @@ class KrigingInterpolator(BaseMethod):
         self.random_seed = random_seed
         self.kernel_size = kernel_size
 
+    def _kriging_single_channel(
+        self,
+        channel_data: np.ndarray,
+        train_y: np.ndarray,
+        train_x: np.ndarray,
+        gap_y: np.ndarray,
+        gap_x: np.ndarray,
+    ) -> np.ndarray | None:
+        """Interpolate one 2D channel via ordinary kriging.
+
+        Returns the filled channel, or None if insufficient data.
+        """
+        train_values = channel_data[train_y, train_x]
+        finite_mask = np.isfinite(train_values)
+        if int(np.sum(finite_mask)) < 10:
+            return None
+
+        x_points = train_x[finite_mask].astype(np.float64)
+        y_points = train_y[finite_mask].astype(np.float64)
+        z_points = train_values[finite_mask].astype(np.float64)
+
+        unique_xy, unique_index = np.unique(
+            np.column_stack([x_points, y_points]), axis=0, return_index=True
+        )
+        x_points = unique_xy[:, 0]
+        y_points = unique_xy[:, 1]
+        z_points = z_points[unique_index]
+
+        if x_points.size < 10:
+            return None
+
+        result = channel_data.copy()
+        try:
+            kriging_model = OrdinaryKriging(
+                x_points,
+                y_points,
+                z_points,
+                variogram_model=self.variogram_model,
+                nlags=self.nlags,
+                enable_plotting=False,
+                verbose=False,
+            )
+            interpolated_values, _ = kriging_model.execute(
+                "points",
+                gap_x.astype(np.float64),
+                gap_y.astype(np.float64),
+            )
+            result[gap_y, gap_x] = interpolated_values
+        except Exception:
+            coords_valid = np.column_stack([x_points, y_points])
+            coords_gap = np.column_stack([
+                gap_x.astype(np.float64),
+                gap_y.astype(np.float64),
+            ])
+            filled = griddata(
+                coords_valid, z_points, coords_gap, method="nearest"
+            )
+            result[gap_y, gap_x] = filled.astype(result.dtype, copy=False)
+
+        return result
+
     def apply(
         self,
         degraded: np.ndarray,
@@ -90,17 +151,13 @@ class KrigingInterpolator(BaseMethod):
         mask_2d = self._normalize_mask(mask)
         h, w = mask_2d.shape
         result = degraded.copy()
-        is_multichannel = degraded.ndim == 3
 
-        # Get coordinates of valid and gap pixels
         valid_y, valid_x = np.where(~mask_2d)
         gap_y, gap_x = np.where(mask_2d)
 
         if len(valid_y) < 10 or len(gap_y) == 0:
-            # Need sufficient points for variogram modeling
             return self._finalize(result)
 
-        # Select training points
         selected_indices = self._select_training_points(
             valid_y, valid_x, gap_y, gap_x, (h, w)
         )
@@ -110,119 +167,13 @@ class KrigingInterpolator(BaseMethod):
         train_y = valid_y[selected_indices]
         train_x = valid_x[selected_indices]
 
-        # Process each channel separately
-        if is_multichannel:
-            channels = degraded.shape[2]
-            for channel_idx in range(channels):
-                train_values = degraded[train_y, train_x, channel_idx]
-                finite_mask = np.isfinite(train_values)
-                if int(np.sum(finite_mask)) < 10:
-                    continue
-
-                x_points = train_x[finite_mask].astype(np.float64)
-                y_points = train_y[finite_mask].astype(np.float64)
-                z_points = train_values[finite_mask].astype(np.float64)
-
-                # Remove duplicate coordinates
-                unique_xy, unique_index = np.unique(
-                    np.column_stack([x_points, y_points]),
-                    axis=0,
-                    return_index=True,
-                )
-                x_points = unique_xy[:, 0]
-                y_points = unique_xy[:, 1]
-                z_points = z_points[unique_index]
-
-                if x_points.size < 10:
-                    continue
-
-                try:
-                    # Create Ordinary Kriging model
-                    # Note: pykrige uses (x, y, z) convention where x=columns, y=rows
-                    kriging_model = OrdinaryKriging(
-                        x_points,
-                        y_points,
-                        z_points,
-                        variogram_model=self.variogram_model,
-                        nlags=self.nlags,
-                        enable_plotting=False,
-                        verbose=False,
-                    )
-
-                    # Interpolate at gap pixel locations
-                    interpolated_values, _ = kriging_model.execute(
-                        "points",
-                        gap_x.astype(np.float64),
-                        gap_y.astype(np.float64),
-                    )
-
-                    result[gap_y, gap_x, channel_idx] = interpolated_values
-                except Exception:
-                    # Fallback to nearest neighbor interpolation
-                    coords_valid = np.column_stack([x_points, y_points])
-                    coords_gap = np.column_stack([
-                        gap_x.astype(np.float64),
-                        gap_y.astype(np.float64),
-                    ])
-                    filled = griddata(
-                        coords_valid, z_points, coords_gap, method="nearest"
-                    )
-                    result[gap_y, gap_x, channel_idx] = filled.astype(
-                        result.dtype, copy=False
-                    )
-        else:
-            train_values = degraded[train_y, train_x]
-            finite_mask = np.isfinite(train_values)
-            if int(np.sum(finite_mask)) < 10:
-                return self._finalize(result)
-
-            x_points = train_x[finite_mask].astype(np.float64)
-            y_points = train_y[finite_mask].astype(np.float64)
-            z_points = train_values[finite_mask].astype(np.float64)
-
-            # Remove duplicate coordinates
-            unique_xy, unique_index = np.unique(
-                np.column_stack([x_points, y_points]), axis=0, return_index=True
+        def _channel_fn(ch: np.ndarray, _mask: np.ndarray) -> np.ndarray:
+            filled = self._kriging_single_channel(
+                ch, train_y, train_x, gap_y, gap_x
             )
-            x_points = unique_xy[:, 0]
-            y_points = unique_xy[:, 1]
-            z_points = z_points[unique_index]
+            return filled if filled is not None else ch
 
-            if x_points.size < 10:
-                return self._finalize(result)
-
-            try:
-                # Create Ordinary Kriging model
-                kriging_model = OrdinaryKriging(
-                    x_points,
-                    y_points,
-                    z_points,
-                    variogram_model=self.variogram_model,
-                    nlags=self.nlags,
-                    enable_plotting=False,
-                    verbose=False,
-                )
-
-                # Interpolate at gap pixel locations
-                interpolated_values, _ = kriging_model.execute(
-                    "points",
-                    gap_x.astype(np.float64),
-                    gap_y.astype(np.float64),
-                )
-
-                result[gap_y, gap_x] = interpolated_values
-            except Exception:
-                # Fallback to nearest neighbor interpolation
-                coords_valid = np.column_stack([x_points, y_points])
-                coords_gap = np.column_stack([
-                    gap_x.astype(np.float64),
-                    gap_y.astype(np.float64),
-                ])
-                filled = griddata(
-                    coords_valid, z_points, coords_gap, method="nearest"
-                )
-                result[gap_y, gap_x] = filled.astype(result.dtype, copy=False)
-
+        result = self._apply_channelwise(degraded, mask_2d, _channel_fn)
         return self._finalize(result)
 
     def _select_training_points(
@@ -274,7 +225,6 @@ class KrigingInterpolator(BaseMethod):
                 indices = np.arange(valid_y.size, dtype=np.int64)
 
         if indices.size > self.max_points:
-            # Use provided seed for reproducibility
             rng_seed = self.random_seed if self.random_seed is not None else 13
             rng = np.random.default_rng(rng_seed)
             indices = rng.choice(

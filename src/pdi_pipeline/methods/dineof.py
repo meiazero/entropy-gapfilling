@@ -129,13 +129,12 @@ class DINEOFInterpolator(BaseMethod):
         filled = matrix.copy()
 
         # Initialize missing pixels with temporal mean for each pixel location
-        pixel_means = np.zeros(height * width, dtype=np.float32)
-        for pixel_idx in range(height * width):
-            valid_values = filled[observed[:, pixel_idx], pixel_idx]
-            if valid_values.size > 0:
-                pixel_means[pixel_idx] = float(np.mean(valid_values))
-            else:
-                pixel_means[pixel_idx] = float(np.mean(filled[observed]))
+        masked = np.ma.array(matrix, mask=missing)
+        pixel_means = (
+            np.ma.mean(masked, axis=0)
+            .filled(fill_value=float(np.mean(matrix[~missing])))
+            .astype(np.float32)
+        )
 
         filled[missing] = pixel_means[np.where(missing)[1]]
 

@@ -316,18 +316,15 @@ class TVInpainting(BaseMethod):
         self,
         lambda_param: float = 0.1,
         max_iterations: int = 100,
-        dt: float = 0.1,
     ) -> None:
         """Initialize TV inpainting.
 
         Args:
             lambda_param: Data fidelity weight
             max_iterations: Maximum number of iterations
-            dt: Time step for gradient descent
         """
         self.lambda_param = lambda_param
         self.max_iterations = max_iterations
-        self.dt = dt
 
     def apply(
         self,

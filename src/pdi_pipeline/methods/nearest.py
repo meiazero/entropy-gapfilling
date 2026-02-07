@@ -103,8 +103,3 @@ class NearestInterpolator(BaseMethod):
             result[gap_pixels_y, gap_pixels_x] = degraded[nearest_y, nearest_x]
 
         return self._finalize(result)
-
-
-def build() -> NearestInterpolator:
-    """Build a NearestInterpolator instance."""
-    return NearestInterpolator()

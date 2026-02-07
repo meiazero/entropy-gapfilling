@@ -1,11 +1,19 @@
-"""Lanczos interpolation for high-quality image reconstruction.
+r"""Lanczos spectral gap-filling via iterative band-limited projection.
 
-Implements Lanczos resampling using a windowed sinc function. This method
-provides superior quality compared to bilinear and bicubic interpolation,
-particularly for images with fine detail.
+The Lanczos kernel approximates the ideal low-pass (sinc) filter with a
+compactly supported window.  For gap-filling at integer grid positions the
+classical separable kernel evaluates to zero at non-zero integer lags
+(a property of the Nyquist sampling theorem), so a direct weighted-average
+formulation is degenerate.
+
+Instead we implement the Papoulis--Gerchberg iterative algorithm with a
+Lanczos-windowed frequency response, which recovers the minimum-bandwidth
+signal consistent with the observed samples.
 """
 
 from __future__ import annotations
+
+from typing import Any
 
 import numpy as np
 from scipy.ndimage import distance_transform_edt
@@ -14,168 +22,162 @@ from pdi_pipeline.methods.base import BaseMethod
 
 
 class LanczosInterpolator(BaseMethod):
-    r"""Lanczos interpolation for high-quality image reconstruction.
+    r"""Lanczos spectral gap-filling (Papoulis--Gerchberg projection).
 
-    Implements Lanczos resampling using a windowed sinc function. This method
-    provides superior quality compared to bilinear and bicubic interpolation,
-    particularly for images with fine detail.
+    Mathematical Formulation
+    ------------------------
+    The 1-D Lanczos-$a$ kernel is
 
-    Mathematical Formulation:
-        Lanczos interpolation uses a windowed sinc function with window size parameter $a$.
-        For a point at position $(x, y)$ with integer part $(x_0, y_0)$ and fractional part
-        $(\Delta x, \Delta y)$, the interpolated value is:
+    $$L_a(t) = \operatorname{sinc}(t)\,\operatorname{sinc}\!\left(\frac{t}{a}\right),
+      \quad |t| < a,$$
 
-        $$f(x, y) = \sum_{i=\lfloor x \rfloor - a + 1}^{\lfloor x \rfloor + a} \sum_{j=\lfloor y \rfloor - a + 1}^{\lfloor y \rfloor + a} f(i, j) \cdot L(x - i) \cdot L(y - j)$$
+    whose Fourier transform is the convolution of two rectangular pulses --
+    a trapezoidal frequency response $\hat{L}_a(\nu)$:
 
-        The Lanczos kernel with parameter $a$ is:
-        $$L(t) = \begin{cases}
-            \text{sinc}(t) \cdot \text{sinc}(t/a) & \text{if } |t| < a \\
-            0 & \text{otherwise}
-        \end{cases}$$
+    $$\hat{L}_a(\nu) = \begin{cases}
+        1 & |\nu| \le \dfrac{a-1}{2a} \\[6pt]
+        \dfrac{a + 1 - 2a|\nu|}{2} & \dfrac{a-1}{2a} < |\nu| \le \dfrac{a+1}{2a} \\[6pt]
+        0 & |\nu| > \dfrac{a+1}{2a}
+    \end{cases}$$
 
-        where $\text{sinc}(t) = \frac{\sin(\pi t)}{\pi t}$ (with $\text{sinc}(0) = 1$).
+    The 2-D filter is separable:
+    $\hat{H}_a(\nu_x, \nu_y) = \hat{L}_a(\nu_x)\,\hat{L}_a(\nu_y)$.
 
-        The kernel is separable and has compact support with radius $a$. For $a=3$ (default),
-        this gives a 6x6 pixel neighborhood.
+    **Papoulis--Gerchberg iteration.**  Let $M$ denote the binary mask of
+    known pixels ($M_{ij} = 1$ if observed), $f$ the observed image, and
+    $H_a$ the Lanczos low-pass operator.  Starting from an initial estimate
+    $u^{(0)}$ (nearest-neighbour fill), the iteration is
 
-    Citation: Wikipedia contributors. "Lanczos resampling." Wikipedia, The Free Encyclopedia.
-    https://en.wikipedia.org/wiki/Lanczos_resampling
+    $$u^{(k+1)} = M \odot f \;+\; (1 - M) \odot (H_a * u^{(k)})$$
+
+    i.e.\ known pixels are restored exactly while gap pixels receive the
+    band-limited projection of the current estimate.  Under mild conditions
+    the sequence converges to the minimum-bandwidth signal that agrees with
+    the observations on $M$.
+
+    Properties
+    ----------
+    * **Complexity per iteration:** $O(HW \log(HW))$ via FFT.
+    * **Smoothness:** The result is band-limited (smooth), controlled by $a$.
+    * **Convergence:** Monotone decrease in gap-pixel RMS change; typically
+      converges in 20--50 iterations for 64x64 patches.
+
+    Citation
+    --------
+    Papoulis, A. (1975). "A new algorithm in spectral analysis and
+    band-limited extrapolation." *IEEE Trans. Circuits and Systems*,
+    22(9), 735--742.
+
+    Gerchberg, R. W. (1974). "Super-resolution through error energy
+    reduction." *Optica Acta*, 21(9), 709--720.
     """
 
     name = "lanczos"
 
-    def __init__(self, a: int = 3) -> None:
-        """Initialize Lanczos interpolator.
+    def __init__(
+        self,
+        a: int = 3,
+        max_iterations: int = 50,
+        tolerance: float = 1e-5,
+    ) -> None:
+        """Initialize Lanczos spectral interpolator.
 
         Args:
-            a: Lanczos kernel parameter (window size). Common values are 2 or 3.
-               Larger values provide better quality but slower computation.
+            a: Lanczos window parameter (controls passband width).
+               a=2 gives a narrower passband (smoother result).
+               a=3 (default) balances detail preservation and smoothness.
+            max_iterations: Maximum Papoulis-Gerchberg iterations.
+            tolerance: RMS convergence threshold on gap pixels.
         """
         if a < 1:
             raise ValueError("Lanczos parameter 'a' must be >= 1")
         self.a = a
+        self.max_iterations = max_iterations
+        self.tolerance = tolerance
 
-    @staticmethod
-    def _sinc(x: np.ndarray) -> np.ndarray:
-        """Compute normalized sinc function: sinc(x) = sin(πx)/(πx).
+    def _build_frequency_response(self, height: int, width: int) -> np.ndarray:
+        """Build separable 2-D Lanczos frequency response."""
+        fy = np.fft.fftfreq(height)
+        fx = np.fft.fftfreq(width)
 
-        Args:
-            x: Input values
+        a = self.a
+        low = (a - 1) / (2 * a)
+        high = (a + 1) / (2 * a)
 
-        Returns:
-            Sinc function values
-        """
-        # Avoid division by zero
-        result = np.ones_like(x)
-        nonzero = np.abs(x) > 1e-10
-        result[nonzero] = np.sin(np.pi * x[nonzero]) / (np.pi * x[nonzero])
-        return result
+        def _lanczos_1d(freq: np.ndarray) -> np.ndarray:
+            f_abs = np.abs(freq)
+            response = np.zeros_like(f_abs)
+            response[f_abs <= low] = 1.0
+            transition = (f_abs > low) & (f_abs <= high)
+            if np.any(transition):
+                response[transition] = (high - f_abs[transition]) / (high - low)
+            return response
 
-    def _lanczos_kernel(self, distance: np.ndarray) -> np.ndarray:
-        """Compute Lanczos kernel weights.
+        return np.outer(_lanczos_1d(fy), _lanczos_1d(fx))
 
-        Args:
-            distance: Normalized distance values
+    def _fill_channel(
+        self,
+        channel: np.ndarray,
+        mask_2d: np.ndarray,
+        freq_response: np.ndarray,
+        nn_indices: np.ndarray,
+    ) -> np.ndarray:
+        """Apply Papoulis-Gerchberg iteration to one channel."""
+        valid_mask = ~mask_2d
 
-        Returns:
-            Kernel weights
-        """
-        abs_distance = np.abs(distance)
-        weights = np.zeros_like(distance)
+        result = channel.copy().astype(np.float64)
 
-        # L(x) = sinc(x) * sinc(x/a) for |x| < a
-        mask = abs_distance < self.a
-        dist_masked = np.asarray(distance[mask], dtype=np.float32)
-        weights[mask] = self._sinc(dist_masked) * self._sinc(
-            dist_masked / np.float32(self.a)
-        )
+        # Initialize gaps with nearest-neighbour values
+        gap_y, gap_x = np.where(mask_2d)
+        nn_y = nn_indices[0, gap_y, gap_x]
+        nn_x = nn_indices[1, gap_y, gap_x]
+        result[gap_y, gap_x] = channel[nn_y, nn_x]
 
-        return weights
+        for _ in range(self.max_iterations):
+            # Band-limit via FFT
+            spectrum = np.fft.fft2(result)
+            spectrum *= freq_response
+            filtered = np.real(np.fft.ifft2(spectrum))
+
+            # Restore known pixels, keep filtered values for gaps
+            old_gaps = result[mask_2d].copy()
+            result[mask_2d] = filtered[mask_2d]
+            result[valid_mask] = channel[valid_mask]
+
+            # Check convergence (RMS change on gap pixels)
+            new_gaps = result[mask_2d]
+            if old_gaps.size == 0:
+                break
+            rms_change = float(np.sqrt(np.mean((new_gaps - old_gaps) ** 2)))
+            if rms_change < self.tolerance:
+                break
+
+        return result.astype(np.float32)
 
     def apply(
         self,
         degraded: np.ndarray,
         mask: np.ndarray,
         *,
-        meta: dict[str, object] | None = None,
+        meta: dict[str, Any] | None = None,
     ) -> np.ndarray:
-        """Apply Lanczos interpolation to recover missing pixels.
-
-        Uses canonical 2ax2a pixel neighborhood (e.g., 6x6 for a=3) as per Wikipedia definition.
-        If valid pixels are not available in the neighborhood, falls back to nearest valid pixel.
-
-        Args:
-            degraded: Array with missing data (e.g., NaN or masked pixels).
-            mask: Binary mask where 1 indicates missing pixels to fill.
-            meta: Optional metadata (crs, transform, bands, etc.).
-
-        Returns:
-            Reconstructed array with same shape as degraded.
-        """
         mask_2d = self._normalize_mask(mask)
         height, width = degraded.shape[:2]
-        result = degraded.copy()
-        gap_y, gap_x = np.where(mask_2d)
 
-        # Precompute nearest valid pixel for fallback
         valid_mask = ~mask_2d
-        if not np.any(valid_mask):
-            return self._finalize(result)
+        if not np.any(valid_mask) or not np.any(mask_2d):
+            return self._finalize(degraded.copy())
 
-        _, nearest_indices = distance_transform_edt(
-            ~valid_mask, return_distances=True, return_indices=True
+        freq_response = self._build_frequency_response(height, width)
+
+        _, nn_indices = distance_transform_edt(
+            ~valid_mask,
+            return_distances=True,
+            return_indices=True,
         )
 
-        # Use canonical Lanczos radius: a
-        radius = self.a
+        def _channel_fn(ch: np.ndarray, _mask: np.ndarray) -> np.ndarray:
+            return self._fill_channel(ch, mask_2d, freq_response, nn_indices)
 
-        for y, x in zip(gap_y, gap_x):
-            # Define canonical Lanczos neighborhood [-a+1, a]
-            y_min = max(0, y - radius + 1)
-            y_max = min(height, y + radius + 1)
-            x_min = max(0, x - radius + 1)
-            x_max = min(width, x + radius + 1)
-
-            local_mask = mask_2d[y_min:y_max, x_min:x_max]
-            local_valid = ~local_mask
-            local_y_indices, local_x_indices = np.where(local_valid)
-
-            if len(local_y_indices) == 0:
-                # Fallback to nearest valid pixel
-                nearest_y = nearest_indices[0, y, x]
-                nearest_x = nearest_indices[1, y, x]
-                result[y, x] = degraded[nearest_y, nearest_x]
-                continue
-
-            abs_y = local_y_indices + y_min
-            abs_x = local_x_indices + x_min
-            values = degraded[abs_y, abs_x]
-
-            # Calculate distances in pixel units (kernel expects this)
-            delta_y = (abs_y - y).astype(np.float32)
-            delta_x = (abs_x - x).astype(np.float32)
-
-            # Compute Lanczos kernel weights
-            weight_y = self._lanczos_kernel(delta_y)
-            weight_x = self._lanczos_kernel(delta_x)
-            weights = weight_y * weight_x
-
-            total_weight = weights.sum()
-            if total_weight < 1e-10:
-                # Use nearest valid pixel from the local neighborhood
-                distances = np.abs(delta_y) + np.abs(delta_x)
-                nearest_idx = np.argmin(distances)
-                result[y, x] = values[nearest_idx]
-            else:
-                if values.ndim > 1:
-                    weighted_sum = (values * weights[:, np.newaxis]).sum(axis=0)
-                else:
-                    weighted_sum = (values * weights).sum()
-                result[y, x] = weighted_sum / total_weight
-
+        result = self._apply_channelwise(degraded, mask_2d, _channel_fn)
         return self._finalize(result)
-
-
-def build() -> LanczosInterpolator:
-    """Build a LanczosInterpolator instance."""
-    return LanczosInterpolator()

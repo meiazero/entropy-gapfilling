@@ -1,179 +1,85 @@
-"""Bicubic interpolation for image reconstruction.
+r"""Bicubic interpolation for image gap-filling.
 
-Bicubic interpolation uses a 4x4 neighborhood of pixels to fit a bicubic polynomial
-surface. It provides smoother results than bilinear interpolation by considering
-both function values and derivatives.
+Uses the Clough--Tocher $C^1$ piecewise-cubic scheme on a Delaunay
+triangulation of the known pixels.  Each Delaunay triangle is subdivided
+into three micro-triangles and a cubic polynomial is fitted per
+micro-triangle so that the global surface is continuously differentiable.
 """
 
 from __future__ import annotations
 
-import numpy as np
-from scipy.ndimage import distance_transform_edt
+from typing import Any
 
+import numpy as np
+
+from pdi_pipeline.methods._griddata import griddata_fill
 from pdi_pipeline.methods.base import BaseMethod
 
 
 class BicubicInterpolator(BaseMethod):
-    r"""Bicubic interpolation for image reconstruction.
+    r"""Clough--Tocher $C^1$ cubic interpolation for gap-filling.
 
-    Bicubic interpolation uses a 4x4 neighborhood of pixels to fit a bicubic polynomial
-    surface. It provides smoother results than bilinear interpolation by considering
-    both function values and derivatives.
+    Mathematical Formulation
+    ------------------------
+    Given known pixels $\{(x_i, y_i, f_i)\}_{i=1}^N$ the Delaunay
+    triangulation $\mathcal{T}$ is constructed, then each triangle
+    $T_k$ is split into three sub-triangles by connecting each vertex to
+    the centroid.
 
-    Mathematical Formulation:
-        Bicubic interpolation uses a 4x4 pixel neighborhood (16 pixels). For a point at
-        position $(x, y)$ with integer part $(x_0, y_0)$ and fractional part $(\Delta x, \Delta y)$,
-        the interpolated value uses the separable Keys cubic kernel $W(t)$:
+    On each sub-triangle a cubic polynomial
 
-        $$f(x, y) = \sum_{i=-1}^{2} \sum_{j=-1}^{2} W(\Delta x - i) W(\Delta y - j) f(x_0+i, y_0+j)$$
+    $$p(x,y) = \sum_{|\alpha| \le 3} c_\alpha\, x^{\alpha_1} y^{\alpha_2}$$
 
-        The Keys cubic kernel with parameter $\alpha$ (typically -0.5) is:
+    is fitted (10 coefficients per sub-triangle, 30 per macro-triangle).
+    The coefficients are determined by imposing:
 
-        $$W(t) = \begin{cases}
-            (\alpha+2)|t|^3 - (\alpha+3)|t|^2 + 1 & \text{if } |t| \leq 1 \\
-            \alpha|t|^3 - 5\alpha|t|^2 + 8\alpha|t| - 4\alpha & \text{if } 1 < |t| \leq 2 \\
-            0 & \text{otherwise}
-        \end{cases}$$
+    1. **Interpolation** at the three vertices:
+       $p(x_i, y_i) = f_i$.
+    2. **Gradient matching** at vertices: $\nabla p$ agrees with the
+       gradient estimated from surrounding data.
+    3. **$C^1$ continuity** across all edges (both macro-edges shared
+       between triangles and micro-edges within a macro-triangle):
 
-        The kernel has compact support with radius 2, making the effective neighborhood 4x4 pixels.
+       $$p^{(k)}(x,y) = p^{(l)}(x,y), \quad
+         \nabla p^{(k)}(x,y) = \nabla p^{(l)}(x,y)
+         \quad \forall\, (x,y) \in e_{kl}.$$
 
-    Citation: Wikipedia contributors. "Bicubic interpolation." Wikipedia, The Free Encyclopedia.
-    https://en.wikipedia.org/wiki/Bicubic_interpolation
+    This yields a globally $C^1$ surface that reproduces cubic polynomials
+    exactly.  For gap pixels outside the convex hull of the known sites
+    a nearest-neighbour fallback is used.
+
+    Properties
+    ----------
+    * **Complexity:** $O(N \log N)$ triangulation + $O(M \log N)$ queries.
+    * **Smoothness:** $C^1$ -- both value and gradient are continuous.
+    * **Locality:** Each gap pixel depends on $\sim 10$ known pixels
+      (the vertices and gradient stencils of the enclosing triangle).
+
+    Citation
+    --------
+    Clough, R. W. and Tocher, J. L. (1965). "Finite element stiffness
+    matrices for analysis of plates in bending." *Proceedings of the
+    Conference on Matrix Methods in Structural Mechanics*, 515--545.
+
+    Alfeld, P. (1984). "A trivariate Clough--Tocher scheme for tetrahedral
+    data." *Computer Aided Geometric Design*, 1(2), 169--181.
+
+    See also: ``scipy.interpolate.griddata`` with *method='cubic'*.
     """
 
     name = "bicubic"
-
-    def __init__(self, alpha: float = -0.5) -> None:
-        """Initialize bicubic interpolator.
-
-        Args:
-            alpha: Parameter for the cubic kernel. Common values:
-                   -0.5 (Keys kernel, default - sharper)
-                   -0.75 (softer)
-                   -1.0 (even softer)
-        """
-        self.alpha = alpha
-
-    @staticmethod
-    def _bicubic_kernel(
-        distance: np.ndarray, alpha: float = -0.5
-    ) -> np.ndarray:
-        """Compute bicubic kernel weights using Keys kernel.
-
-        Args:
-            distance: Normalized distance from pixel (absolute value)
-            alpha: Kernel parameter (typically -0.5 for Keys kernel)
-
-        Returns:
-            Kernel weights
-        """
-        abs_distance = np.abs(distance)
-
-        # Initialize weights array
-        weights = np.zeros_like(abs_distance)
-
-        # For |x| <= 1: w(x) = (alpha + 2)|x|^3 - (alpha + 3)|x|^2 + 1
-        mask1 = abs_distance <= 1.0
-        weights[mask1] = (
-            (alpha + 2) * np.power(abs_distance[mask1], 3)
-            - (alpha + 3) * np.power(abs_distance[mask1], 2)
-            + 1
-        )
-
-        # For 1 < |x| <= 2: w(x) = alpha|x|^3 - 5*alpha|x|^2 + 8*alpha|x| - 4*alpha
-        mask2 = (abs_distance > 1.0) & (abs_distance <= 2.0)
-        weights[mask2] = (
-            alpha * np.power(abs_distance[mask2], 3)
-            - 5 * alpha * np.power(abs_distance[mask2], 2)
-            + 8 * alpha * abs_distance[mask2]
-            - 4 * alpha
-        )
-
-        # For |x| > 2: w(x) = 0 (already initialized to 0)
-
-        return weights
 
     def apply(
         self,
         degraded: np.ndarray,
         mask: np.ndarray,
         *,
-        meta: dict[str, object] | None = None,
+        meta: dict[str, Any] | None = None,
     ) -> np.ndarray:
-        """Apply bicubic interpolation to recover missing pixels.
-
-        Uses canonical 4x4 pixel neighborhood (radius=2) as per Wikipedia definition.
-        If valid pixels are not available in the 4x4 neighborhood, falls back to
-        nearest valid pixel.
-
-        Args:
-            degraded: Array with missing data (e.g., NaN or masked pixels).
-            mask: Binary mask where 1 indicates missing pixels to fill.
-            meta: Optional metadata (crs, transform, bands, etc.).
-
-        Returns:
-            Reconstructed array with same shape as degraded.
-        """
         mask_2d = self._normalize_mask(mask)
-        height, width = degraded.shape[:2]
-        result = degraded.copy()
-        result = np.nan_to_num(result, nan=0.0)
-        gap_y, gap_x = np.where(mask_2d)
-
-        # Precompute nearest valid pixel for fallback
-        valid_mask = ~mask_2d
-        if not np.any(valid_mask):
-            return self._finalize(result)
-
-        _, nearest_indices = distance_transform_edt(
-            ~valid_mask, return_distances=True, return_indices=True
+        result = griddata_fill(
+            degraded, mask_2d, "cubic", self._apply_channelwise
         )
-
-        for y, x in zip(gap_y, gap_x):
-            # Use canonical 4x4 neighborhood (radius=2)
-            y_min, y_max = max(0, y - 2), min(height, y + 3)
-            x_min, x_max = max(0, x - 2), min(width, x + 3)
-
-            local_mask = mask_2d[y_min:y_max, x_min:x_max]
-            local_valid = ~local_mask
-            local_y_indices, local_x_indices = np.where(local_valid)
-
-            if len(local_y_indices) == 0:
-                # Fallback to nearest valid pixel
-                nearest_y = nearest_indices[0, y, x]
-                nearest_x = nearest_indices[1, y, x]
-                result[y, x] = degraded[nearest_y, nearest_x]
-                continue
-
-            abs_y = local_y_indices + y_min
-            abs_x = local_x_indices + x_min
-            values = degraded[abs_y, abs_x]
-
-            # Calculate distances (unnormalized, kernel expects pixel units)
-            dy = (abs_y - y).astype(np.float32)
-            dx = (abs_x - x).astype(np.float32)
-
-            # Compute bicubic weights using Keys kernel
-            wy = self._bicubic_kernel(dy, self.alpha)
-            wx = self._bicubic_kernel(dx, self.alpha)
-            weights = wy * wx
-
-            total_weight = weights.sum()
-            if total_weight < 1e-10:
-                # Use nearest valid pixel from the local neighborhood
-                distances = np.abs(dy) + np.abs(dx)
-                nearest_idx = np.argmin(distances)
-                result[y, x] = values[nearest_idx]
-            else:
-                if values.ndim > 1:
-                    weighted_sum = (values * weights[:, np.newaxis]).sum(axis=0)
-                else:
-                    weighted_sum = (values * weights).sum()
-                result[y, x] = weighted_sum / total_weight
-
+        if result is None:
+            return self._finalize(degraded.copy())
         return self._finalize(result)
-
-
-def build() -> BicubicInterpolator:
-    """Build a BicubicInterpolator instance."""
-    return BicubicInterpolator()

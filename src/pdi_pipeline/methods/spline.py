@@ -10,6 +10,7 @@ from __future__ import annotations
 import numpy as np
 from scipy.interpolate import RBFInterpolator
 
+from pdi_pipeline.methods._scattered_data import select_local_points
 from pdi_pipeline.methods.base import BaseMethod
 
 
@@ -52,6 +53,32 @@ class SplineInterpolator(BaseMethod):
         self.max_training_points = max_training_points
         self.kernel_size = kernel_size
 
+    def _interpolate_channel(
+        self,
+        channel_data: np.ndarray,
+        local_valid_y: np.ndarray,
+        local_valid_x: np.ndarray,
+        gap_y: np.ndarray,
+        gap_x: np.ndarray,
+    ) -> np.ndarray:
+        """Interpolate a single 2D channel using thin plate spline."""
+        valid_values = channel_data[local_valid_y, local_valid_x]
+        result = channel_data.copy()
+
+        try:
+            spline = RBFInterpolator(
+                np.column_stack([local_valid_y, local_valid_x]),
+                valid_values,
+                kernel="thin_plate_spline",
+                smoothing=self.smoothing,
+            )
+            result[gap_y, gap_x] = spline(np.column_stack([gap_y, gap_x]))
+        except Exception:
+            if len(gap_y) > 0:
+                result[gap_y, gap_x] = float(np.mean(valid_values))
+
+        return result
+
     def apply(
         self,
         degraded: np.ndarray,
@@ -72,102 +99,30 @@ class SplineInterpolator(BaseMethod):
         mask_2d = self._normalize_mask(mask)
         result = degraded.copy()
         h, w = degraded.shape[:2]
-        is_multichannel = degraded.ndim == 3
 
         gap_y, gap_x = np.where(mask_2d)
         if len(gap_y) == 0:
             return self._finalize(result)
 
-        # Get coordinates of valid pixels
         valid_y, valid_x = np.where(~mask_2d)
-
         if len(valid_y) < 4:
-            # Need at least 4 points for spline fitting
             return self._finalize(result)
 
-        # Restrict training points to a neighborhood around the missing region
-        radius = self._get_radius(h, w)
-        y_min = max(0, int(gap_y.min()) - radius)
-        y_max = min(h - 1, int(gap_y.max()) + radius)
-        x_min = max(0, int(gap_x.min()) - radius)
-        x_max = min(w - 1, int(gap_x.max()) + radius)
-
-        local_selector = (
-            (valid_y >= y_min)
-            & (valid_y <= y_max)
-            & (valid_x >= x_min)
-            & (valid_x <= x_max)
+        local_valid_y, local_valid_x = select_local_points(
+            valid_y,
+            valid_x,
+            gap_y,
+            gap_x,
+            h,
+            w,
+            kernel_size=self.kernel_size,
+            max_points=self.max_training_points,
         )
-        local_valid_y = valid_y[local_selector]
-        local_valid_x = valid_x[local_selector]
 
-        if len(local_valid_y) < 4:
-            local_valid_y = valid_y
-            local_valid_x = valid_x
-
-        # Downsample if too many points
-        if len(local_valid_y) > self.max_training_points:
-            indices = np.linspace(
-                0,
-                len(local_valid_y) - 1,
-                self.max_training_points,
-                dtype=int,
+        def _channel_fn(ch: np.ndarray, _mask: np.ndarray) -> np.ndarray:
+            return self._interpolate_channel(
+                ch, local_valid_y, local_valid_x, gap_y, gap_x
             )
-            local_valid_y = local_valid_y[indices]
-            local_valid_x = local_valid_x[indices]
 
-        # Process each channel separately
-        if is_multichannel:
-            channels = degraded.shape[2]
-            for channel_idx in range(channels):
-                valid_values = degraded[
-                    local_valid_y, local_valid_x, channel_idx
-                ]
-
-                try:
-                    # Create bivariate spline using RBF with thin_plate_spline kernel
-                    spline = RBFInterpolator(
-                        np.column_stack([local_valid_y, local_valid_x]),
-                        valid_values,
-                        kernel="thin_plate_spline",
-                        smoothing=self.smoothing,
-                    )
-
-                    # Interpolate gap pixels
-                    interpolated_values = spline(
-                        np.column_stack([gap_y, gap_x])
-                    )
-                    result[gap_y, gap_x, channel_idx] = interpolated_values
-                except Exception:
-                    # Fallback to mean if spline fitting fails
-                    if len(gap_y) > 0:
-                        result[gap_y, gap_x, channel_idx] = float(
-                            np.mean(valid_values)
-                        )
-        else:
-            valid_values = degraded[local_valid_y, local_valid_x]
-
-            try:
-                # Create thin plate spline interpolator
-                spline = RBFInterpolator(
-                    np.column_stack([local_valid_y, local_valid_x]),
-                    valid_values,
-                    kernel="thin_plate_spline",
-                    smoothing=self.smoothing,
-                )
-
-                # Interpolate gap pixels
-                interpolated_values = spline(np.column_stack([gap_y, gap_x]))
-                result[gap_y, gap_x] = interpolated_values
-            except Exception:
-                # Fallback to mean if spline fitting fails
-                if len(gap_y) > 0:
-                    result[gap_y, gap_x] = float(np.mean(valid_values))
-
+        result = self._apply_channelwise(degraded, mask_2d, _channel_fn)
         return self._finalize(result)
-
-    def _get_radius(self, h: int, w: int) -> int:
-        """Calculate search radius from kernel_size."""
-        if self.kernel_size is None:
-            return max(h, w)
-        return max(1, self.kernel_size // 2)

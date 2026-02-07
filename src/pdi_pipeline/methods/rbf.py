@@ -12,6 +12,7 @@ from typing import Any, Literal, cast
 import numpy as np
 from scipy.interpolate import RBFInterpolator as SciPyRBFInterpolator
 
+from pdi_pipeline.methods._scattered_data import select_local_points
 from pdi_pipeline.methods.base import BaseMethod
 
 
@@ -90,6 +91,38 @@ class RBFInterpolator(BaseMethod):
         self.max_training_points = max_training_points
         self.kernel_size = kernel_size
 
+    def _interpolate_channel(
+        self,
+        channel_data: np.ndarray,
+        local_valid_y: np.ndarray,
+        local_valid_x: np.ndarray,
+        valid_coords: np.ndarray,
+        gap_coords: np.ndarray,
+        gap_y: np.ndarray,
+        gap_x: np.ndarray,
+    ) -> np.ndarray:
+        """Interpolate a single 2D channel using RBF."""
+        valid_values = channel_data[local_valid_y, local_valid_x].astype(
+            np.float64
+        )
+        result = channel_data.copy()
+
+        try:
+            kernel_lit = _get_kernel_literal(self.kernel)
+            rbf = SciPyRBFInterpolator(
+                valid_coords,
+                valid_values,
+                kernel=kernel_lit,
+                epsilon=self.epsilon,
+                smoothing=self.smoothing,
+            )
+            result[gap_y, gap_x] = rbf(gap_coords)
+        except Exception:
+            if len(gap_y) > 0:
+                result[gap_y, gap_x] = float(np.mean(valid_values))
+
+        return result
+
     def apply(
         self,
         degraded: np.ndarray,
@@ -119,87 +152,32 @@ class RBFInterpolator(BaseMethod):
         if len(valid_y) == 0:
             return self._finalize(result)
 
-        # Restrict training points to a neighborhood around the missing region
-        radius = self._get_radius(h, w)
-        y_min = max(0, int(gap_y.min()) - radius)
-        y_max = min(h - 1, int(gap_y.max()) + radius)
-        x_min = max(0, int(gap_x.min()) - radius)
-        x_max = min(w - 1, int(gap_x.max()) + radius)
-
-        local_selector = (
-            (valid_y >= y_min)
-            & (valid_y <= y_max)
-            & (valid_x >= x_min)
-            & (valid_x <= x_max)
+        local_valid_y, local_valid_x = select_local_points(
+            valid_y,
+            valid_x,
+            gap_y,
+            gap_x,
+            h,
+            w,
+            kernel_size=self.kernel_size,
+            max_points=self.max_training_points,
         )
-        local_valid_y = valid_y[local_selector]
-        local_valid_x = valid_x[local_selector]
 
-        # Fallback to global set if local neighborhood is too sparse
-        if len(local_valid_y) < 4:
-            local_valid_y = valid_y
-            local_valid_x = valid_x
-
-        # Deterministic downsampling to keep RBF tractable
-        if len(local_valid_y) > self.max_training_points:
-            indices = np.linspace(
-                0,
-                len(local_valid_y) - 1,
-                self.max_training_points,
-                dtype=int,
-            )
-            local_valid_y = local_valid_y[indices]
-            local_valid_x = local_valid_x[indices]
-
-        # Prepare coordinates for RBF
         valid_coords = np.column_stack([local_valid_y, local_valid_x]).astype(
             np.float64
         )
         gap_coords = np.column_stack([gap_y, gap_x]).astype(np.float64)
 
-        # Process each channel separately
-        kernel_lit = _get_kernel_literal(self.kernel)
-        if degraded.ndim == 3:
-            channels = degraded.shape[2]
-            for channel_idx in range(channels):
-                valid_values = degraded[
-                    local_valid_y, local_valid_x, channel_idx
-                ].astype(np.float64)
-
-                # Create RBF interpolator for this channel
-                rbf = SciPyRBFInterpolator(
-                    valid_coords,
-                    valid_values,
-                    kernel=kernel_lit,
-                    epsilon=self.epsilon,
-                    smoothing=self.smoothing,
-                )
-
-                # Interpolate gap pixels
-                interpolated_values = rbf(gap_coords)
-                result[gap_y, gap_x, channel_idx] = interpolated_values
-        else:
-            valid_values = degraded[local_valid_y, local_valid_x].astype(
-                np.float64
-            )
-
-            # Create RBF interpolator
-            rbf = SciPyRBFInterpolator(
+        def _channel_fn(ch: np.ndarray, _mask: np.ndarray) -> np.ndarray:
+            return self._interpolate_channel(
+                ch,
+                local_valid_y,
+                local_valid_x,
                 valid_coords,
-                valid_values,
-                kernel=kernel_lit,
-                epsilon=self.epsilon,
-                smoothing=self.smoothing,
+                gap_coords,
+                gap_y,
+                gap_x,
             )
 
-            # Interpolate gap pixels
-            interpolated_values = rbf(gap_coords)
-            result[gap_y, gap_x] = interpolated_values
-
+        result = self._apply_channelwise(degraded, mask_2d, _channel_fn)
         return self._finalize(result)
-
-    def _get_radius(self, h: int, w: int) -> int:
-        """Calculate search radius from kernel_size."""
-        if self.kernel_size is None:
-            return max(h, w)
-        return max(1, self.kernel_size // 2)

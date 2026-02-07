@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -68,7 +69,7 @@ class BaseMethod(ABC):
     def _apply_channelwise(
         degraded: np.ndarray,
         mask_2d: np.ndarray,
-        channel_fn,
+        channel_fn: Callable[[np.ndarray, np.ndarray], np.ndarray],
     ) -> np.ndarray:
         """Apply a function to each channel of a multichannel image.
 
