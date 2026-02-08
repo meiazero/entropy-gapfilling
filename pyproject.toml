@@ -152,6 +152,9 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101"]
+"src/dl-models/**/train.py" = ["E402"]
+"src/dl-models/evaluate.py" = ["E402"]
+"tests/unit/test_dl_models.py" = ["S101", "E402"]
 
 [tool.ruff.format]
 preview = true

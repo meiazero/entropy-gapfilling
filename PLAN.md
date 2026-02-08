@@ -1,364 +1,298 @@
-# Publication Plan: Journal Paper on Entropy-Guided Gap-Filling
+# Plan: Align Pipeline for Journal Publication + DL Models (Isolated)
 
-Target journals: IEEE TGRS, ISPRS Journal, or Remote Sensing of Environment.
+**Status:** IMPLEMENTED (all phases complete, DL isolated from pipeline)
 
-Thesis: local entropy predicts where classical interpolation methods fail in
-satellite gap-filling, and this relationship is spatially structured.
+## Context
 
----
+Research pipeline for evaluating satellite image gap-filling methods using entropy-based spatial analysis. Aligned for journal submission (IEEE TGRS / ISPRS / RSE).
 
-## Hypotheses (from pdi.md)
+**Method count:** 15 classical methods across 6 categories (experiment pipeline).
+**DL baselines:** 4 architectures (AE, VAE, GAN, Transformer) isolated under `src/dl-models/` for independent training, evaluation, and inference.
 
-- **H1** - Regions with higher local entropy (more texture/complexity) will
-  show worse average performance from classical interpolators.
-- **H2** - Geostatistical and spectro-temporal methods will outperform spatial
-  interpolators in low-entropy areas.
-- **H3** - There is a statistically significant relationship between local
-  quality metrics and local entropy.
+### Key decisions
+
+- **DINEOF removed:** Requires time-series `(T, H, W)` input incompatible with single 64x64 patches. `dineof.py` kept for future temporal work; removed from config, registry, tables.
+- **DL baselines isolated (Issue #18):** 4 architectures implemented under `src/dl-models/` as an independent module. DL models are NOT included in the classical experiment battery -- they have their own training scripts, evaluation script, and test suite. This separation allows independent experimentation with DL methods without coupling them to the classical pipeline.
 
 ---
 
-## Scope Decisions
+## Phase 1: Remove Irrelevant Methods
 
-The original pdi.md listed a broad set of features. This plan aligns the
-issues to a realistic first-paper scope. Items marked DEFERRED are saved for a
-follow-up paper or post-review additions.
+DINEOF requires time-series `(T, H, W)` input and cannot run on single 64x64 patches.
 
-### In Scope (this paper)
+### 1.1 `config/paper_results.yaml`
 
-| Element | Justification |
-|---------|---------------|
-| 16 spatial single-frame methods (7 categories) | Comprehensive benchmark is the paper's strength |
-| Sentinel-2 (73,984 patches) | Primary sensor, statistically powerful |
-| Landsat-8/9 (3,872 patches) | Cross-sensor generalization |
-| MODIS (60 patches) | Exploratory only, descriptive stats, no hypothesis tests |
-| 4 noise levels (inf, 40, 30, 20 dB) | Shows degradation sensitivity |
-| Entropy windows 7x7, 15x15, 31x31 | Multi-scale analysis is the core contribution |
-| PSNR, SSIM, RMSE, SAM | Universal metrics, reviewers expect these |
-| Pearson/Spearman correlation | Direct test of H1/H3 |
-| Kruskal-Wallis + Dunn post-hoc | Method ranking with statistical rigor |
-| Bootstrap CI 95% | Confidence intervals for all reported means |
-| Moran's I + LISA | Spatial autocorrelation is the novel angle |
-| 10 random seeds | Reproducibility |
-| Gap fraction stratification | Report distribution, stratify by small/medium/large |
+- Remove `dineof` from `geostatistical` category
+- Category becomes: `geostatistical: [{ name: "kriging" }]`
 
-### Excluded from This Paper
+### 1.2 `scripts/run_experiment.py`
 
-| Element | Reason | Issue |
-|---------|--------|-------|
-| Multi-temporal methods (3 methods) | Require temporal stacks, not single patches | -- |
-| IoU | Segmentation metric, not meaningful for continuous gap-filling | #8 |
-| ERGAS | Redundant with RMSE at same resolution; add if reviewers ask | #8 |
-| Windowing/overlap module | Patches are pre-extracted at 64x64 in preprocessing | #6 |
-| Robust regression + VIF | Overkill; Pearson/Spearman + Kruskal-Wallis is sufficient | #13 |
-| NDVI/DEM auxiliary variables | Scope creep; save for second paper | #17 |
+- Add `"dineof"` to `EXCLUDED_METHODS` set
+- Remove `DINEOFInterpolator` from import block and `classes` list
 
-### Deferred (second paper or post-review)
+### 1.3 `src/pdi_pipeline/methods/__init__.py`
 
-| Element | Issue |
-|---------|-------|
-| Deep learning baselines (U-Net, partial convolutions) | #18 |
-| Auxiliary variables (NDVI, DEM weighting) | #17 |
-| Robust regression with VIF | #13 |
-| ERGAS metric | #8 |
+- Remove `DINEOFInterpolator` import and `__all__` entry
+- Keep `dineof.py` file in place (valid for future temporal work)
+
+### 1.4 `scripts/generate_tables.py`
+
+- Remove `"dineof"` entry from `METHOD_INFO` dict
+
+### 1.5 `tests/integration/test_dineof.py`
+
+- Add module-level `pytest.mark.skip(reason="DINEOF excluded: requires time-series input")`
 
 ---
 
-## Issue Alignment with Implementation Status
+## Phase 2: Config Schema Validation
 
-### Milestone 1: Project Foundation and Data Pipeline
+**File:** `src/pdi_pipeline/config.py`
 
-#### Issue #1: Preprocessing script -- DONE
+Add `_validate_raw(raw: dict) -> None` called before dataclass construction in `load_config()`.
 
-File: `scripts/preprocess_dataset.py`
+Validates:
 
-- [x] Read metadata from `/opt/datasets/satellite-images/metadata.parquet`
-- [x] Load clean, degraded (inf, 40dB, 30dB, 20dB), and mask GeoTIFFs
-- [x] Convert and save as NPY arrays in `preprocessed/`
-- [x] Implement `--resume` flag
-- [x] Add progress bar with tqdm
-- [x] Validate data integrity (shape, dtype, NaN consistency)
-- [x] Write manifest.csv for fast lookups
+- Top-level keys `experiment` and `methods` exist
+- Required experiment keys: `name`, `seeds`, `noise_levels`, `satellites`, `entropy_windows`
+- Type checks: `seeds` is list[int], `noise_levels` is list[str], etc.
+- Each method entry has a `name` key (str, non-empty)
+- Method categories belong to `VALID_CATEGORIES = {"spatial", "kernel", "geostatistical", "transform", "compressive", "patch_based"}`
 
-#### Issue #2: Configuration system -- PARTIAL
-
-File: `src/pdi_pipeline/config.py`
-
-- [x] Create `config/paper_results.yaml` (10 seeds, 4 noise levels, 16 methods)
-- [x] Create `config/quick_validation.yaml` (1 seed, 3 methods, 50 patches)
-- [x] Implement config loader with frozen dataclasses
-- [ ] Validate config schema (currently raises KeyError on missing keys)
-- [ ] Support CLI overrides for key parameters (e.g. `--seed`, `--methods`)
-
-#### Issue #3: Dataset class -- DONE
-
-File: `src/pdi_pipeline/dataset.py`
-
-- [x] PatchDataset with `__getitem__` and `__len__`
-- [x] Filter by split, satellite, and noise level
-- [x] Return PatchSample dataclass (clean, degraded, mask, metadata)
-- [x] Deterministic shuffling with seed
-- [x] Handle multi-band images (B2, B3, B4, B8)
-
-#### Issue #4: Unit tests for interpolation methods -- PARTIAL
-
-Files: `tests/unit/`, `tests/integration/`
-
-- [x] 13 integration test files covering all 20 methods
-- [x] Test 2D and 3D inputs via conftest fixtures
-- [x] Verify output shape, dtype float32, clipping to [0, 1]
-- [x] Test no-gap passthrough
-- [ ] Unified parametrized `test_methods.py` with all methods
-- [ ] Explicit single-pixel-gap edge case test
+Raises `ValueError` with clear message on failure.
 
 ---
 
-### Milestone 2: Entropy Computation
+## Phase 3: Statistical Fixes
 
-#### Issue #5: Entropy module -- DONE
+### 3.1 FDR Correction for Pearson p-values
 
-File: `src/pdi_pipeline/entropy.py`
+**File:** `src/pdi_pipeline/statistics.py`
 
-- [x] Sliding-window Shannon entropy via `skimage.filters.rank.entropy`
-- [x] Window sizes: 7, 15, 31
-- [x] Multi-band: compute on mean of all bands
-- [x] Return float32 entropy map with same (H, W) as input
-- [x] Optimized via skimage C backend
+In `correlation_matrix()`:
 
-#### Issue #6: Windowing module -- NOT NEEDED
+- Add `pearson_p` to the rows dict
+- After existing FDR on Spearman, add second FDR pass on Pearson p-values
+- Add `pearson_significant_fdr` column to output DataFrame
+- Rename existing `significant_fdr` to `spearman_significant_fdr` for clarity
 
-Patches are pre-extracted at 64x64 during preprocessing. No overlap-based
-segmentation needed for this experiment design. Removed from scope.
+### 3.2 Effect Size for Kruskal-Wallis
 
-#### Issue #7: Precompute entropy -- DONE
+**File:** `src/pdi_pipeline/statistics.py`
 
-File: `scripts/precompute_entropy.py`
+- Add `epsilon_squared: float = 0.0` field to `ComparisonResult`
+- Compute in `method_comparison()` after Kruskal-Wallis: `eps_sq = H / (N - 1)`
+- Add `cliffs_delta` to post-hoc pairwise rows for effect size per pair
 
-- [x] Compute entropy for each clean patch at 3 window sizes
-- [x] Save as `{split}/{satellite}/{patch_id}_entropy_{window}.npy`
-- [x] Update manifest.csv with `mean_entropy_7`, `mean_entropy_15`, `mean_entropy_31`
-- [x] Support `--resume` flag
+### 3.3 Gap Mask Standardization
 
----
+**File:** `src/pdi_pipeline/metrics.py`
 
-### Milestone 3: Experiment Runner and Metrics
-
-#### Issue #8: Quality metrics -- PARTIAL (by design)
-
-File: `src/pdi_pipeline/metrics.py`
-
-- [x] PSNR (gap pixels only, global + local map)
-- [x] SSIM (gap pixels only, global + local map)
-- [x] RMSE (gap pixels only)
-- [x] SAM (spectral angle, multichannel only)
-- [x] compute_all() convenience function
-- [ ] ~~IoU~~ -- cut (segmentation metric, not applicable)
-- [ ] ~~ERGAS~~ -- cut (redundant with RMSE at same resolution)
-
-#### Issue #9: Experiment runner -- PARTIAL
-
-File: `scripts/run_experiment.py`
-
-- [x] `--config`, `--quick`, `--dry-run` CLI flags
-- [x] Loop: seed x noise_level x method x patch
-- [x] Save per-patch results to Parquet with checkpointing
-- [x] Multi-temporal methods excluded (16 methods total)
-- [x] Progress bar with tqdm
-- [x] Method registry with config-name-to-class mapping
-- [ ] Save reconstructed images for visualization (configurable subset)
-
-#### Issue #10: Results aggregation -- DONE
-
-File: `src/pdi_pipeline/aggregation.py`
-
-- [x] load_results() from Parquet
-- [x] summary_by_method() with bootstrap CI 95%
-- [x] summary_by_entropy_bin() with tercile thresholds
-- [x] summary_by_gap_fraction() with tercile thresholds
-- [x] summary_by_noise()
-- [x] Multi-scale entropy support
+Add `_as_gap_mask()` helper and update all metric functions.
 
 ---
 
-### Milestone 4: Statistical Analysis
+## Phase 4: Pipeline Fixes
 
-#### Issue #11: Correlation analysis -- DONE
+### 4.1 Method Failure Tracking
 
-File: `src/pdi_pipeline/statistics.py`
+**File:** `scripts/run_experiment.py`
 
-- [x] Pearson r + p-value per method
-- [x] Spearman rho + p-value per method
-- [x] FDR correction (Benjamini-Hochberg) via statsmodels
-- [x] correlation_matrix() across methods x entropy_windows x metrics
-- [x] DataFrame output with significance flags
+- Add `status` and `error_msg` columns to each result row
+- After final flush: log failure summary grouped by method
 
-#### Issue #12: Kruskal-Wallis + post-hoc -- DONE
+### 4.2 Reconstruction Saving
 
-File: `src/pdi_pipeline/statistics.py`
+**File:** `scripts/run_experiment.py`
 
-- [x] Kruskal-Wallis H-test (non-parametric, correct for 77k patches)
-- [x] Mann-Whitney U pairwise post-hoc with Bonferroni correction
-- [x] Report H statistic, p-value, significant pairs
+- Add `--save-reconstructions N` CLI argument
+- Save first N reconstructed arrays per method (first seed, `noise_level="inf"`)
 
-Note: stratification by entropy level can be done by filtering the DataFrame
-before calling method_comparison().
+### 4.3 Fig 6 Visual Examples
 
-#### Issue #13: Robust regression + VIF -- DEFERRED
+**File:** `scripts/generate_figures.py`
 
-Not implemented. The plan cuts this as overkill for the first paper.
-Pearson/Spearman + Kruskal-Wallis provides sufficient statistical rigor.
-Add if reviewers request it.
+Full implementation of `fig6_visual_examples`:
 
-#### Issue #14: Spatial autocorrelation -- DONE
-
-File: `src/pdi_pipeline/statistics.py`
-
-- [x] Moran's I (global) via esda.Moran
-- [x] LISA clusters (local) via esda.Moran_Local
-- [x] Queen contiguity weights via libpysal.weights.lat2W
-- [x] Returns cluster labels + p-value maps
+- Load parquet results, find 2 representative patches (10th and 90th entropy percentile)
+- Load clean/degraded from preprocessed dir
+- Load reconstructions
+- Rank methods by PSNR, show top-4
+- Layout: 2 rows (low/high entropy) x 6 columns (clean, degraded, top-4)
 
 ---
 
-### Milestone 5: Visualization and Figures
+## Phase 5: Deep Learning Models (Isolated)
 
-#### Issue #15: Figure generation -- DONE
+DL models live under `src/dl-models/` as a self-contained module, separate from the classical experiment pipeline. Each model is in its own subdirectory for independent training and inference.
 
-File: `scripts/generate_figures.py`
-
-- [x] Fig 1: Entropy map examples (3 scales, 2 satellites)
-- [x] Fig 2: Scatterplot entropy vs PSNR per method
-- [x] Fig 3: Boxplot PSNR by entropy bin
-- [x] Fig 4: Boxplot PSNR by noise level
-- [x] Fig 5: LISA cluster maps
-- [x] Fig 6: Visual reconstruction examples (placeholder, needs reconstruction saving)
-- [x] Fig 7: Correlation heatmap (method x entropy_window x metric)
-- [x] Publication style: matplotlib rcParams, colorblind-safe, 300 DPI, PDF + PNG
-
-#### Issue #16: LaTeX table generation -- DONE
-
-File: `scripts/generate_tables.py`
-
-- [x] Table 1: Method overview (category, params, complexity)
-- [x] Table 2: Mean PSNR +/- CI 95% per method x noise level
-- [x] Table 3: Entropy-stratified results per method x entropy bin
-- [x] Table 4: Spearman correlation matrix with significance stars
-- [x] Table 5: Kruskal-Wallis + significant pairs summary
-- [ ] ~~Regression coefficients table~~ -- deferred with Issue #13
-- [ ] Bold best / underline second-best formatting
-
----
-
-### Milestone 6: Advanced Methods
-
-#### Issue #17: Auxiliary variables (NDVI, DEM) -- DEFERRED
-
-Out of scope for this paper. Save for follow-up.
-
-#### Issue #18: Deep learning baselines -- DEFERRED
-
-Will be added as a separate phase after the classical experiment pipeline
-is validated and results are analyzed. PyTorch is already in dependencies.
-
----
-
-### Milestone 7: Reproducibility
-
-#### Issue #19: End-to-end validation -- PARTIAL
-
-File: `Makefile`
-
-- [x] `make preprocess` target
-- [x] `make experiment-quick` target (runs with `--quick`)
-- [x] `make experiment-dry` target (dry-run validation)
-- [x] `make figures` target
-- [x] `make tables` target
-- [x] `make reproduce` (full pipeline)
-- [x] `make reproduce-quick` (quick pipeline)
-- [ ] Actual end-to-end test run
-- [ ] Document minimum hardware requirements and runtimes
-
-#### Issue #20: Executive summary -- TODO
-
-Blocked by: completed experiment results. Write after Issue #21.
-
-#### Issue #21: Full reproduction run -- TODO
-
-Blocked by: all previous issues resolved. Execute `make reproduce` with
-`paper_results.yaml` and archive results.
-
----
-
-## Open Work Items (priority order)
-
-### P0 - Required before running experiments
-
-1. **Issue #2 (remaining):** Add config schema validation so that typos in
-   YAML fail early instead of producing cryptic KeyError at runtime.
-2. **Issue #9 (remaining):** Add `--save-reconstructions` flag to experiment
-   runner to save a configurable subset of reconstructed images for Fig 6.
-
-### P1 - Required before generating paper outputs
-
-3. **Issue #4 (remaining):** Add unified parametrized test with synthetic data
-   covering edge cases (single-pixel gap, full mask) for all 16 methods.
-4. **Issue #16 (remaining):** Add bold-best / underline-second-best formatting
-   to LaTeX tables.
-5. **Issue #19 (remaining):** Run `make reproduce-quick` end-to-end, fix any
-   integration issues.
-
-### P2 - Required after results are generated
-
-6. **Issue #20:** Write executive summary with method recommendations.
-7. **Issue #21:** Execute full reproduction run, archive results.
-
-### P3 - Deferred (second paper or reviewer response)
-
-8. **Issue #13:** Robust regression + VIF
-9. **Issue #17:** NDVI/DEM auxiliary variables
-10. **Issue #18:** Deep learning baselines
-
----
-
-## Paper Structure
-
-1. **Introduction** - problem, motivation, gap in literature
-2. **Related Work** - classical methods, DL methods, entropy in RS
-3. **Study Area and Data** - Sentinel-2, Landsat-8/9, gap simulation
-4. **Methodology**
-   - 4.1 Gap-filling methods (Table 1: 16 methods with parameters)
-   - 4.2 Local entropy computation
-   - 4.3 Evaluation metrics (PSNR, SSIM, RMSE, SAM)
-   - 4.4 Statistical analysis framework
-5. **Results**
-   - 5.1 Overall method comparison (Table 2: mean +/- CI per method x noise)
-   - 5.2 Entropy-performance correlation (Fig 2: scatterplots, Table 4)
-   - 5.3 Spatial analysis (Fig 5: LISA maps)
-   - 5.4 Cross-sensor comparison (Sentinel-2 vs Landsat)
-6. **Discussion**
-7. **Conclusion**
-
----
-
-## Execution Sequence
+### 5.1 Directory Structure
 
 ```
-# 1. Preprocess (run once)
-make preprocess
-
-# 2. Precompute entropy maps
-uv run python scripts/precompute_entropy.py
-
-# 3. Validate configuration
-make experiment-dry
-
-# 4. Quick validation (smoke test)
-make reproduce-quick
-
-# 5. Full experiment
-make reproduce
-
-# 6. Generate outputs
-make figures
-make tables
+src/dl-models/
+    __init__.py                      # Package marker
+    evaluate.py                      # Standalone evaluation for any model
+    shared/
+        __init__.py                  # Exports shared utilities
+        base.py                      # BaseDLMethod(BaseMethod)
+        dataset.py                   # PyTorch Dataset wrapping PatchDataset
+        utils.py                     # GapPixelLoss, EarlyStopping, checkpoint
+    ae/
+        __init__.py                  # Exports AEInpainting
+        model.py                     # AEInpainting class + _AENet
+        train.py                     # Training script
+        config.yaml                  # Hyperparameters
+    vae/
+        __init__.py                  # Exports VAEInpainting
+        model.py                     # VAEInpainting class + _VAENet
+        train.py                     # Training script
+        config.yaml                  # Hyperparameters
+    gan/
+        __init__.py                  # Exports GANInpainting
+        model.py                     # GANInpainting + _UNetGenerator + _PatchDiscriminator
+        train.py                     # Training script
+        config.yaml                  # Hyperparameters
+    transformer/
+        __init__.py                  # Exports TransformerInpainting
+        model.py                     # TransformerInpainting + _MAEInpaintingNet
+        train.py                     # Training script
+        config.yaml                  # Hyperparameters
+    checkpoints/
+        .gitkeep                     # Weights saved here after training
 ```
+
+### 5.2 Training
+
+Each model is trained independently:
+
+```bash
+uv run python src/dl-models/ae/train.py --manifest preprocessed/manifest.csv
+uv run python src/dl-models/vae/train.py --manifest preprocessed/manifest.csv
+uv run python src/dl-models/gan/train.py --manifest preprocessed/manifest.csv
+uv run python src/dl-models/transformer/train.py --manifest preprocessed/manifest.csv
+```
+
+### 5.3 Evaluation
+
+All models share a single evaluation entry point:
+
+```bash
+uv run python src/dl-models/evaluate.py \
+    --model ae \
+    --checkpoint src/dl-models/checkpoints/ae_best.pt \
+    --manifest preprocessed/manifest.csv
+```
+
+### 5.4 Model Architectures
+
+- **AE:** 4-layer conv encoder-decoder, 512-d bottleneck, MSE gap loss
+- **VAE:** Same encoder + mu/logvar bottleneck (dim=256), MSE + beta*KL (beta=0.001)
+- **GAN:** UNet generator with dilated bottleneck + PatchGAN discriminator
+- **Transformer:** MAE-style, 64 tokens (8x8 patches), 4+2 Transformer blocks
+
+---
+
+## Phase 6: Figure and Table Updates
+
+### 6.1 `scripts/generate_tables.py`
+
+- Remove `"dineof"` from `METHOD_INFO`
+- 15 classical methods in `METHOD_INFO`
+- Table 1 caption: "15 classical gap-filling methods"
+- Bold-best / underline-second formatting via `_format_ranked_cell()`
+- `epsilon_squared` column in table 5
+
+### 6.2 `scripts/generate_figures.py`
+
+- Fig 2 grid: `ncols = min(5, n_methods)` for 15 methods
+- Fig 6: full visual reconstruction (top-4 classical, no DL column)
+- Fig 8 removed (was classical vs DL comparison)
+- Total: 7 figures
+
+---
+
+## Phase 7: Tests
+
+### Pipeline Tests
+
+- `tests/unit/test_config.py`: Schema validation tests (missing keys, bad types, unknown categories, deep_learning rejected as pipeline category)
+- `tests/integration/test_dineof.py`: Module-level skip marker
+- `tests/integration/test_runner.py`: Expects 15 classical methods (no DL)
+
+### DL Model Tests (Isolated)
+
+- `tests/unit/test_dl_models.py`: Contract tests for all 4 DL models (output shape, dtype, range, valid pixel preservation). Uses `sys.path` to import from `src/dl-models/`.
+
+---
+
+## Execution Order
+
+```
+1. Phase 1  -- Remove DINEOF
+2. Phase 2  -- Config validation
+3. Phase 3  -- Statistical fixes (FDR, effect sizes, mask)
+4. Phase 4  -- Pipeline fixes (failure tracking, reconstructions, fig6)
+5. Phase 5  -- DL models (isolated, independent training/eval)
+6. Phase 6  -- Figure and table updates
+7. Phase 7  -- Tests
+```
+
+Phases 1-4 are independent fixes to the existing pipeline.
+Phase 5 is the DL module (isolated from the pipeline).
+Phases 6-7 wire everything together and validate.
+
+---
+
+## Files Modified (existing)
+
+| File                                   | Changes                                                |
+| -------------------------------------- | ------------------------------------------------------ |
+| `config/paper_results.yaml`            | Remove dineof, remove DL methods                       |
+| `src/pdi_pipeline/config.py`           | Add `_validate_raw()`, remove deep_learning category   |
+| `src/pdi_pipeline/statistics.py`       | FDR for Pearson, epsilon-squared, Cliff's delta        |
+| `src/pdi_pipeline/metrics.py`          | Standardize gap mask to `_as_gap_mask()`               |
+| `src/pdi_pipeline/methods/__init__.py` | Remove DINEOF export                                   |
+| `scripts/run_experiment.py`            | Remove DINEOF, add failure tracking, reconstructions   |
+| `scripts/generate_figures.py`          | Fig2 grid, fig6 implementation, remove fig8            |
+| `scripts/generate_tables.py`           | Remove dineof, remove DL, bold/underline, eps-squared  |
+| `tests/integration/test_dineof.py`     | Add skip marker                                        |
+| `tests/integration/test_runner.py`     | 15 classical methods expected (no DL)                  |
+| `tests/unit/test_config.py`            | Schema validation, deep_learning category rejected     |
+| `pyproject.toml`                       | Remove dl-models from pythonpath                       |
+| `PLAN.md`                              | Updated scope, DL isolation, method counts             |
+
+## Files Created (new)
+
+| File                                          | Purpose                              |
+| --------------------------------------------- | ------------------------------------ |
+| `src/dl-models/__init__.py`                   | Package marker                       |
+| `src/dl-models/evaluate.py`                   | Standalone evaluation for any model  |
+| `src/dl-models/shared/__init__.py`            | Exports shared utilities             |
+| `src/dl-models/shared/base.py`               | BaseDLMethod(BaseMethod)             |
+| `src/dl-models/shared/dataset.py`            | PyTorch Dataset adapter              |
+| `src/dl-models/shared/utils.py`              | GapPixelLoss, EarlyStopping, ckpt    |
+| `src/dl-models/ae/__init__.py`               | Exports AEInpainting                 |
+| `src/dl-models/ae/model.py`                  | AE architecture + inpainting class   |
+| `src/dl-models/ae/train.py`                  | AE training script                   |
+| `src/dl-models/ae/config.yaml`               | AE hyperparameters                   |
+| `src/dl-models/vae/__init__.py`              | Exports VAEInpainting                |
+| `src/dl-models/vae/model.py`                 | VAE architecture + inpainting class  |
+| `src/dl-models/vae/train.py`                 | VAE training script                  |
+| `src/dl-models/vae/config.yaml`              | VAE hyperparameters                  |
+| `src/dl-models/gan/__init__.py`              | Exports GANInpainting                |
+| `src/dl-models/gan/model.py`                 | GAN architecture + inpainting class  |
+| `src/dl-models/gan/train.py`                 | GAN training script                  |
+| `src/dl-models/gan/config.yaml`              | GAN hyperparameters                  |
+| `src/dl-models/transformer/__init__.py`      | Exports TransformerInpainting        |
+| `src/dl-models/transformer/model.py`         | Transformer architecture + class     |
+| `src/dl-models/transformer/train.py`         | Transformer training script          |
+| `src/dl-models/transformer/config.yaml`      | Transformer hyperparameters          |
+| `src/dl-models/checkpoints/.gitkeep`         | Placeholder for trained weights      |
+| `tests/unit/test_dl_models.py`               | DL model contract tests              |
+
+## Verification
+
+1. `uv run pytest tests/unit/test_config.py` -- config validation works, deep_learning rejected
+2. `uv run pytest tests/unit/test_dl_models.py` -- DL models pass contract tests
+3. `uv run python scripts/run_experiment.py --quick --dry-run` -- 15 classical methods listed (no DL)
+4. `uv run pytest tests/ -x` -- all tests pass
