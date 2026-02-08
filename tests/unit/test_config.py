@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import yaml
 
 from pdi_pipeline.config import ExperimentConfig, load_config
 
@@ -29,10 +30,27 @@ class TestLoadConfig:
 
     def test_methods_are_parsed(self) -> None:
         cfg = load_config(CONFIG_DIR / "paper_results.yaml")
-        assert len(cfg.methods) == 16
+        assert len(cfg.methods) == 15
         names = [m.name for m in cfg.methods]
         assert "nearest" in names
         assert "kriging" in names
+
+    def test_dineof_removed(self) -> None:
+        cfg = load_config(CONFIG_DIR / "paper_results.yaml")
+        names = [m.name for m in cfg.methods]
+        assert "dineof" not in names
+
+    def test_dl_methods_not_in_pipeline(self) -> None:
+        """DL models are isolated and not in the experiment config."""
+        cfg = load_config(CONFIG_DIR / "paper_results.yaml")
+        names = [m.name for m in cfg.methods]
+        for dl_name in [
+            "ae_inpainting",
+            "vae_inpainting",
+            "gan_inpainting",
+            "transformer_inpainting",
+        ]:
+            assert dl_name not in names
 
     def test_method_categories(self) -> None:
         cfg = load_config(CONFIG_DIR / "paper_results.yaml")
@@ -40,6 +58,7 @@ class TestLoadConfig:
         assert "spatial" in categories
         assert "kernel" in categories
         assert "geostatistical" in categories
+        assert "deep_learning" not in categories
 
     def test_method_params_parsed(self) -> None:
         cfg = load_config(CONFIG_DIR / "paper_results.yaml")
@@ -62,3 +81,96 @@ class TestLoadConfig:
     def test_entropy_windows(self) -> None:
         cfg = load_config(CONFIG_DIR / "paper_results.yaml")
         assert cfg.entropy_windows == [7, 15, 31]
+
+
+def _write_yaml(data: dict, path: Path) -> None:
+    path.write_text(yaml.dump(data, default_flow_style=False))
+
+
+class TestConfigValidation:
+    """Tests for the _validate_raw schema validation."""
+
+    def _minimal_config(self) -> dict:
+        return {
+            "experiment": {
+                "name": "test",
+                "seeds": [42],
+                "noise_levels": ["inf"],
+                "satellites": ["sentinel2"],
+                "entropy_windows": [7],
+            },
+            "methods": {
+                "spatial": [{"name": "nearest"}],
+            },
+        }
+
+    def test_valid_minimal_config(self, tmp_path: Path) -> None:
+        cfg_path = tmp_path / "valid.yaml"
+        _write_yaml(self._minimal_config(), cfg_path)
+        cfg = load_config(cfg_path)
+        assert cfg.name == "test"
+
+    def test_missing_experiment_key(self, tmp_path: Path) -> None:
+        data = self._minimal_config()
+        del data["experiment"]
+        cfg_path = tmp_path / "bad.yaml"
+        _write_yaml(data, cfg_path)
+        with pytest.raises(ValueError, match="experiment"):
+            load_config(cfg_path)
+
+    def test_missing_methods_key(self, tmp_path: Path) -> None:
+        data = self._minimal_config()
+        del data["methods"]
+        cfg_path = tmp_path / "bad.yaml"
+        _write_yaml(data, cfg_path)
+        with pytest.raises(ValueError, match="methods"):
+            load_config(cfg_path)
+
+    def test_missing_experiment_name(self, tmp_path: Path) -> None:
+        data = self._minimal_config()
+        del data["experiment"]["name"]
+        cfg_path = tmp_path / "bad.yaml"
+        _write_yaml(data, cfg_path)
+        with pytest.raises(ValueError, match="name"):
+            load_config(cfg_path)
+
+    def test_seeds_must_be_list_of_int(self, tmp_path: Path) -> None:
+        data = self._minimal_config()
+        data["experiment"]["seeds"] = ["abc"]
+        cfg_path = tmp_path / "bad.yaml"
+        _write_yaml(data, cfg_path)
+        with pytest.raises(ValueError, match="seeds"):
+            load_config(cfg_path)
+
+    def test_unknown_category_rejected(self, tmp_path: Path) -> None:
+        data = self._minimal_config()
+        data["methods"]["bogus_category"] = [{"name": "foo"}]
+        cfg_path = tmp_path / "bad.yaml"
+        _write_yaml(data, cfg_path)
+        with pytest.raises(ValueError, match="Unknown method category"):
+            load_config(cfg_path)
+
+    def test_method_missing_name(self, tmp_path: Path) -> None:
+        data = self._minimal_config()
+        data["methods"]["spatial"] = [{"params": {}}]
+        cfg_path = tmp_path / "bad.yaml"
+        _write_yaml(data, cfg_path)
+        with pytest.raises(ValueError, match="name"):
+            load_config(cfg_path)
+
+    def test_method_empty_name(self, tmp_path: Path) -> None:
+        data = self._minimal_config()
+        data["methods"]["spatial"] = [{"name": ""}]
+        cfg_path = tmp_path / "bad.yaml"
+        _write_yaml(data, cfg_path)
+        with pytest.raises(ValueError, match="non-empty string"):
+            load_config(cfg_path)
+
+    def test_deep_learning_category_rejected(self, tmp_path: Path) -> None:
+        """deep_learning is not a valid pipeline category."""
+        data = self._minimal_config()
+        data["methods"]["deep_learning"] = [{"name": "ae_inpainting"}]
+        cfg_path = tmp_path / "bad.yaml"
+        _write_yaml(data, cfg_path)
+        with pytest.raises(ValueError, match="Unknown method category"):
+            load_config(cfg_path)

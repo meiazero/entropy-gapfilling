@@ -7,7 +7,6 @@ from pdi_pipeline.methods.compressive import (
     L1DCTInpainting,
     L1WaveletInpainting,
 )
-from pdi_pipeline.methods.dineof import DINEOFInterpolator
 from pdi_pipeline.methods.idw import IDWInterpolator
 from pdi_pipeline.methods.kriging import KrigingInterpolator
 from pdi_pipeline.methods.lanczos import LanczosInterpolator
@@ -34,7 +33,6 @@ __all__ = [
     "BicubicInterpolator",
     "BilinearInterpolator",
     "DCTInpainting",
-    "DINEOFInterpolator",
     "ExemplarBasedInterpolator",
     "IDWInterpolator",
     "KrigingInterpolator",

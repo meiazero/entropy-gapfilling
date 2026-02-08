@@ -34,6 +34,7 @@ class ComparisonResult:
     statistic: float
     p_value: float
     n_groups: int
+    epsilon_squared: float = 0.0
     posthoc: pd.DataFrame = field(default_factory=pd.DataFrame)
 
 
@@ -122,8 +123,9 @@ def correlation_matrix(
                     "entropy_col": ecol,
                     "metric_col": mcol,
                     "spearman_rho": result.spearman_rho,
+                    "spearman_p": result.spearman_p,
                     "pearson_r": result.pearson_r,
-                    "p_value": result.spearman_p,
+                    "pearson_p": result.pearson_p,
                     "n": result.n,
                 })
 
@@ -131,16 +133,28 @@ def correlation_matrix(
     if result_df.empty:
         return result_df
 
-    # FDR correction
-    p_vals = result_df["p_value"].values
-    valid_mask = ~np.isnan(p_vals)
+    # FDR correction -- Spearman
+    sp_vals = result_df["spearman_p"].values
+    sp_valid = ~np.isnan(sp_vals)
+    sp_sig = np.full(len(sp_vals), False)
+    if np.any(sp_valid):
+        _, sp_corrected, _, _ = multipletests(
+            sp_vals[sp_valid], method="fdr_bh"
+        )
+        sp_sig[sp_valid] = sp_corrected
+    result_df["spearman_significant_fdr"] = sp_sig
 
-    sig = np.full(len(p_vals), False)
-    if np.any(valid_mask):
-        _, corrected, _, _ = multipletests(p_vals[valid_mask], method="fdr_bh")
-        sig[valid_mask] = corrected
+    # FDR correction -- Pearson
+    pp_vals = result_df["pearson_p"].values
+    pp_valid = ~np.isnan(pp_vals)
+    pp_sig = np.full(len(pp_vals), False)
+    if np.any(pp_valid):
+        _, pp_corrected, _, _ = multipletests(
+            pp_vals[pp_valid], method="fdr_bh"
+        )
+        pp_sig[pp_valid] = pp_corrected
+    result_df["pearson_significant_fdr"] = pp_sig
 
-    result_df["significant_fdr"] = sig
     return result_df
 
 
@@ -178,7 +192,11 @@ def method_comparison(
 
     h_stat, h_p = stats.kruskal(*groups)
 
-    # Dunn post-hoc with Bonferroni correction
+    # Epsilon-squared effect size: eps^2 = H / (N - 1)
+    n_total = sum(len(g) for g in groups)
+    eps_sq = float(h_stat) / (n_total - 1) if n_total > 1 else 0.0
+
+    # Dunn post-hoc with Bonferroni correction + Cliff's delta
     posthoc_rows = []
     n_comparisons = len(method_names) * (len(method_names) - 1) // 2
 
@@ -188,6 +206,11 @@ def method_comparison(
                 groups[i], groups[j], alternative="two-sided"
             )
             corrected_p = min(u_p * n_comparisons, 1.0)
+
+            # Cliff's delta: d = (2U / (n1 * n2)) - 1
+            n1, n2 = len(groups[i]), len(groups[j])
+            cliffs_d = (2.0 * u_stat / (n1 * n2)) - 1.0 if n1 * n2 > 0 else 0.0
+
             posthoc_rows.append({
                 "method_a": method_names[i],
                 "method_b": method_names[j],
@@ -195,12 +218,14 @@ def method_comparison(
                 "p_value": float(u_p),
                 "p_corrected": corrected_p,
                 "significant": corrected_p < 0.05,
+                "cliffs_delta": float(cliffs_d),
             })
 
     return ComparisonResult(
         statistic=float(h_stat),
         p_value=float(h_p),
         n_groups=len(groups),
+        epsilon_squared=eps_sq,
         posthoc=pd.DataFrame(posthoc_rows),
     )
 

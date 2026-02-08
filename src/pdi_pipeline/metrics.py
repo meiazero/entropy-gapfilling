@@ -11,6 +11,11 @@ import numpy as np
 from skimage.metrics import structural_similarity
 
 
+def _as_gap_mask(mask: np.ndarray) -> np.ndarray:
+    """Convert a float mask to a boolean gap mask (True = gap pixel)."""
+    return mask > 0.5
+
+
 def _validate_inputs(
     clean: np.ndarray,
     reconstructed: np.ndarray,
@@ -59,7 +64,7 @@ def _validate_inputs(
         )
         raise ValueError(msg)
 
-    return clean, reconstructed, mask_2d
+    return clean, reconstructed, _as_gap_mask(mask_2d)
 
 
 def psnr(
@@ -81,7 +86,7 @@ def psnr(
         PSNR in dB. Returns inf if MSE is effectively zero.
     """
     clean, reconstructed, mask_2d = _validate_inputs(clean, reconstructed, mask)
-    gap = mask_2d > 0.5
+    gap = mask_2d
 
     if not np.any(gap):
         return float("inf")
@@ -117,7 +122,7 @@ def ssim(
         Mean SSIM value restricted to gap region.
     """
     clean, reconstructed, mask_2d = _validate_inputs(clean, reconstructed, mask)
-    gap = mask_2d > 0.5
+    gap = mask_2d
 
     if not np.any(gap):
         return 1.0
@@ -155,7 +160,7 @@ def rmse(
         RMSE value over gap pixels.
     """
     clean, reconstructed, mask_2d = _validate_inputs(clean, reconstructed, mask)
-    gap = mask_2d > 0.5
+    gap = mask_2d
 
     if not np.any(gap):
         return 0.0
@@ -197,7 +202,7 @@ def sam(
         )
         raise ValueError(msg)
 
-    gap = mask_2d > 0.5
+    gap = mask_2d
     if not np.any(gap):
         return 0.0
 
@@ -245,7 +250,7 @@ def local_psnr(
         Pixels with no gap neighbors in their window get NaN.
     """
     clean, reconstructed, mask_2d = _validate_inputs(clean, reconstructed, mask)
-    gap = mask_2d > 0.5
+    gap = mask_2d
 
     if clean.ndim == 3:
         # Average squared error across channels
@@ -298,7 +303,7 @@ def local_ssim(
         and NaN elsewhere.
     """
     clean, reconstructed, mask_2d = _validate_inputs(clean, reconstructed, mask)
-    gap = mask_2d > 0.5
+    gap = mask_2d
     is_multichannel = clean.ndim == 3
 
     win_size = min(window, min(clean.shape[0], clean.shape[1]))

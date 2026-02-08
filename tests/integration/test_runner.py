@@ -43,11 +43,15 @@ class TestRunnerIntegration:
             assert hasattr(method, "name")
 
     def test_full_registry_instantiation(self) -> None:
-        """All 16 paper methods can be instantiated."""
+        """All 15 classical paper methods can be instantiated."""
         from pdi_pipeline.config import load_config
-        from scripts.run_experiment import instantiate_method
+        from scripts.run_experiment import EXCLUDED_METHODS, instantiate_method
 
         cfg = load_config(PROJECT_ROOT / "config" / "paper_results.yaml")
-        for mc in cfg.methods:
+        classical = [
+            mc for mc in cfg.methods if mc.name not in EXCLUDED_METHODS
+        ]
+        assert len(classical) == 15
+        for mc in classical:
             method = instantiate_method(mc)
             assert method is not None

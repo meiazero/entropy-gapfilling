@@ -13,6 +13,10 @@ import pytest
 from pdi_pipeline.methods.dineof import DINEOFInterpolator
 from tests.conftest import PatchSample
 
+pytestmark = pytest.mark.skip(
+    reason="DINEOF excluded: requires time-series input"
+)
+
 
 @pytest.fixture()
 def temporal_stack(

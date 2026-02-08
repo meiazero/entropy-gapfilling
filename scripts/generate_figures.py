@@ -97,7 +97,7 @@ def fig2_entropy_vs_psnr(results_dir: Path, output_dir: Path) -> None:
 
     methods = sorted(df["method"].unique())
     n_methods = len(methods)
-    ncols = min(4, n_methods)
+    ncols = min(5, n_methods)
     nrows = (n_methods + ncols - 1) // ncols
 
     fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 2.5, nrows * 2.5))
@@ -256,12 +256,128 @@ def fig5_lisa_clusters(results_dir: Path, output_dir: Path) -> None:
 def fig6_visual_examples(results_dir: Path, output_dir: Path) -> None:
     """Fig 6: Visual reconstruction examples.
 
-    Shows clean / degraded / top-3 methods / worst method side by side.
+    Shows clean / degraded / top-4 classical methods for two patches
+    at low (10th percentile) and high (90th percentile) entropy.
     Requires preprocessed patches and reconstruction outputs.
     """
-    log.info(
-        "Figure 6: visual examples (placeholder - needs reconstruction outputs)"
-    )
+    df = load_results(results_dir)
+
+    project_root = Path(__file__).resolve().parent.parent
+    preprocessed = project_root / "preprocessed"
+    recon_dir = results_dir / "reconstructions"
+
+    if not recon_dir.exists():
+        log.warning(
+            "Reconstructions not found at %s. "
+            "Run experiment with --save-reconstructions first.",
+            recon_dir,
+        )
+        return
+
+    # Find representative patches at 10th and 90th entropy percentile
+    valid = df.dropna(subset=["entropy_7", "psnr"])
+    if valid.empty:
+        log.warning("No valid data for fig6")
+        return
+
+    p10 = float(valid["entropy_7"].quantile(0.10))
+    p90 = float(valid["entropy_7"].quantile(0.90))
+
+    low_ent = valid.iloc[(valid["entropy_7"] - p10).abs().argsort()[:1]]
+    high_ent = valid.iloc[(valid["entropy_7"] - p90).abs().argsort()[:1]]
+
+    representative = [
+        ("Low Entropy", low_ent.iloc[0]),
+        ("High Entropy", high_ent.iloc[0]),
+    ]
+
+    available_methods = sorted(recon_dir.iterdir())
+    method_names = [m.name for m in available_methods]
+
+    n_show = min(4, len(method_names))
+    ncols = 2 + n_show
+    nrows = len(representative)
+
+    if ncols < 3:
+        log.warning("Not enough reconstructions for fig6")
+        return
+
+    fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 2.0, nrows * 2.0))
+    if nrows == 1:
+        axes = axes[np.newaxis, :]
+
+    for row_idx, (label, ref_row) in enumerate(representative):
+        patch_id = int(ref_row["patch_id"])
+        satellite = ref_row["satellite"]
+        noise_level = ref_row.get("noise_level", "inf")
+
+        # Load clean and degraded
+        clean_path = (
+            preprocessed / "test" / satellite / f"{patch_id:07d}_clean.npy"
+        )
+        degraded_path = (
+            preprocessed
+            / "test"
+            / satellite
+            / f"{patch_id:07d}_degraded_{noise_level}.npy"
+        )
+
+        if not clean_path.exists() or not degraded_path.exists():
+            log.warning("Patch files not found for patch_id=%d", patch_id)
+            continue
+
+        clean = np.load(clean_path)
+        degraded = np.load(degraded_path)
+
+        def _to_display(arr: np.ndarray) -> np.ndarray:
+            if arr.ndim == 3 and arr.shape[2] >= 3:
+                arr = arr[:, :, :3]
+            vmin, vmax = float(arr.min()), float(arr.max())
+            if vmax - vmin < 1e-8:
+                return np.zeros_like(arr)
+            return np.clip((arr - vmin) / (vmax - vmin), 0, 1)
+
+        # Rank methods by PSNR for this patch
+        patch_df = valid[
+            (valid["patch_id"] == patch_id)
+            & (valid["noise_level"] == noise_level)
+        ]
+        ranked = patch_df.sort_values("psnr", ascending=False)
+
+        col = 0
+        axes[row_idx, col].imshow(_to_display(clean))
+        axes[row_idx, col].set_title("Clean")
+        axes[row_idx, col].axis("off")
+        if col == 0:
+            axes[row_idx, col].set_ylabel(label, fontsize=FONT_SIZE + 1)
+
+        col = 1
+        axes[row_idx, col].imshow(_to_display(degraded))
+        axes[row_idx, col].set_title("Degraded")
+        axes[row_idx, col].axis("off")
+
+        # Top-N methods
+        for k in range(n_show):
+            col = 2 + k
+            if k < len(ranked):
+                mname = ranked.iloc[k]["method"]
+                recon_path = recon_dir / mname / f"{patch_id:07d}.npy"
+                if recon_path.exists():
+                    recon = np.load(recon_path)
+                    axes[row_idx, col].imshow(_to_display(recon))
+                    psnr_val = ranked.iloc[k]["psnr"]
+                    axes[row_idx, col].set_title(
+                        f"{mname}\n{psnr_val:.1f} dB", fontsize=FONT_SIZE - 1
+                    )
+                else:
+                    axes[row_idx, col].set_title(mname)
+            axes[row_idx, col].axis("off")
+
+    fig.tight_layout()
+    fig.savefig(output_dir / "fig6_visual_examples.pdf")
+    fig.savefig(output_dir / "fig6_visual_examples.png")
+    plt.close(fig)
+    log.info("Saved fig6_visual_examples")
 
 
 def fig7_correlation_heatmap(results_dir: Path, output_dir: Path) -> None:
@@ -351,7 +467,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--figure",
         type=int,
         default=None,
-        help="Generate only this figure number (1-7).",
+        help="Generate only this figure number (1-8).",
     )
     return parser.parse_args(argv)
 

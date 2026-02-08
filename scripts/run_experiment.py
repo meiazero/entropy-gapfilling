@@ -37,7 +37,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MANIFEST = PROJECT_ROOT / "preprocessed" / "manifest.csv"
 
 # Multi-temporal methods excluded from this paper
-EXCLUDED_METHODS = {"temporal_spline", "temporal_fourier", "kriging_spacetime"}
+EXCLUDED_METHODS = {
+    "temporal_spline",
+    "temporal_fourier",
+    "kriging_spacetime",
+    "dineof",
+}
 
 # Registry: config name -> (class, default kwargs)
 _METHOD_REGISTRY: dict[str, type[BaseMethod]] = {}
@@ -52,7 +57,6 @@ def _build_registry() -> dict[str, type[BaseMethod]]:
         BicubicInterpolator,
         BilinearInterpolator,
         DCTInpainting,
-        DINEOFInterpolator,
         ExemplarBasedInterpolator,
         IDWInterpolator,
         KrigingInterpolator,
@@ -76,7 +80,6 @@ def _build_registry() -> dict[str, type[BaseMethod]]:
         RBFInterpolator,
         SplineInterpolator,
         KrigingInterpolator,
-        DINEOFInterpolator,
         DCTInpainting,
         WaveletInpainting,
         TVInpainting,
@@ -168,7 +171,11 @@ def _save_checkpoint(rows: list[dict[str, Any]], output_path: Path) -> None:
     combined.to_parquet(parquet_path, index=False)
 
 
-def run_experiment(config: ExperimentConfig, dry_run: bool = False) -> None:
+def run_experiment(
+    config: ExperimentConfig,
+    dry_run: bool = False,
+    save_reconstructions: int = 0,
+) -> None:
     """Execute the full experiment loop."""
     from pdi_pipeline import metrics as m
 
@@ -266,7 +273,36 @@ def run_experiment(config: ExperimentConfig, dry_run: bool = False) -> None:
                                 scores = m.compute_all(
                                     patch.clean, result, patch.mask
                                 )
-                            except Exception:
+                                status = "ok"
+                                error_msg = ""
+
+                                # Save reconstructions (first seed, no noise only)
+                                if (
+                                    save_reconstructions > 0
+                                    and seed == config.seeds[0]
+                                    and noise_level == "inf"
+                                ):
+                                    recon_dir = (
+                                        output_path
+                                        / "reconstructions"
+                                        / mc.name
+                                    )
+                                    existing = (
+                                        len(list(recon_dir.glob("*.npy")))
+                                        if recon_dir.exists()
+                                        else 0
+                                    )
+                                    if existing < save_reconstructions:
+                                        recon_dir.mkdir(
+                                            parents=True, exist_ok=True
+                                        )
+                                        np.save(
+                                            recon_dir
+                                            / f"{patch.patch_id:07d}.npy",
+                                            result,
+                                        )
+
+                            except Exception as exc:
                                 log.exception(
                                     "Error: seed=%d noise=%s method=%s "
                                     "patch=%d",
@@ -281,6 +317,8 @@ def run_experiment(config: ExperimentConfig, dry_run: bool = False) -> None:
                                     "rmse": float("nan"),
                                     "sam": float("nan"),
                                 }
+                                status = "error"
+                                error_msg = str(exc)
 
                             entropy = _load_entropy(
                                 preprocessed_dir,
@@ -298,6 +336,8 @@ def run_experiment(config: ExperimentConfig, dry_run: bool = False) -> None:
                                 "patch_id": patch.patch_id,
                                 "satellite": patch.satellite,
                                 "gap_fraction": patch.gap_fraction,
+                                "status": status,
+                                "error_msg": error_msg,
                             }
                             row.update(entropy)
                             row.update(scores)
@@ -313,6 +353,17 @@ def run_experiment(config: ExperimentConfig, dry_run: bool = False) -> None:
     # Final flush
     _save_checkpoint(buffer, output_path)
     buffer.clear()
+
+    # Log failure summary
+    parquet_path = output_path / "raw_results.parquet"
+    if parquet_path.exists():
+        all_df = pd.read_parquet(parquet_path)
+        if "status" in all_df.columns:
+            errors = all_df[all_df["status"] == "error"]
+            if not errors.empty:
+                log.warning("--- Failure Summary: %d errors ---", len(errors))
+                for method, group in errors.groupby("method"):
+                    log.warning("  %s: %d failures", method, len(group))
 
     elapsed = time.monotonic() - t0
     log.info("--- Experiment Complete ---")
@@ -342,6 +393,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Print experiment plan without executing.",
     )
+    parser.add_argument(
+        "--save-reconstructions",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Save first N reconstructed arrays per method (first seed, no noise).",
+    )
     return parser.parse_args(argv)
 
 
@@ -359,7 +417,11 @@ def main(argv: list[str] | None = None) -> None:
 
     log.info("Loading config: %s", config_path)
     config = load_config(config_path)
-    run_experiment(config, dry_run=args.dry_run)
+    run_experiment(
+        config,
+        dry_run=args.dry_run,
+        save_reconstructions=args.save_reconstructions,
+    )
 
 
 if __name__ == "__main__":

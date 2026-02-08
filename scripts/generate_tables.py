@@ -43,7 +43,6 @@ METHOD_INFO = {
         "Auto variogram",
         "O(N^3)",
     ),
-    "dineof": ("Geostatistical", "DINEOF", "Auto rank", "O(HW r)"),
     "dct": ("Transform", "DCT", "iter=50, lam=0.05", "O(HW log HW)"),
     "wavelet": ("Transform", "Wavelet", "db4, iter=50", "O(HW)"),
     "tv": ("Transform", "Total Variation", "iter=100", "O(HW)"),
@@ -59,6 +58,25 @@ METHOD_INFO = {
 }
 
 
+def _format_ranked_cell(value: float, ci_half: float, rank: int) -> str:
+    """Format a metric cell with bold-best / underline-second styling.
+
+    Args:
+        value: Mean metric value.
+        ci_half: Half-width of the 95% CI.
+        rank: 1 = best, 2 = second-best, else plain.
+
+    Returns:
+        LaTeX-formatted string.
+    """
+    base = f"${value:.2f}_{{\\pm {ci_half:.2f}}}$"
+    if rank == 1:
+        return f"\\textbf{{{base}}}"
+    if rank == 2:
+        return f"\\underline{{{base}}}"
+    return base
+
+
 def _write_tex(content: str, path: Path) -> None:
     path.write_text(content, encoding="utf-8")
     log.info("Saved %s", path)
@@ -69,7 +87,7 @@ def table1_method_overview(output_dir: Path) -> None:
     lines = [
         r"\begin{table}[htbp]",
         r"\centering",
-        r"\caption{Overview of the 16 gap-filling methods evaluated.}",
+        r"\caption{Overview of the 15 classical gap-filling methods evaluated.}",
         r"\label{tab:methods}",
         r"\footnotesize",
         r"\begin{tabular}{llllc}",
@@ -123,6 +141,14 @@ def table2_overall_results(results_dir: Path, output_dir: Path) -> None:
         r"\midrule",
     ]
 
+    # Compute rankings per noise level
+    rankings: dict[str, dict[str, int]] = {}
+    for noise in present_levels:
+        ndf = noise_summary[noise_summary["noise_level"] == noise]
+        ranked = ndf.sort_values("mean", ascending=False)
+        for rank, (_, rr) in enumerate(ranked.iterrows(), 1):
+            rankings.setdefault(noise, {})[rr["method"]] = rank
+
     for method in methods:
         mdf = noise_summary[noise_summary["method"] == method]
         cells = [method]
@@ -132,10 +158,9 @@ def table2_overall_results(results_dir: Path, output_dir: Path) -> None:
                 cells.append("--")
             else:
                 r = row.iloc[0]
-                cells.append(
-                    f"${r['mean']:.2f}"
-                    f"_{{\\pm {(r['ci95_hi'] - r['ci95_lo']) / 2:.2f}}}$"
-                )
+                ci_half = (r["ci95_hi"] - r["ci95_lo"]) / 2
+                rank = rankings.get(noise, {}).get(method, 99)
+                cells.append(_format_ranked_cell(r["mean"], ci_half, rank))
         lines.append(" & ".join(cells) + r" \\")
 
     lines.extend([
@@ -173,6 +198,14 @@ def table3_entropy_stratified(results_dir: Path, output_dir: Path) -> None:
         r"\midrule",
     ]
 
+    # Compute rankings per entropy bin
+    bin_rankings: dict[str, dict[str, int]] = {}
+    for b in bins:
+        bdf = ent_summary[ent_summary["entropy_bin"] == b]
+        ranked = bdf.sort_values("mean", ascending=False)
+        for rank, (_, rr) in enumerate(ranked.iterrows(), 1):
+            bin_rankings.setdefault(b, {})[rr["method"]] = rank
+
     for method in methods:
         mdf = ent_summary[ent_summary["method"] == method]
         cells = [method]
@@ -182,10 +215,9 @@ def table3_entropy_stratified(results_dir: Path, output_dir: Path) -> None:
                 cells.append("--")
             else:
                 r = row.iloc[0]
-                cells.append(
-                    f"${r['mean']:.2f}"
-                    f"_{{\\pm {(r['ci95_hi'] - r['ci95_lo']) / 2:.2f}}}$"
-                )
+                ci_half = (r["ci95_hi"] - r["ci95_lo"]) / 2
+                rank = bin_rankings.get(b, {}).get(method, 99)
+                cells.append(_format_ranked_cell(r["mean"], ci_half, rank))
         lines.append(" & ".join(cells) + r" \\")
 
     lines.extend([
@@ -250,7 +282,7 @@ def table4_correlation(results_dir: Path, output_dir: Path) -> None:
                 else:
                     r = row.iloc[0]
                     rho = r["spearman_rho"]
-                    p = r["p_value"]
+                    p = r["spearman_p"]
                     stars = ""
                     if p < 0.001:
                         stars = "***"
@@ -280,9 +312,9 @@ def table5_kruskal_wallis(results_dir: Path, output_dir: Path) -> None:
         r"\caption{Kruskal-Wallis test and significant pairwise differences (Dunn post-hoc, Bonferroni correction).}",
         r"\label{tab:kruskal}",
         r"\footnotesize",
-        r"\begin{tabular}{lccc}",
+        r"\begin{tabular}{lcccc}",
         r"\toprule",
-        r"Metric & H statistic & $p$-value & Significant pairs \\",
+        r"Metric & H statistic & $p$-value & $\epsilon^2$ & Significant pairs \\",
         r"\midrule",
     ]
 
@@ -300,7 +332,7 @@ def table5_kruskal_wallis(results_dir: Path, output_dir: Path) -> None:
         )
         lines.append(
             f"{metric.upper()} & ${result.statistic:.1f}$ & "
-            f"{p_str} & {n_sig} \\\\"
+            f"{p_str} & ${result.epsilon_squared:.4f}$ & {n_sig} \\\\"
         )
 
     lines.extend([

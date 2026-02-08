@@ -44,6 +44,107 @@ class ExperimentConfig:
         return Path(self.output_dir) / self.name
 
 
+VALID_CATEGORIES = frozenset({
+    "spatial",
+    "kernel",
+    "geostatistical",
+    "transform",
+    "compressive",
+    "patch_based",
+})
+
+
+def _validate_raw(raw: dict[str, Any]) -> None:
+    """Validate the raw YAML structure before dataclass construction.
+
+    Raises:
+        ValueError: If required keys are missing or types are wrong.
+    """
+    # Top-level keys
+    for key in ("experiment", "methods"):
+        if key not in raw:
+            msg = f"Config missing required top-level key: {key!r}"
+            raise ValueError(msg)
+
+    exp = raw["experiment"]
+    if not isinstance(exp, dict):
+        msg = "Config 'experiment' must be a mapping"
+        raise TypeError(msg)
+
+    required_exp_keys = (
+        "name",
+        "seeds",
+        "noise_levels",
+        "satellites",
+        "entropy_windows",
+    )
+    for key in required_exp_keys:
+        if key not in exp:
+            msg = f"Config 'experiment' missing required key: {key!r}"
+            raise ValueError(msg)
+
+    # Type checks
+    if not isinstance(exp["name"], str) or not exp["name"]:
+        msg = "experiment.name must be a non-empty string"
+        raise ValueError(msg)
+
+    if not isinstance(exp["seeds"], list) or not all(
+        isinstance(s, int) for s in exp["seeds"]
+    ):
+        msg = "experiment.seeds must be a list of integers"
+        raise ValueError(msg)
+
+    if not isinstance(exp["noise_levels"], list) or not all(
+        isinstance(n, str) for n in exp["noise_levels"]
+    ):
+        msg = "experiment.noise_levels must be a list of strings"
+        raise ValueError(msg)
+
+    if not isinstance(exp["satellites"], list) or not all(
+        isinstance(s, str) for s in exp["satellites"]
+    ):
+        msg = "experiment.satellites must be a list of strings"
+        raise ValueError(msg)
+
+    if not isinstance(exp["entropy_windows"], list) or not all(
+        isinstance(w, int) for w in exp["entropy_windows"]
+    ):
+        msg = "experiment.entropy_windows must be a list of integers"
+        raise ValueError(msg)
+
+    # Methods validation
+    methods_raw = raw["methods"]
+    if not isinstance(methods_raw, dict):
+        msg = "Config 'methods' must be a mapping of category -> method list"
+        raise TypeError(msg)
+
+    for category, items in methods_raw.items():
+        if category not in VALID_CATEGORIES:
+            msg = (
+                f"Unknown method category: {category!r}. "
+                f"Valid: {sorted(VALID_CATEGORIES)}"
+            )
+            raise ValueError(msg)
+
+        if not isinstance(items, list):
+            msg = f"Methods in category {category!r} must be a list"
+            raise TypeError(msg)
+
+        for item in items:
+            if not isinstance(item, dict):
+                msg = (
+                    f"Each method in {category!r} must be a mapping, "
+                    f"got {type(item).__name__}"
+                )
+                raise TypeError(msg)
+            if "name" not in item:
+                msg = f"Method in {category!r} missing required 'name' key"
+                raise ValueError(msg)
+            if not isinstance(item["name"], str) or not item["name"]:
+                msg = f"Method name in {category!r} must be a non-empty string"
+                raise ValueError(msg)
+
+
 def _parse_methods(raw: dict[str, list[dict]]) -> list[MethodConfig]:
     """Flatten category -> method list into a flat list of MethodConfig."""
     methods: list[MethodConfig] = []
@@ -79,6 +180,8 @@ def load_config(path: str | Path) -> ExperimentConfig:
 
     with path.open() as fh:
         raw = yaml.safe_load(fh)
+
+    _validate_raw(raw)
 
     exp = raw["experiment"]
     methods = _parse_methods(raw["methods"])

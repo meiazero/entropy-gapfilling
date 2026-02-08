@@ -19,7 +19,6 @@ methods:
     - { name: "spline" }
   geostatistical:
     - { name: "kriging" }
-    - { name: "dineof" }
   transform:
     - { name: "dct" }
     - { name: "wavelet" }
