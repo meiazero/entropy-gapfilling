@@ -1,6 +1,6 @@
 """Generate LaTeX tables from experiment results.
 
-Produces 5 table types for the journal paper, each exported as a
+Produces 8 table types for the journal paper, each exported as a
 standalone .tex file that can be included via \\input{}.
 
 Usage:
@@ -18,8 +18,13 @@ from pdi_pipeline.aggregation import (
     load_results,
     summary_by_entropy_bin,
     summary_by_noise,
+    summary_by_satellite,
 )
-from pdi_pipeline.statistics import correlation_matrix, method_comparison
+from pdi_pipeline.statistics import (
+    correlation_matrix,
+    method_comparison,
+    robust_regression,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -173,60 +178,71 @@ def table2_overall_results(results_dir: Path, output_dir: Path) -> None:
 
 
 def table3_entropy_stratified(results_dir: Path, output_dir: Path) -> None:
-    """Table 3: Mean PSNR per method x entropy bin."""
+    """Table 3: Mean PSNR per method x entropy bin at all window scales."""
     df = load_results(results_dir)
-    ent_summary = summary_by_entropy_bin(
-        df, entropy_col="entropy_7", metric="psnr"
-    )
 
-    if ent_summary.empty:
-        log.warning("No data for table3")
-        return
+    entropy_windows = [c for c in df.columns if c.startswith("entropy_")]
+    if not entropy_windows:
+        entropy_windows = ["entropy_7"]
 
-    methods = sorted(ent_summary["method"].unique())
     bins = ["low", "medium", "high"]
 
-    lines = [
-        r"\begin{table}[htbp]",
-        r"\centering",
-        r"\caption{Mean PSNR (dB) $\pm$ 95\% CI stratified by entropy tercile (7$\times$7 window).}",
-        r"\label{tab:entropy_stratified}",
-        r"\footnotesize",
-        r"\begin{tabular}{lccc}",
-        r"\toprule",
-        r"Method & Low Entropy & Medium Entropy & High Entropy \\",
-        r"\midrule",
-    ]
+    for ecol in sorted(entropy_windows):
+        ws = ecol.split("_")[-1]
+        ent_summary = summary_by_entropy_bin(
+            df, entropy_col=ecol, metric="psnr"
+        )
 
-    # Compute rankings per entropy bin
-    bin_rankings: dict[str, dict[str, int]] = {}
-    for b in bins:
-        bdf = ent_summary[ent_summary["entropy_bin"] == b]
-        ranked = bdf.sort_values("mean", ascending=False)
-        for rank, (_, rr) in enumerate(ranked.iterrows(), 1):
-            bin_rankings.setdefault(b, {})[rr["method"]] = rank
+        if ent_summary.empty:
+            log.warning("No data for table3 (%s)", ecol)
+            continue
 
-    for method in methods:
-        mdf = ent_summary[ent_summary["method"] == method]
-        cells = [method]
+        methods = sorted(ent_summary["method"].unique())
+
+        lines = [
+            r"\begin{table}[htbp]",
+            r"\centering",
+            rf"\caption{{Mean PSNR (dB) $\pm$ 95\% CI stratified by entropy tercile ({ws}$\times${ws} window).}}",
+            rf"\label{{tab:entropy_stratified_{ws}}}",
+            r"\footnotesize",
+            r"\begin{tabular}{lccc}",
+            r"\toprule",
+            r"Method & Low Entropy & Medium Entropy & High Entropy \\",
+            r"\midrule",
+        ]
+
+        # Compute rankings per entropy bin
+        bin_rankings: dict[str, dict[str, int]] = {}
         for b in bins:
-            row = mdf[mdf["entropy_bin"] == b]
-            if row.empty:
-                cells.append("--")
-            else:
-                r = row.iloc[0]
-                ci_half = (r["ci95_hi"] - r["ci95_lo"]) / 2
-                rank = bin_rankings.get(b, {}).get(method, 99)
-                cells.append(_format_ranked_cell(r["mean"], ci_half, rank))
-        lines.append(" & ".join(cells) + r" \\")
+            bdf = ent_summary[ent_summary["entropy_bin"] == b]
+            ranked = bdf.sort_values("mean", ascending=False)
+            for rank, (_, rr) in enumerate(ranked.iterrows(), 1):
+                bin_rankings.setdefault(b, {})[rr["method"]] = rank
 
-    lines.extend([
-        r"\bottomrule",
-        r"\end{tabular}",
-        r"\end{table}",
-    ])
+        for method in methods:
+            mdf = ent_summary[ent_summary["method"] == method]
+            cells = [method]
+            for b in bins:
+                row = mdf[mdf["entropy_bin"] == b]
+                if row.empty:
+                    cells.append("--")
+                else:
+                    r = row.iloc[0]
+                    ci_half = (r["ci95_hi"] - r["ci95_lo"]) / 2
+                    rank = bin_rankings.get(b, {}).get(method, 99)
+                    cells.append(_format_ranked_cell(r["mean"], ci_half, rank))
+            lines.append(" & ".join(cells) + r" \\")
 
-    _write_tex("\n".join(lines), output_dir / "table3_entropy.tex")
+        lines.extend([
+            r"\bottomrule",
+            r"\end{tabular}",
+            r"\end{table}",
+        ])
+
+        _write_tex(
+            "\n".join(lines),
+            output_dir / f"table3_entropy_{ws}.tex",
+        )
 
 
 def table4_correlation(results_dir: Path, output_dir: Path) -> None:
@@ -344,12 +360,245 @@ def table5_kruskal_wallis(results_dir: Path, output_dir: Path) -> None:
     _write_tex("\n".join(lines), output_dir / "table5_kruskal.tex")
 
 
+def table6_regression(results_dir: Path, output_dir: Path) -> None:
+    """Table 6: Robust regression coefficients, p-values, R2-adj, VIF."""
+    df = load_results(results_dir)
+
+    entropy_cols = sorted(c for c in df.columns if c.startswith("entropy_"))
+    if not entropy_cols:
+        log.warning("No entropy columns for table6")
+        return
+
+    for metric in ["psnr", "ssim", "rmse"]:
+        if metric not in df.columns:
+            continue
+
+        result = robust_regression(
+            df, metric_col=metric, entropy_cols=entropy_cols
+        )
+        if result.coefficients.empty:
+            log.warning("Regression failed for %s", metric)
+            continue
+
+        coef = result.coefficients
+
+        lines = [
+            r"\begin{table}[htbp]",
+            r"\centering",
+            rf"\caption{{Robust regression (RLM/HuberT) for {metric.upper()}. "
+            rf"$R^2_{{adj}} = {result.r_squared_adj:.4f}$, $n = {result.n}$.}}",
+            rf"\label{{tab:regression_{metric}}}",
+            r"\tiny",
+            r"\begin{tabular}{lrrrrr}",
+            r"\toprule",
+            r"Variable & $\beta$ & Std. Err. & $z$ & $p$ & 95\% CI \\",
+            r"\midrule",
+        ]
+
+        for _, row in coef.iterrows():
+            var = str(row["variable"]).replace("_", r"\_")
+            p_str = (
+                "$< 10^{-10}$"
+                if row["p_value"] < 1e-10
+                else f"${row['p_value']:.2e}$"
+            )
+            ci_str = f"[{row['ci_lo']:.4f}, {row['ci_hi']:.4f}]"
+            lines.append(
+                f"{var} & ${row['beta']:.4f}$ & "
+                f"${row['std_err']:.4f}$ & "
+                f"${row['z_value']:.2f}$ & "
+                f"{p_str} & {ci_str} \\\\"
+            )
+
+        lines.extend([
+            r"\bottomrule",
+            r"\end{tabular}",
+        ])
+
+        # VIF sub-table
+        if not result.vif.empty:
+            lines.append(r"\vspace{0.5em}")
+            lines.append(r"\begin{tabular}{lr}")
+            lines.append(r"\toprule")
+            lines.append(r"Variable & VIF \\")
+            lines.append(r"\midrule")
+            for _, vrow in result.vif.iterrows():
+                var = str(vrow["variable"]).replace("_", r"\_")
+                lines.append(f"{var} & ${vrow['vif']:.2f}$ \\\\")
+            lines.append(r"\bottomrule")
+            lines.append(r"\end{tabular}")
+
+        lines.append(r"\end{table}")
+
+        _write_tex(
+            "\n".join(lines),
+            output_dir / f"table6_regression_{metric}.tex",
+        )
+
+
+def table7_satellite(results_dir: Path, output_dir: Path) -> None:
+    """Table 7: Mean PSNR per method x satellite."""
+    df = load_results(results_dir)
+    sat_summary = summary_by_satellite(df, metric="psnr")
+
+    if sat_summary.empty:
+        log.warning("No data for table7")
+        return
+
+    methods = sorted(sat_summary["method"].unique())
+    satellites = sorted(sat_summary["satellite"].unique())
+
+    ncols = len(satellites)
+    col_spec = "l" + "c" * ncols
+
+    lines = [
+        r"\begin{table}[htbp]",
+        r"\centering",
+        r"\caption{Mean PSNR (dB) $\pm$ 95\% CI per method and satellite sensor.}",
+        r"\label{tab:satellite}",
+        r"\footnotesize",
+        f"\\begin{{tabular}}{{{col_spec}}}",
+        r"\toprule",
+        "Method & "
+        + " & ".join(s.replace("_", r"\_") for s in satellites)
+        + r" \\",
+        r"\midrule",
+    ]
+
+    # Rankings per satellite
+    sat_rankings: dict[str, dict[str, int]] = {}
+    for sat in satellites:
+        sdf = sat_summary[sat_summary["satellite"] == sat]
+        ranked = sdf.sort_values("mean", ascending=False)
+        for rank, (_, rr) in enumerate(ranked.iterrows(), 1):
+            sat_rankings.setdefault(sat, {})[rr["method"]] = rank
+
+    for method in methods:
+        mdf = sat_summary[sat_summary["method"] == method]
+        cells = [method]
+        for sat in satellites:
+            row = mdf[mdf["satellite"] == sat]
+            if row.empty:
+                cells.append("--")
+            else:
+                r = row.iloc[0]
+                ci_half = (r["ci95_hi"] - r["ci95_lo"]) / 2
+                rank = sat_rankings.get(sat, {}).get(method, 99)
+                cells.append(_format_ranked_cell(r["mean"], ci_half, rank))
+        lines.append(" & ".join(cells) + r" \\")
+
+    lines.extend([
+        r"\bottomrule",
+        r"\end{tabular}",
+        r"\end{table}",
+    ])
+
+    _write_tex("\n".join(lines), output_dir / "table7_satellite.tex")
+
+
+def table8_dl_comparison(results_dir: Path, output_dir: Path) -> None:
+    """Table 8: Classical vs. DL method comparison.
+
+    Loads DL evaluation results from results_dir/../dl_eval/ and merges
+    with classical results for a side-by-side comparison.
+    """
+    import pandas as pd
+
+    df_classical = load_results(results_dir)
+
+    # Aggregate classical: mean per method
+    classical_summary = (
+        df_classical.groupby("method")[["psnr", "ssim", "rmse"]]
+        .mean()
+        .reset_index()
+    )
+    classical_summary["type"] = "Classical"
+
+    # Load DL results
+    dl_base = results_dir.parent / "dl_eval"
+    dl_rows = []
+    if dl_base.exists():
+        for model_dir in sorted(dl_base.iterdir()):
+            csv = model_dir / "results.csv"
+            if csv.exists():
+                dl_df = pd.read_csv(csv)
+                ok = dl_df[dl_df["status"] == "ok"]
+                if not ok.empty:
+                    dl_rows.append({
+                        "method": model_dir.name,
+                        "psnr": ok["psnr"].mean(),
+                        "ssim": ok["ssim"].mean(),
+                        "rmse": ok["rmse"].mean(),
+                        "type": "Deep Learning",
+                    })
+
+    if not dl_rows:
+        log.warning(
+            "No DL results found at %s. "
+            "Run DL evaluation first to include in comparison.",
+            dl_base,
+        )
+
+    dl_summary = pd.DataFrame(dl_rows)
+    combined = pd.concat([classical_summary, dl_summary], ignore_index=True)
+    combined = combined.sort_values("psnr", ascending=False)
+
+    metrics_display = ["psnr", "ssim", "rmse"]
+    present = [m for m in metrics_display if m in combined.columns]
+
+    lines = [
+        r"\begin{table}[htbp]",
+        r"\centering",
+        r"\caption{Performance comparison: classical interpolation vs.\ deep learning methods.}",
+        r"\label{tab:dl_comparison}",
+        r"\footnotesize",
+        r"\begin{tabular}{ll" + "c" * len(present) + "}",
+        r"\toprule",
+        "Type & Method & " + " & ".join(m.upper() for m in present) + r" \\",
+        r"\midrule",
+    ]
+
+    # Rankings for bold/underline
+    for m_col in present:
+        combined[f"rank_{m_col}"] = combined[m_col].rank(
+            ascending=(m_col == "rmse"), method="min"
+        )
+
+    prev_type = ""
+    for _, row in combined.iterrows():
+        type_str = row["type"] if row["type"] != prev_type else ""
+        prev_type = row["type"]
+        method_str = str(row["method"]).replace("_", r"\_")
+        cells = [type_str, method_str]
+        for m_col in present:
+            val = row[m_col]
+            rank = int(row[f"rank_{m_col}"])
+            if rank == 1:
+                cells.append(f"\\textbf{{{val:.3f}}}")
+            elif rank == 2:
+                cells.append(f"\\underline{{{val:.3f}}}")
+            else:
+                cells.append(f"${val:.3f}$")
+        lines.append(" & ".join(cells) + r" \\")
+
+    lines.extend([
+        r"\bottomrule",
+        r"\end{tabular}",
+        r"\end{table}",
+    ])
+
+    _write_tex("\n".join(lines), output_dir / "table8_dl_comparison.tex")
+
+
 ALL_TABLES = {
     1: lambda rd, od: table1_method_overview(od),
     2: table2_overall_results,
     3: table3_entropy_stratified,
     4: table4_correlation,
     5: table5_kruskal_wallis,
+    6: table6_regression,
+    7: table7_satellite,
+    8: table8_dl_comparison,
 }
 
 
@@ -373,9 +622,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--table",
         type=int,
         default=None,
-        help="Generate only this table number (1-5).",
+        help="Generate only this table number (1-8).",
     )
     return parser.parse_args(argv)
+
+
+def _setup_file_logging(log_path: Path) -> None:
+    """Add a file handler to the root logger."""
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    handler = logging.FileHandler(log_path, encoding="utf-8")
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s [%(levelname)s] %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
+    logging.getLogger().addHandler(handler)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -384,6 +647,7 @@ def main(argv: list[str] | None = None) -> None:
     results_dir = args.results
     output_dir = args.output or results_dir / "tables"
     output_dir.mkdir(parents=True, exist_ok=True)
+    _setup_file_logging(results_dir / "tables.log")
 
     if args.table is not None:
         if args.table not in ALL_TABLES:

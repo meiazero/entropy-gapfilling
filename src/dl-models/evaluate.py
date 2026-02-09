@@ -122,6 +122,11 @@ def main() -> None:
         log.error("Checkpoint not found: %s", args.checkpoint)
         return
 
+    from shared.utils import setup_file_logging
+
+    output_dir = args.output / args.model
+    setup_file_logging(output_dir / "evaluate.log")
+
     log.info("Loading model: %s", args.model)
     model = _load_model(args.model, args.checkpoint, args.device)
     log.info("Model loaded: %s", model.name)
@@ -190,8 +195,8 @@ def main() -> None:
 
     elapsed = time.monotonic() - t0
     df = pd.DataFrame(rows)
-    parquet_path = output_dir / "results.parquet"
-    df.to_parquet(parquet_path, index=False)
+    csv_path = output_dir / "results.csv"
+    df.to_csv(csv_path, index=False)
 
     # Summary
     ok_df = df[df["status"] == "ok"]
@@ -211,7 +216,7 @@ def main() -> None:
         log.warning("Errors: %d / %d", n_errors, len(df))
 
     log.info("Elapsed: %.1fs", elapsed)
-    log.info("Results saved to: %s", parquet_path)
+    log.info("Results saved to: %s", csv_path)
 
 
 if __name__ == "__main__":

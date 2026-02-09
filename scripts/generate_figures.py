@@ -1,6 +1,6 @@
 """Generate publication-quality figures from experiment results.
 
-Produces 7 figure types for the journal paper. All figures use
+Produces 9 figure types for the journal paper. All figures use
 matplotlib + seaborn with consistent styling.
 
 Usage:
@@ -411,7 +411,19 @@ def fig7_correlation_heatmap(results_dir: Path, output_dir: Path) -> None:
             columns="entropy_col",
             values="spearman_rho",
         )
-        pivot = pivot.reindex(index=methods)
+        pivot = (
+            pivot.reindex(index=methods)
+            .dropna(how="all")
+            .dropna(axis=1, how="all")
+        )
+
+        if pivot.empty or pivot.shape[0] < 2 or pivot.shape[1] < 1:
+            log.warning(
+                "Insufficient data for fig7 heatmap (%s): %s",
+                mcol,
+                pivot.shape,
+            )
+            continue
 
         fig, ax = plt.subplots(figsize=FIGSIZE_SINGLE)
         sns.heatmap(
@@ -436,6 +448,170 @@ def fig7_correlation_heatmap(results_dir: Path, output_dir: Path) -> None:
     log.info("Saved fig7_correlation_heatmap(s)")
 
 
+def fig8_dl_vs_classical(results_dir: Path, output_dir: Path) -> None:
+    """Fig 8: Bar chart comparing classical top-5 vs DL models."""
+    import pandas as pd
+
+    df_classical = load_results(results_dir)
+
+    # Top 5 classical methods by mean PSNR
+    classical_means = (
+        df_classical.groupby("method")["psnr"]
+        .mean()
+        .sort_values(ascending=False)
+        .head(5)
+    )
+
+    # Load DL results
+    dl_base = results_dir.parent / "dl_eval"
+    dl_means: dict[str, float] = {}
+    if dl_base.exists():
+        for model_dir in sorted(dl_base.iterdir()):
+            csv = model_dir / "results.csv"
+            if csv.exists():
+                dl_df = pd.read_csv(csv)
+                ok = dl_df[dl_df["status"] == "ok"]
+                if not ok.empty:
+                    dl_means[model_dir.name] = float(ok["psnr"].mean())
+
+    if not dl_means:
+        log.warning(
+            "No DL results found at %s. Skipping fig8.",
+            dl_base,
+        )
+        return
+
+    # Build combined bar data
+    names = list(classical_means.index) + list(dl_means.keys())
+    values = list(classical_means.values) + list(dl_means.values())
+    colors = ["#4878CF"] * len(classical_means) + ["#E24A33"] * len(dl_means)
+
+    fig, ax = plt.subplots(figsize=FIGSIZE_DOUBLE)
+    bars = ax.barh(range(len(names)), values, color=colors, height=0.6)
+    ax.set_yticks(range(len(names)))
+    ax.set_yticklabels(names)
+    ax.set_xlabel("Mean PSNR (dB)")
+    ax.invert_yaxis()
+
+    # Legend
+    from matplotlib.patches import Patch
+
+    legend_elements = [
+        Patch(facecolor="#4878CF", label="Classical (top 5)"),
+        Patch(facecolor="#E24A33", label="Deep Learning"),
+    ]
+    ax.legend(handles=legend_elements, loc="lower right")
+
+    for bar, val in zip(bars, values):
+        ax.text(
+            bar.get_width() + 0.1,
+            bar.get_y() + bar.get_height() / 2,
+            f"{val:.1f}",
+            va="center",
+            fontsize=FONT_SIZE - 1,
+        )
+
+    fig.tight_layout()
+    fig.savefig(output_dir / "fig8_dl_vs_classical.pdf")
+    fig.savefig(output_dir / "fig8_dl_vs_classical.png")
+    plt.close(fig)
+    log.info("Saved fig8_dl_vs_classical")
+
+
+def fig9_local_metric_maps(results_dir: Path, output_dir: Path) -> None:
+    """Fig 9: Aggregated local PSNR and SSIM maps for a representative patch.
+
+    Shows spatial distribution of reconstruction quality to support
+    the LISA hotspot analysis (fig5).
+    """
+    from pdi_pipeline.metrics import local_psnr, local_ssim
+
+    df = load_results(results_dir)
+    project_root = Path(__file__).resolve().parent.parent
+    preprocessed = project_root / "preprocessed"
+    recon_dir = results_dir / "reconstructions"
+
+    if not recon_dir.exists():
+        log.warning(
+            "Reconstructions not found at %s. Skipping fig9.",
+            recon_dir,
+        )
+        return
+
+    valid = df.dropna(subset=["entropy_7", "psnr"])
+    if valid.empty:
+        log.warning("No valid data for fig9")
+        return
+
+    # Pick median-entropy patch
+    median_ent = float(valid["entropy_7"].median())
+    ref_row = valid.iloc[
+        (valid["entropy_7"] - median_ent).abs().argsort()[:1]
+    ].iloc[0]
+    patch_id = int(ref_row["patch_id"])
+    satellite = ref_row["satellite"]
+
+    clean_path = preprocessed / "test" / satellite / f"{patch_id:07d}_clean.npy"
+    mask_path = preprocessed / "test" / satellite / f"{patch_id:07d}_mask.npy"
+
+    if not clean_path.exists() or not mask_path.exists():
+        log.warning("Patch files not found for patch_id=%d", patch_id)
+        return
+
+    clean = np.load(clean_path)
+    mask = np.load(mask_path)
+
+    # Pick top 3 methods by PSNR for this patch
+    patch_df = valid[valid["patch_id"] == patch_id]
+    top_methods = (
+        patch_df.groupby("method")["psnr"]
+        .mean()
+        .sort_values(ascending=False)
+        .head(3)
+        .index.tolist()
+    )
+
+    if not top_methods:
+        log.warning("No method data for patch_id=%d", patch_id)
+        return
+
+    nrows = len(top_methods)
+    fig, axes = plt.subplots(nrows, 2, figsize=(5.0, nrows * 2.5))
+    if nrows == 1:
+        axes = axes[np.newaxis, :]
+
+    for row_idx, method in enumerate(top_methods):
+        recon_path = recon_dir / method / f"{patch_id:07d}.npy"
+        if not recon_path.exists():
+            axes[row_idx, 0].set_visible(False)
+            axes[row_idx, 1].set_visible(False)
+            continue
+
+        recon = np.load(recon_path)
+        lpsnr = local_psnr(clean, recon, mask, window=15)
+        lssim = local_ssim(clean, recon, mask, window=15)
+
+        im0 = axes[row_idx, 0].imshow(lpsnr, cmap="RdYlGn")
+        axes[row_idx, 0].set_title(f"{method} - Local PSNR")
+        axes[row_idx, 0].axis("off")
+        plt.colorbar(im0, ax=axes[row_idx, 0], fraction=0.046, pad=0.04)
+
+        im1 = axes[row_idx, 1].imshow(lssim, cmap="RdYlGn", vmin=0, vmax=1)
+        axes[row_idx, 1].set_title(f"{method} - Local SSIM")
+        axes[row_idx, 1].axis("off")
+        plt.colorbar(im1, ax=axes[row_idx, 1], fraction=0.046, pad=0.04)
+
+    fig.suptitle(
+        f"Local Quality Maps (patch {patch_id}, {satellite})",
+        fontsize=FONT_SIZE + 1,
+    )
+    fig.tight_layout()
+    fig.savefig(output_dir / "fig9_local_metric_maps.pdf")
+    fig.savefig(output_dir / "fig9_local_metric_maps.png")
+    plt.close(fig)
+    log.info("Saved fig9_local_metric_maps")
+
+
 ALL_FIGURES = {
     1: fig1_entropy_examples,
     2: fig2_entropy_vs_psnr,
@@ -444,6 +620,8 @@ ALL_FIGURES = {
     5: fig5_lisa_clusters,
     6: fig6_visual_examples,
     7: fig7_correlation_heatmap,
+    8: fig8_dl_vs_classical,
+    9: fig9_local_metric_maps,
 }
 
 
@@ -472,6 +650,20 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _setup_file_logging(log_path: Path) -> None:
+    """Add a file handler to the root logger."""
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    handler = logging.FileHandler(log_path, encoding="utf-8")
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s [%(levelname)s] %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
+    logging.getLogger().addHandler(handler)
+
+
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
     _setup_style()
@@ -479,6 +671,7 @@ def main(argv: list[str] | None = None) -> None:
     results_dir = args.results
     output_dir = args.output or results_dir / "figures"
     output_dir.mkdir(parents=True, exist_ok=True)
+    _setup_file_logging(results_dir / "figures.log")
 
     if args.figure is not None:
         if args.figure not in ALL_FIGURES:

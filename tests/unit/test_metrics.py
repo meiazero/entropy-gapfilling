@@ -7,6 +7,7 @@ import pytest
 
 from pdi_pipeline.metrics import (
     compute_all,
+    ergas,
     local_psnr,
     local_ssim,
     psnr,
@@ -98,6 +99,45 @@ class TestSAM:
         assert abs(result - 90.0) < 0.1
 
 
+class TestERGAS:
+    def test_perfect_reconstruction_returns_zero(self) -> None:
+        rng = np.random.default_rng(42)
+        img = rng.random((16, 16, 4)).astype(np.float32) + 0.1
+        mask = np.ones((16, 16), dtype=np.float32)
+        result = ergas(img, img, mask)
+        assert abs(result) < 1e-5
+
+    def test_no_gap_returns_zero(self) -> None:
+        rng = np.random.default_rng(42)
+        img = rng.random((16, 16, 4)).astype(np.float32) + 0.1
+        mask = np.zeros((16, 16), dtype=np.float32)
+        result = ergas(img, img * 0.5, mask)
+        assert result == 0.0
+
+    def test_requires_multichannel(self) -> None:
+        with pytest.raises(ValueError, match="multichannel"):
+            ergas(np.zeros((4, 4)), np.zeros((4, 4)), np.ones((4, 4)))
+
+    def test_positive_for_imperfect_reconstruction(self) -> None:
+        rng = np.random.default_rng(42)
+        clean = rng.random((16, 16, 4)).astype(np.float32) + 0.1
+        recon = clean + rng.normal(0, 0.05, clean.shape).astype(np.float32)
+        recon = np.clip(recon, 0, 1)
+        mask = np.ones((16, 16), dtype=np.float32)
+        result = ergas(clean, recon, mask)
+        assert result > 0.0
+
+    def test_known_value(self) -> None:
+        # Uniform bands: RMSE_b / mean_b should be consistent
+        clean = np.full((4, 4, 2), 0.5, dtype=np.float32)
+        recon = np.full((4, 4, 2), 0.4, dtype=np.float32)
+        mask = np.ones((4, 4), dtype=np.float32)
+        # RMSE per band = 0.1, mean per band = 0.5
+        # ERGAS = 100 * sqrt(1/2 * (0.1/0.5)^2 * 2) = 100 * 0.2 = 20.0
+        result = ergas(clean, recon, mask)
+        assert abs(result - 20.0) < 0.5
+
+
 class TestLocalPSNR:
     def test_output_shape(self) -> None:
         rng = np.random.default_rng(42)
@@ -137,10 +177,12 @@ class TestComputeAll:
         assert "ssim" in result
         assert "rmse" in result
         assert "sam" in result
+        assert "ergas" in result
 
-    def test_returns_no_sam_for_2d(self) -> None:
+    def test_returns_no_sam_or_ergas_for_2d(self) -> None:
         rng = np.random.default_rng(42)
         img = rng.random((16, 16)).astype(np.float32)
         mask = np.ones((16, 16), dtype=np.float32)
         result = compute_all(img, img, mask)
         assert "sam" not in result
+        assert "ergas" not in result

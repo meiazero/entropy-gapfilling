@@ -228,6 +228,60 @@ def sam(
     return float(np.mean(angles_deg))
 
 
+def ergas(
+    clean: np.ndarray,
+    reconstructed: np.ndarray,
+    mask: np.ndarray,
+) -> float:
+    """Erreur Relative Globale Adimensionnelle de Synthese on gap pixels.
+
+    Standard remote sensing metric for spectral fidelity assessment.
+    For gap-filling (no resolution change), the spatial ratio h/l = 1:
+
+        ERGAS = 100 * sqrt(1/B * sum_b( (RMSE_b / mean_b)^2 ))
+
+    Requires multichannel input (H, W, C) with C >= 2.
+
+    Args:
+        clean: Reference image, (H, W, C), float32 in [0, 1].
+        reconstructed: Reconstructed image, same shape.
+        mask: Binary mask, (H, W), 1=gap.
+
+    Returns:
+        ERGAS value (dimensionless). Lower is better.
+    """
+    clean, reconstructed, mask_2d = _validate_inputs(clean, reconstructed, mask)
+
+    if clean.ndim != 3 or clean.shape[2] < 2:
+        msg = (
+            "ERGAS requires multichannel input (H, W, C) with C >= 2, "
+            f"got shape {clean.shape}"
+        )
+        raise ValueError(msg)
+
+    gap = mask_2d
+    if not np.any(gap):
+        return 0.0
+
+    n_bands = clean.shape[2]
+    band_sum = 0.0
+
+    for b in range(n_bands):
+        clean_b = clean[:, :, b]
+        recon_b = reconstructed[:, :, b]
+
+        diff = clean_b[gap] - recon_b[gap]
+        rmse_b = float(np.sqrt(np.mean(diff**2)))
+        mean_b = float(np.mean(clean_b[gap]))
+
+        if abs(mean_b) < 1e-10:
+            continue
+
+        band_sum += (rmse_b / mean_b) ** 2
+
+    return float(100.0 * np.sqrt(band_sum / n_bands))
+
+
 def local_psnr(
     clean: np.ndarray,
     reconstructed: np.ndarray,
@@ -353,5 +407,6 @@ def compute_all(
     clean_arr = np.asarray(clean)
     if clean_arr.ndim == 3 and clean_arr.shape[2] >= 2:
         results["sam"] = sam(clean, reconstructed, mask)
+        results["ergas"] = ergas(clean, reconstructed, mask)
 
     return results

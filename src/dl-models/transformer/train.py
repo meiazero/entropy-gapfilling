@@ -19,7 +19,14 @@ if str(_DL_ROOT) not in sys.path:
 
 import torch
 from shared.dataset import InpaintingDataset
-from shared.utils import EarlyStopping, GapPixelLoss, save_checkpoint
+from shared.utils import (
+    EarlyStopping,
+    GapPixelLoss,
+    TrainingHistory,
+    compute_validation_metrics,
+    save_checkpoint,
+    setup_file_logging,
+)
 from torch.utils.data import DataLoader
 from transformer.model import _MAEInpaintingNet
 
@@ -48,6 +55,8 @@ def main() -> None:
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--patience", type=int, default=15)
     args = parser.parse_args()
+
+    setup_file_logging(args.output.parent / "transformer_train.log")
 
     device = torch.device(
         args.device
@@ -82,6 +91,21 @@ def main() -> None:
     early_stop = EarlyStopping(patience=args.patience)
     best_val_loss = float("inf")
 
+    history = TrainingHistory(
+        "transformer",
+        args.output.parent,
+        metadata={
+            "epochs": args.epochs,
+            "batch_size": args.batch_size,
+            "lr": args.lr,
+            "weight_decay": args.weight_decay,
+            "patience": args.patience,
+            "train_size": len(train_ds),
+            "val_size": len(val_ds),
+            "device": str(device),
+        },
+    )
+
     for epoch in range(1, args.epochs + 1):
         model.train()
         train_loss = 0.0
@@ -99,6 +123,9 @@ def main() -> None:
 
         model.eval()
         val_loss = 0.0
+        val_preds: list[torch.Tensor] = []
+        val_targets: list[torch.Tensor] = []
+        val_masks: list[torch.Tensor] = []
         with torch.no_grad():
             for x, clean, mask in val_loader:
                 x, clean, mask = (
@@ -109,17 +136,33 @@ def main() -> None:
                 pred = model(x)
                 loss = criterion(pred, clean, mask)
                 val_loss += loss.item() * x.size(0)
+                val_preds.append(pred.cpu())
+                val_targets.append(clean.cpu())
+                val_masks.append(mask.cpu())
         val_loss /= len(val_ds)
 
         lr = optimizer.param_groups[0]["lr"]
+        metrics = compute_validation_metrics(val_preds, val_targets, val_masks)
+
         log.info(
-            "Epoch %d/%d  train_loss=%.6f  val_loss=%.6f  lr=%.2e",
+            "Epoch %d/%d  train_loss=%.6f  val_loss=%.6f"
+            "  lr=%.2e  psnr=%.2f  ssim=%.4f",
             epoch,
             args.epochs,
             train_loss,
             val_loss,
             lr,
+            metrics["val_psnr"],
+            metrics["val_ssim"],
         )
+
+        history.record({
+            "epoch": epoch,
+            "train_loss": train_loss,
+            "val_loss": val_loss,
+            "lr": lr,
+            **metrics,
+        })
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss

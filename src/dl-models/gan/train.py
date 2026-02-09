@@ -20,7 +20,14 @@ if str(_DL_ROOT) not in sys.path:
 import torch
 from gan.model import _PatchDiscriminator, _UNetGenerator
 from shared.dataset import InpaintingDataset
-from shared.utils import EarlyStopping, GapPixelLoss, save_checkpoint
+from shared.utils import (
+    EarlyStopping,
+    GapPixelLoss,
+    TrainingHistory,
+    compute_validation_metrics,
+    save_checkpoint,
+    setup_file_logging,
+)
 from torch.utils.data import DataLoader
 
 logging.basicConfig(
@@ -47,6 +54,8 @@ def main() -> None:
     parser.add_argument("--lambda-l1", type=float, default=10.0)
     parser.add_argument("--lambda-adv", type=float, default=0.1)
     args = parser.parse_args()
+
+    setup_file_logging(args.output.parent / "gan_train.log")
 
     device = torch.device(
         args.device
@@ -78,11 +87,29 @@ def main() -> None:
     early_stop = EarlyStopping(patience=args.patience)
     best_val_loss = float("inf")
 
+    history = TrainingHistory(
+        "gan",
+        args.output.parent,
+        metadata={
+            "epochs": args.epochs,
+            "batch_size": args.batch_size,
+            "lr": args.lr,
+            "lambda_l1": args.lambda_l1,
+            "lambda_adv": args.lambda_adv,
+            "patience": args.patience,
+            "train_size": len(train_ds),
+            "val_size": len(val_ds),
+            "device": str(device),
+        },
+    )
+
     for epoch in range(1, args.epochs + 1):
         gen.train()
         disc.train()
         g_loss_sum = 0.0
         d_loss_sum = 0.0
+        g_adv_sum = 0.0
+        g_recon_sum = 0.0
 
         for x, clean, mask in train_loader:
             x, clean, mask = x.to(device), clean.to(device), mask.to(device)
@@ -116,13 +143,20 @@ def main() -> None:
             g_loss.backward()
             opt_g.step()
             g_loss_sum += g_loss.item() * b
+            g_adv_sum += g_adv.item() * b
+            g_recon_sum += g_recon.item() * b
 
         g_loss_avg = g_loss_sum / len(train_ds)
         d_loss_avg = d_loss_sum / len(train_ds)
+        g_adv_avg = g_adv_sum / len(train_ds)
+        g_recon_avg = g_recon_sum / len(train_ds)
 
         # Validate (generator only, L1 gap loss)
         gen.eval()
         val_loss = 0.0
+        val_preds: list[torch.Tensor] = []
+        val_targets: list[torch.Tensor] = []
+        val_masks: list[torch.Tensor] = []
         with torch.no_grad():
             for x, clean, mask in val_loader:
                 x, clean, mask = (
@@ -133,16 +167,34 @@ def main() -> None:
                 fake = gen(x)
                 loss = gap_l1(fake, clean, mask)
                 val_loss += loss.item() * x.size(0)
+                val_preds.append(fake.cpu())
+                val_targets.append(clean.cpu())
+                val_masks.append(mask.cpu())
         val_loss /= len(val_ds)
 
+        metrics = compute_validation_metrics(val_preds, val_targets, val_masks)
+
         log.info(
-            "Epoch %d/%d  g_loss=%.6f  d_loss=%.6f  val_loss=%.6f",
+            "Epoch %d/%d  g_loss=%.6f  d_loss=%.6f  val_loss=%.6f"
+            "  psnr=%.2f  ssim=%.4f",
             epoch,
             args.epochs,
             g_loss_avg,
             d_loss_avg,
             val_loss,
+            metrics["val_psnr"],
+            metrics["val_ssim"],
         )
+
+        history.record({
+            "epoch": epoch,
+            "train_g_loss": g_loss_avg,
+            "train_d_loss": d_loss_avg,
+            "train_g_adv": g_adv_avg,
+            "train_g_recon": g_recon_avg,
+            "val_loss": val_loss,
+            **metrics,
+        })
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss

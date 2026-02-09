@@ -30,4 +30,4 @@ methods:
     - { name: "non_local" }
     - { name: "exemplar_based" }
 
-metrics: ["psnr", "ssim", "rmse", "sam"]
+metrics: ["psnr", "ssim", "rmse", "sam", "ergas"]

@@ -1,139 +1,108 @@
 # PDI Entropy-Guided Gap-Filling
 # Makefile for reproducibility and development
 
+# =============================================================================
+# DEVELOPMENT
+# =============================================================================
+
 .PHONY: install
 install: ## Install dependencies and pre-commit hooks
-	@echo "Creating virtual environment using uv"
+	@echo "Installing dependencies"
 	@uv sync
 	@uv run pre-commit install
 
 .PHONY: check
-check: ## Run code quality tools
-	@echo "Checking lock file consistency with 'pyproject.toml'"
+check: ## Run linting and dependency checks
 	@uv lock --locked
-	@echo "Linting code: Running pre-commit"
 	@uv run pre-commit run -a
-# 	@echo "Static type checking: Running mypy"
-# 	@uv run mypy
-	@echo "Checking for obsolete dependencies: Running deptry"
 	@uv run deptry src
 
 .PHONY: test
-test: ## Test the code with pytest
-	@echo "Testing code: Running pytest"
+test: ## Run test suite with coverage
 	@uv run python -m pytest --cov --cov-config=pyproject.toml --cov-report=xml
 
-.PHONY: build
-build: clean-build ## Build wheel file
-	@echo "Creating wheel file"
-	@uvx --from build pyproject-build --installer uv
-
-.PHONY: clean-build
-clean-build: ## Clean build artifacts
-	@echo "Removing build artifacts"
-	@uv run python -c "import shutil; import os; shutil.rmtree('dist') if os.path.exists('dist') else None"
-
 # =============================================================================
-# REPRODUCIBILITY TARGETS
+# EXPERIMENT PIPELINE
 # =============================================================================
 
 .PHONY: preprocess
-preprocess: ## Preprocess dataset for fast loading (run once)
-	@echo "Preprocessing dataset (converts GeoTIFF to NPY, precomputes entropy)"
+preprocess: ## Preprocess dataset (GeoTIFF to NPY, run once)
+	@echo "Preprocessing dataset"
 	@uv run python scripts/preprocess_dataset.py
 
 .PHONY: preprocess-resume
 preprocess-resume: ## Resume interrupted preprocessing
-	@echo "Resuming preprocessing..."
 	@uv run python scripts/preprocess_dataset.py --resume
 
 .PHONY: experiment
-experiment: ## Run full paper reproduction experiment
-	@echo "Running full experiment with paper_results.yaml"
-	@uv run python scripts/run_experiment.py --config config/paper_results.yaml
+experiment: preprocess ## Run full paper experiment
+	@echo "Running full experiment (paper_results.yaml)"
+	@uv run python scripts/run_experiment.py --config config/paper_results.yaml --save-reconstructions 5
 
 .PHONY: experiment-quick
-experiment-quick: ## Run quick validation (50 patches, 1 seed)
+experiment-quick: preprocess ## Run quick validation (50 patches, 1 seed)
 	@echo "Running quick validation experiment"
-	@uv run python scripts/run_experiment.py --quick
+	@uv run python scripts/run_experiment.py --quick --save-reconstructions 5
 
 .PHONY: experiment-dry
 experiment-dry: ## Validate configuration without running
-	@echo "Validating experiment configuration"
 	@uv run python scripts/run_experiment.py --dry-run
 
 .PHONY: figures
-figures: ## Generate publication figures from results
-	@echo "Generating figures"
-	@uv run python scripts/generate_figures.py
+figures: ## Generate figures from full experiment results
+	@uv run python scripts/generate_figures.py --results results/paper_results
 
 .PHONY: tables
-tables: ## Generate LaTeX tables from results
-	@echo "Generating LaTeX tables"
-	@uv run python scripts/generate_tables.py
+tables: ## Generate LaTeX tables from full experiment results
+	@uv run python scripts/generate_tables.py --results results/paper_results
+
+.PHONY: figures-quick
+figures-quick: ## Generate figures from quick validation results
+	@uv run python scripts/generate_figures.py --results results/quick_validation
+
+.PHONY: tables-quick
+tables-quick: ## Generate tables from quick validation results
+	@uv run python scripts/generate_tables.py --results results/quick_validation
 
 .PHONY: reproduce
-reproduce: preprocess experiment figures tables ## Full reproduction pipeline
+reproduce: experiment figures tables ## Full reproduction pipeline
 	@echo ""
 	@echo "=========================================="
 	@echo "Reproduction complete!"
 	@echo "=========================================="
-	@echo "Results: outputs/"
-	@echo "Figures: paper/figures/"
-	@echo "Tables:  paper/tables/"
+	@echo "Results: results/paper_results/"
+	@echo "Figures: results/paper_results/figures/"
+	@echo "Tables:  results/paper_results/tables/"
 
 .PHONY: reproduce-quick
-reproduce-quick: experiment-quick figures tables ## Quick reproduction pipeline
+reproduce-quick: experiment-quick figures-quick tables-quick ## Quick reproduction pipeline
 	@echo ""
 	@echo "Quick reproduction complete!"
+	@echo "Results: results/quick_validation/"
 
 # =============================================================================
-# DOCUMENTATION TARGETS
-# =============================================================================
-
-.PHONY: docs-test
-docs-test: ## Test if documentation can be built without warnings or errors
-	@uv run mkdocs build -s
-
-.PHONY: docs
-docs: ## Build and serve the documentation
-	@uv run mkdocs serve
-
-.PHONY: latex
-latex: ## Start hot-reload for LaTeX compilation
-	@echo "Starting LaTeX hot-reload"
-	@bash hot-reload-latex.sh
-
-# =============================================================================
-# UTILITY TARGETS
+# CLEANUP
 # =============================================================================
 
 .PHONY: clean
-clean: clean-build ## Clean all generated files
-	@echo "Cleaning generated files..."
-	@rm -rf outputs/checkpoints
-	@rm -rf outputs/metadata/logs/*.log
-	@rm -rf .mypy_cache
-	@rm -rf .pytest_cache
-	@rm -rf .ruff_cache
+clean: ## Clean caches and generated files
+	@rm -rf .mypy_cache .pytest_cache .ruff_cache
 	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	@echo "Clean complete"
 
 .PHONY: clean-results
 clean-results: ## Clean experiment results (keep preprocessed data)
-	@echo "Cleaning experiment results..."
-	@rm -rf outputs/data
-	@rm -rf outputs/figures
-	@rm -rf outputs/reconstructions
-	@rm -rf paper/figures
-	@rm -rf paper/tables
+	@rm -rf results/
 	@echo "Results cleaned"
 
 .PHONY: clean-all
 clean-all: clean clean-results ## Clean everything including preprocessed data
-	@echo "Cleaning preprocessed data..."
-	@rm -rf preprocessed
+	@rm -rf preprocessed/
 	@echo "All cleaned"
+
+# =============================================================================
+# HELP
+# =============================================================================
 
 .PHONY: help
 help: ## Show this help message

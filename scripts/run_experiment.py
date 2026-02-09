@@ -124,12 +124,19 @@ def _load_entropy(
     satellite: str,
     patch_id: int,
     windows: list[int],
+    clean: np.ndarray | None = None,
 ) -> dict[str, float]:
     """Load precomputed entropy values for a patch.
 
+    Falls back to computing entropy on-the-fly from the clean image
+    when precomputed files are not available.
+
     Returns a dict like {"entropy_7": 3.45, "entropy_15": 3.21, ...}.
-    Returns NaN for missing entropy files.
+    Returns NaN only when both precomputed file and clean image are
+    unavailable.
     """
+    from pdi_pipeline.entropy import shannon_entropy
+
     result: dict[str, float] = {}
     for ws in windows:
         key = f"entropy_{ws}"
@@ -137,6 +144,9 @@ def _load_entropy(
         if path.exists():
             arr = np.load(path)
             result[key] = float(np.mean(arr))
+        elif clean is not None:
+            ent_map = shannon_entropy(clean, window_size=ws)
+            result[key] = float(np.mean(ent_map))
         else:
             result[key] = float("nan")
     return result
@@ -144,11 +154,11 @@ def _load_entropy(
 
 def _load_completed(output_path: Path) -> set[tuple[int, str, str, int]]:
     """Load already-completed (seed, noise, method, patch_id) tuples."""
-    parquet_path = output_path / "raw_results.parquet"
-    if not parquet_path.exists():
+    csv_path = output_path / "raw_results.csv"
+    if not csv_path.exists():
         return set()
-    df = pd.read_parquet(
-        parquet_path, columns=["seed", "noise_level", "method", "patch_id"]
+    df = pd.read_csv(
+        csv_path, usecols=["seed", "noise_level", "method", "patch_id"]
     )
     return {
         (int(r["seed"]), r["noise_level"], r["method"], int(r["patch_id"]))
@@ -157,18 +167,32 @@ def _load_completed(output_path: Path) -> set[tuple[int, str, str, int]]:
 
 
 def _save_checkpoint(rows: list[dict[str, Any]], output_path: Path) -> None:
-    """Append rows to the parquet file."""
+    """Append rows to the CSV file."""
     if not rows:
         return
     output_path.mkdir(parents=True, exist_ok=True)
-    parquet_path = output_path / "raw_results.parquet"
+    csv_path = output_path / "raw_results.csv"
     new_df = pd.DataFrame(rows)
-    if parquet_path.exists():
-        existing = pd.read_parquet(parquet_path)
+    if csv_path.exists():
+        existing = pd.read_csv(csv_path)
         combined = pd.concat([existing, new_df], ignore_index=True)
     else:
         combined = new_df
-    combined.to_parquet(parquet_path, index=False)
+    combined.to_csv(csv_path, index=False)
+
+
+def _setup_file_logging(log_path: Path) -> None:
+    """Add a file handler to the root logger."""
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    handler = logging.FileHandler(log_path, encoding="utf-8")
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s [%(levelname)s] %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
+    logging.getLogger().addHandler(handler)
 
 
 def run_experiment(
@@ -180,6 +204,7 @@ def run_experiment(
     from pdi_pipeline import metrics as m
 
     output_path = config.output_path
+    _setup_file_logging(output_path / "experiment.log")
     manifest_path = DEFAULT_MANIFEST
 
     if not manifest_path.exists():
@@ -326,6 +351,7 @@ def run_experiment(
                                 patch.satellite,
                                 patch.patch_id,
                                 config.entropy_windows,
+                                clean=patch.clean,
                             )
 
                             row: dict[str, Any] = {
@@ -355,9 +381,9 @@ def run_experiment(
     buffer.clear()
 
     # Log failure summary
-    parquet_path = output_path / "raw_results.parquet"
-    if parquet_path.exists():
-        all_df = pd.read_parquet(parquet_path)
+    csv_path = output_path / "raw_results.csv"
+    if csv_path.exists():
+        all_df = pd.read_csv(csv_path)
         if "status" in all_df.columns:
             errors = all_df[all_df["status"] == "error"]
             if not errors.empty:
@@ -370,7 +396,7 @@ def run_experiment(
     log.info("Evaluations computed: %d", n_done)
     log.info("Evaluations skipped (resume): %d", n_skipped)
     log.info("Elapsed: %.1fs", elapsed)
-    log.info("Results: %s", output_path / "raw_results.parquet")
+    log.info("Results: %s", output_path / "raw_results.csv")
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

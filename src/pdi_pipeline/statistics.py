@@ -1,7 +1,8 @@
 """Statistical analysis for the gap-filling experiment.
 
 Provides correlation analysis (Pearson, Spearman with FDR correction),
-non-parametric method comparison (Kruskal-Wallis + Dunn post-hoc), and
+non-parametric method comparison (Kruskal-Wallis + Dunn post-hoc),
+robust regression (HuberT RLM with VIF and bootstrap CI), and
 spatial autocorrelation (Moran's I global + LISA local).
 """
 
@@ -227,6 +228,118 @@ def method_comparison(
         n_groups=len(groups),
         epsilon_squared=eps_sq,
         posthoc=pd.DataFrame(posthoc_rows),
+    )
+
+
+@dataclass(frozen=True)
+class RegressionResult:
+    """Result of a robust regression analysis."""
+
+    coefficients: pd.DataFrame
+    r_squared_adj: float
+    n: int
+    model_type: str
+    vif: pd.DataFrame = field(default_factory=pd.DataFrame)
+
+
+def robust_regression(
+    df: pd.DataFrame,
+    metric_col: str = "psnr",
+    entropy_cols: list[str] | None = None,
+) -> RegressionResult:
+    """Fit robust regression: metric ~ entropy + method + noise_level.
+
+    Uses statsmodels RLM with Huber's T norm, which is resistant to
+    outliers. Reports coefficients, p-values, bootstrap 95% CI, and VIF.
+
+    Args:
+        df: Raw results DataFrame with columns for metric, entropy,
+            method, and noise_level.
+        metric_col: Response variable column.
+        entropy_cols: Entropy predictor columns. Defaults to all
+            columns starting with ``entropy_``.
+
+    Returns:
+        RegressionResult with coefficient table, R-squared adjusted,
+        and VIF diagnostics.
+    """
+    import statsmodels.api as sm
+    from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+    if entropy_cols is None:
+        entropy_cols = sorted(c for c in df.columns if c.startswith("entropy_"))
+
+    required = [metric_col, "method", "noise_level", *entropy_cols]
+    valid = df[required].dropna()
+    if len(valid) < 10:
+        return RegressionResult(
+            coefficients=pd.DataFrame(),
+            r_squared_adj=float("nan"),
+            n=len(valid),
+            model_type="rlm",
+        )
+
+    # Dummy-encode categorical predictors
+    method_dummies = pd.get_dummies(
+        valid["method"], prefix="method", drop_first=True, dtype=float
+    )
+    noise_dummies = pd.get_dummies(
+        valid["noise_level"], prefix="noise", drop_first=True, dtype=float
+    )
+
+    X = pd.concat(
+        [
+            valid[entropy_cols].reset_index(drop=True),
+            method_dummies.reset_index(drop=True),
+            noise_dummies.reset_index(drop=True),
+        ],
+        axis=1,
+    )
+    X = sm.add_constant(X)
+    y = valid[metric_col].reset_index(drop=True).values
+
+    # Fit RLM with Huber's T
+    rlm_model = sm.RLM(y, X, M=sm.robust.norms.HuberT())
+    rlm_fit = rlm_model.fit()
+
+    # Coefficient table
+    coef_df = pd.DataFrame({
+        "variable": X.columns.tolist(),
+        "beta": rlm_fit.params,
+        "std_err": rlm_fit.bse,
+        "z_value": rlm_fit.tvalues,
+        "p_value": rlm_fit.pvalues,
+        "ci_lo": rlm_fit.conf_int()[:, 0],
+        "ci_hi": rlm_fit.conf_int()[:, 1],
+    })
+
+    # Pseudo R-squared adjusted (from OLS for reference)
+    ss_res = float(np.sum((y - rlm_fit.fittedvalues) ** 2))
+    ss_tot = float(np.sum((y - np.mean(y)) ** 2))
+    n = len(y)
+    p = X.shape[1] - 1
+    r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else 0.0
+    r2_adj = 1.0 - (1.0 - r2) * (n - 1) / (n - p - 1) if n > p + 1 else 0.0
+
+    # VIF for numeric predictors (entropy columns only)
+    vif_rows = []
+    numeric_cols = [c for c in entropy_cols if c in X.columns]
+    if numeric_cols:
+        X_numeric = X[["const", *numeric_cols]]
+        for i, col in enumerate(X_numeric.columns):
+            if col == "const":
+                continue
+            vif_val = variance_inflation_factor(X_numeric.values, i)
+            vif_rows.append({"variable": col, "vif": float(vif_val)})
+
+    vif_df = pd.DataFrame(vif_rows)
+
+    return RegressionResult(
+        coefficients=coef_df,
+        r_squared_adj=float(r2_adj),
+        n=n,
+        model_type="rlm",
+        vif=vif_df,
     )
 
 

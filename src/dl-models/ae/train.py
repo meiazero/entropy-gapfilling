@@ -21,7 +21,14 @@ if str(_DL_ROOT) not in sys.path:
 import torch
 from ae.model import _AENet
 from shared.dataset import InpaintingDataset
-from shared.utils import EarlyStopping, GapPixelLoss, save_checkpoint
+from shared.utils import (
+    EarlyStopping,
+    GapPixelLoss,
+    TrainingHistory,
+    compute_validation_metrics,
+    save_checkpoint,
+    setup_file_logging,
+)
 from torch.utils.data import DataLoader
 
 logging.basicConfig(
@@ -46,6 +53,8 @@ def main() -> None:
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--patience", type=int, default=10)
     args = parser.parse_args()
+
+    setup_file_logging(args.output.parent / "ae_train.log")
 
     device = torch.device(
         args.device
@@ -74,6 +83,20 @@ def main() -> None:
 
     best_val_loss = float("inf")
 
+    history = TrainingHistory(
+        "ae",
+        args.output.parent,
+        metadata={
+            "epochs": args.epochs,
+            "batch_size": args.batch_size,
+            "lr": args.lr,
+            "patience": args.patience,
+            "train_size": len(train_ds),
+            "val_size": len(val_ds),
+            "device": str(device),
+        },
+    )
+
     for epoch in range(1, args.epochs + 1):
         # Train
         model.train()
@@ -91,6 +114,9 @@ def main() -> None:
         # Validate
         model.eval()
         val_loss = 0.0
+        val_preds: list[torch.Tensor] = []
+        val_targets: list[torch.Tensor] = []
+        val_masks: list[torch.Tensor] = []
         with torch.no_grad():
             for x, clean, mask in val_loader:
                 x, clean, mask = (
@@ -101,15 +127,29 @@ def main() -> None:
                 pred = model(x)
                 loss = criterion(pred, clean, mask)
                 val_loss += loss.item() * x.size(0)
+                val_preds.append(pred.cpu())
+                val_targets.append(clean.cpu())
+                val_masks.append(mask.cpu())
         val_loss /= len(val_ds)
 
+        metrics = compute_validation_metrics(val_preds, val_targets, val_masks)
+
         log.info(
-            "Epoch %d/%d  train_loss=%.6f  val_loss=%.6f",
+            "Epoch %d/%d  train_loss=%.6f  val_loss=%.6f  psnr=%.2f  ssim=%.4f",
             epoch,
             args.epochs,
             train_loss,
             val_loss,
+            metrics["val_psnr"],
+            metrics["val_ssim"],
         )
+
+        history.record({
+            "epoch": epoch,
+            "train_loss": train_loss,
+            "val_loss": val_loss,
+            **metrics,
+        })
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss

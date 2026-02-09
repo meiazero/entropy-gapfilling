@@ -13,10 +13,10 @@ import pandas as pd
 
 
 def load_results(path: str | Path) -> pd.DataFrame:
-    """Load raw experiment results from Parquet.
+    """Load raw experiment results from CSV.
 
     Args:
-        path: Path to the raw_results.parquet file, or the directory
+        path: Path to the raw_results.csv file, or the directory
             containing it.
 
     Returns:
@@ -24,8 +24,8 @@ def load_results(path: str | Path) -> pd.DataFrame:
     """
     path = Path(path)
     if path.is_dir():
-        path = path / "raw_results.parquet"
-    return pd.read_parquet(path)
+        path = path / "raw_results.csv"
+    return pd.read_csv(path)
 
 
 def _bootstrap_ci(
@@ -186,6 +186,38 @@ def summary_by_gap_fraction(
     )
     result["gap_bin"] = result["gap_bin"].astype(bin_order)
     return result.sort_values(["method", "gap_bin"])
+
+
+def summary_by_satellite(
+    df: pd.DataFrame,
+    metric: str = "psnr",
+) -> pd.DataFrame:
+    """Per-method x satellite summary with mean and 95% CI.
+
+    Args:
+        df: Raw results DataFrame.
+        metric: Metric column to summarize.
+
+    Returns:
+        DataFrame with method x satellite summary.
+    """
+    rows = []
+    for (method, sat), group in df.groupby(["method", "satellite"]):
+        vals = group[metric].dropna().values
+        ci_lo, ci_hi = _bootstrap_ci(vals)
+        rows.append({
+            "method": method,
+            "satellite": sat,
+            "n": len(vals),
+            "mean": float(np.mean(vals)) if len(vals) > 0 else float("nan"),
+            "median": (
+                float(np.median(vals)) if len(vals) > 0 else float("nan")
+            ),
+            "std": float(np.std(vals)) if len(vals) > 0 else float("nan"),
+            "ci95_lo": ci_lo,
+            "ci95_hi": ci_hi,
+        })
+    return pd.DataFrame(rows).sort_values(["method", "satellite"])
 
 
 def summary_by_noise(
