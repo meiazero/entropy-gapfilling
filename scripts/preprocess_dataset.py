@@ -1,20 +1,26 @@
 """Preprocess satellite image patches from GeoTIFF to NPY format.
 
-Converts 77,916 GeoTIFF patches into NumPy arrays for fast loading during
+Converts GeoTIFF patches into NumPy arrays for fast loading during
 experiments. Inverts mask convention from source (1=valid, 0=gap) to pipeline
 convention (1=gap, 0=valid). Transposes images from rasterio's (C, H, W) to
 (H, W, C) layout expected by BaseMethod._apply_channelwise().
 
+When ``--config`` is given, simulates PatchDataset's deterministic selection
+across all experiment seeds and preprocesses only the union of needed patches.
+The per-seed selections are saved to ``patch_selections.json`` so the
+experiment runner can use them directly.
+
 Usage:
     uv run python scripts/preprocess_dataset.py
-    uv run python scripts/preprocess_dataset.py --resume
-    uv run python scripts/preprocess_dataset.py --limit 10 --seed 42
+    uv run python scripts/preprocess_dataset.py --config config/paper_results.yaml --resume
+    uv run python scripts/preprocess_dataset.py --config config/quick_validation.yaml --resume
 """
 
 from __future__ import annotations
 
 import argparse
 import contextlib
+import json
 import logging
 import os
 import sys
@@ -35,7 +41,6 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 DEFAULT_DATA_ROOT = Path("/opt/datasets/satellite-images")
-DEFAULT_SEED = 69
 MANIFEST_NAME = "manifest.csv"
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -82,16 +87,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--limit",
-        type=int,
+        "--config",
+        type=Path,
         default=None,
-        help="Process only N randomly sampled patches per satellite.",
-    )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=DEFAULT_SEED,
-        help=f"Random seed for --limit sampling. Default: {DEFAULT_SEED}.",
+        help=(
+            "Experiment YAML config. When provided, preprocesses only the "
+            "patches required by the experiment (satellites, seeds, "
+            "max_patches). Saves per-seed patch selections to JSON."
+        ),
     )
     parser.add_argument(
         "--output-dir",
@@ -265,6 +268,57 @@ def _cleanup(paths: list[Path]) -> None:
             p.unlink(missing_ok=True)
 
 
+def _simulate_selection(
+    df: pd.DataFrame,
+    satellites: list[str],
+    seeds: list[int],
+    max_patches: int | None,
+) -> dict[str, dict[int, list[int]]]:
+    """Replicate PatchDataset's deterministic patch selection on raw metadata.
+
+    For each (satellite, seed) pair, applies the same sort-then-sample
+    logic as PatchDataset.__init__ on the test split.
+
+    Returns:
+        Nested dict ``{satellite: {seed: [sorted_patch_ids]}}``.
+    """
+    selections: dict[str, dict[int, list[int]]] = {}
+
+    for sat in satellites:
+        sat_df = df[(df["split"] == "test") & (df["satellite"] == sat)]
+        sat_df = sat_df.sort_values("patch_id").reset_index(drop=True)
+        all_ids = sat_df["patch_id"].tolist()
+        n = len(all_ids)
+
+        selections[sat] = {}
+        for seed in seeds:
+            if max_patches is not None and n > max_patches:
+                rng = np.random.default_rng(seed)
+                idx = rng.choice(n, size=max_patches, replace=False)
+                idx.sort()
+                selected = [int(all_ids[i]) for i in idx]
+            else:
+                selected = [int(pid) for pid in all_ids]
+            selections[sat][seed] = selected
+
+    return selections
+
+
+def _save_patch_selections(
+    selections: dict[str, dict[int, list[int]]],
+    output_dir: Path,
+) -> None:
+    """Save per-seed patch selections to JSON for the experiment runner."""
+    serializable = {
+        sat: {str(seed): ids for seed, ids in seed_map.items()}
+        for sat, seed_map in selections.items()
+    }
+    path = output_dir / "patch_selections.json"
+    with path.open("w") as fh:
+        json.dump(serializable, fh, indent=2)
+    log.info("Patch selections saved to: %s", path)
+
+
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
     data_root = resolve_data_root(args.data_root)
@@ -283,20 +337,57 @@ def main(argv: list[str] | None = None) -> None:
     df = pd.read_parquet(parquet_path)
     log.info("Loaded %d patches from metadata.parquet", len(df))
 
-    if args.limit is not None:
-        rng = np.random.default_rng(args.seed)
-        sampled = []
-        for _sat, group in df.groupby("satellite"):
-            n = min(args.limit, len(group))
-            idx = rng.choice(len(group), size=n, replace=False)
-            sampled.append(group.iloc[sorted(idx)])
-        df = pd.concat(sampled).reset_index(drop=True)
+    if args.config is not None:
+        from pdi_pipeline.config import load_config
+
+        cfg = load_config(args.config)
         log.info(
-            "Sampled %d patches (%d per satellite, seed=%d)",
-            len(df),
-            args.limit,
-            args.seed,
+            "Config: %s (satellites=%s, seeds=%d, max_patches=%s)",
+            cfg.name,
+            cfg.satellites,
+            len(cfg.seeds),
+            cfg.max_patches,
         )
+
+        # Filter to configured satellites
+        before = len(df)
+        df = df[df["satellite"].isin(cfg.satellites)].reset_index(drop=True)
+        log.info(
+            "Filtered satellites %s: %d -> %d patches",
+            cfg.satellites,
+            before,
+            len(df),
+        )
+
+        if cfg.max_patches is not None:
+            # Simulate PatchDataset's selection across all seeds to
+            # determine the exact set of patches needed.
+            selections = _simulate_selection(
+                df,
+                cfg.satellites,
+                cfg.seeds,
+                cfg.max_patches,
+            )
+
+            # Compute union of selected patch IDs across all seeds
+            union_ids: set[int] = set()
+            for sat_sel in selections.values():
+                for patch_ids in sat_sel.values():
+                    union_ids.update(patch_ids)
+
+            before = len(df)
+            df = df[df["patch_id"].isin(union_ids)].reset_index(drop=True)
+            log.info(
+                "Patch selection: %d unique patches across %d seeds "
+                "(from %d candidates)",
+                len(union_ids),
+                len(cfg.seeds),
+                before,
+            )
+
+            # Save selections for the experiment runner
+            output_dir.mkdir(parents=True, exist_ok=True)
+            _save_patch_selections(selections, output_dir)
 
     output_dir.mkdir(parents=True, exist_ok=True)
 

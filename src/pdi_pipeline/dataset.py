@@ -59,6 +59,9 @@ class PatchDataset:
         noise_level: Noise variant to load ("inf", "40", "30", "20").
         max_patches: If set, truncate to this many patches.
         seed: Random seed for reproducible truncation ordering.
+        selected_ids: Pre-computed list of patch IDs to use. When
+            provided, overrides ``max_patches``/``seed`` sampling and
+            filters to exactly these IDs.
     """
 
     def __init__(
@@ -69,6 +72,7 @@ class PatchDataset:
         noise_level: str = "inf",
         max_patches: int | None = None,
         seed: int = 42,
+        selected_ids: list[int] | None = None,
     ) -> None:
         manifest_path = Path(manifest_path)
         if not manifest_path.exists():
@@ -96,8 +100,11 @@ class PatchDataset:
         # Deterministic ordering by patch_id
         rows.sort(key=lambda r: int(r["patch_id"]))
 
-        # Truncate if requested (deterministic shuffle first)
-        if max_patches is not None and len(rows) > max_patches:
+        # Use pre-computed selection or sample
+        if selected_ids is not None:
+            id_set = set(selected_ids)
+            rows = [r for r in rows if int(r["patch_id"]) in id_set]
+        elif max_patches is not None and len(rows) > max_patches:
             rng = np.random.default_rng(seed)
             idx = rng.choice(len(rows), size=max_patches, replace=False)
             idx.sort()

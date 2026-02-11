@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import numpy as np
 from skimage.filters.rank import entropy as _rank_entropy
-from skimage.morphology import square
+from skimage.morphology import footprint_rectangle
 
 
 def shannon_entropy(
@@ -57,7 +57,7 @@ def shannon_entropy(
 
     gray_u8 = ((gray - vmin) / span * 255.0).astype(np.uint8)
 
-    selem = square(window_size)
+    selem = footprint_rectangle((window_size, window_size))
     ent = _rank_entropy(gray_u8, footprint=selem)
 
     return ent.astype(np.float32)

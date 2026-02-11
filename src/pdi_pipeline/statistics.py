@@ -309,8 +309,8 @@ def robust_regression(
         "std_err": rlm_fit.bse,
         "z_value": rlm_fit.tvalues,
         "p_value": rlm_fit.pvalues,
-        "ci_lo": rlm_fit.conf_int()[:, 0],
-        "ci_hi": rlm_fit.conf_int()[:, 1],
+        "ci_lo": rlm_fit.conf_int().iloc[:, 0].values,
+        "ci_hi": rlm_fit.conf_int().iloc[:, 1].values,
     })
 
     # Pseudo R-squared adjusted (from OLS for reference)

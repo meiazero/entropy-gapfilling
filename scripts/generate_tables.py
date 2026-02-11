@@ -598,7 +598,6 @@ ALL_TABLES = {
     5: table5_kruskal_wallis,
     6: table6_regression,
     7: table7_satellite,
-    8: table8_dl_comparison,
 }
 
 
@@ -622,7 +621,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--table",
         type=int,
         default=None,
-        help="Generate only this table number (1-8).",
+        help="Generate only this table number (1-7).",
     )
     return parser.parse_args(argv)
 

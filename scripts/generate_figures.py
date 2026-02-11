@@ -22,6 +22,7 @@ import seaborn as sns
 from pdi_pipeline.aggregation import (
     load_results,
 )
+from pdi_pipeline.visualization import save_array_as_png, to_display_rgb
 
 matplotlib.use("Agg")
 
@@ -53,6 +54,32 @@ STYLE_PARAMS = {
 }
 
 
+_PNG_ONLY: bool = False
+
+
+def _available_recon_patch_ids(recon_dir: Path) -> set[int]:
+    """Return patch IDs that have reconstruction PNGs for at least one method."""
+    ids: set[int] = set()
+    if not recon_dir.exists():
+        return ids
+    for method_dir in recon_dir.iterdir():
+        if not method_dir.is_dir() or method_dir.name.startswith("_"):
+            continue
+        for png in method_dir.glob("*.png"):
+            try:
+                ids.add(int(png.stem))
+            except ValueError:
+                continue
+    return ids
+
+
+def _save_figure(fig: plt.Figure, output_dir: Path, name: str) -> None:
+    """Save figure in configured formats (PNG always, PDF unless --png-only)."""
+    fig.savefig(output_dir / f"{name}.png")
+    if not _PNG_ONLY:
+        fig.savefig(output_dir / f"{name}.pdf")
+
+
 def _setup_style() -> None:
     plt.rcParams.update(STYLE_PARAMS)
     sns.set_palette("colorblind")
@@ -60,33 +87,50 @@ def _setup_style() -> None:
 
 def fig1_entropy_examples(results_dir: Path, output_dir: Path) -> None:
     """Fig 1: Entropy map examples at 3 scales, 2 satellites."""
-    log.info("Figure 1: entropy map examples (requires preprocessed data)")
-    # This figure requires loading actual patches and entropy maps
-    # Placeholder structure - needs preprocessed data to render
-    fig, axes = plt.subplots(2, 3, figsize=FIGSIZE_GRID)
-    fig.suptitle("Local Shannon Entropy at Multiple Scales")
+    from pdi_pipeline.entropy import shannon_entropy
+
+    log.info("Figure 1: entropy map examples (computed on-the-fly)")
 
     project_root = Path(__file__).resolve().parent.parent
     preprocessed = project_root / "preprocessed"
 
-    for row_idx, sat in enumerate(["sentinel2", "landsat8"]):
-        for col_idx, ws in enumerate([7, 15, 31]):
-            ax = axes[row_idx, col_idx]
-            # Search for a test patch with entropy
-            pattern = f"test/{sat}/*_entropy_{ws}.npy"
-            import glob
+    satellites = ["sentinel2", "landsat8"]
+    window_sizes = [7, 15, 31]
 
-            files = sorted(glob.glob(str(preprocessed / pattern)))
-            if files:
-                ent = np.load(files[0])
-                im = ax.imshow(ent, cmap="viridis")
-                plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    # Find which satellites actually have data
+    available_sats = [
+        sat
+        for sat in satellites
+        if (preprocessed / "test" / sat).exists()
+        and list((preprocessed / "test" / sat).glob("*_clean.npy"))
+    ]
+
+    if not available_sats:
+        log.warning("No preprocessed test data found. Skipping fig1.")
+        return
+
+    nrows = len(available_sats)
+    ncols = len(window_sizes)
+    fig, axes = plt.subplots(nrows, ncols, figsize=FIGSIZE_GRID, squeeze=False)
+    fig.suptitle("Local Shannon Entropy at Multiple Scales")
+
+    for row_idx, sat in enumerate(available_sats):
+        clean_files = sorted((preprocessed / "test" / sat).glob("*_clean.npy"))
+        if not clean_files:
+            continue
+        # Use first available patch
+        clean = np.load(clean_files[0])
+
+        for col_idx, ws in enumerate(window_sizes):
+            ax = axes[row_idx, col_idx]
+            ent = shannon_entropy(clean, ws)
+            im = ax.imshow(ent, cmap="viridis")
+            plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
             ax.set_title(f"{sat} - {ws}x{ws}")
             ax.axis("off")
 
     fig.tight_layout()
-    fig.savefig(output_dir / "fig1_entropy_examples.pdf")
-    fig.savefig(output_dir / "fig1_entropy_examples.png")
+    _save_figure(fig, output_dir, "fig1_entropy_examples")
     plt.close(fig)
     log.info("Saved fig1_entropy_examples")
 
@@ -126,8 +170,7 @@ def fig2_entropy_vs_psnr(results_dir: Path, output_dir: Path) -> None:
         axes_flat[idx].set_visible(False)
 
     fig.tight_layout()
-    fig.savefig(output_dir / "fig2_entropy_vs_psnr.pdf")
-    fig.savefig(output_dir / "fig2_entropy_vs_psnr.png")
+    _save_figure(fig, output_dir, "fig2_entropy_vs_psnr")
     plt.close(fig)
     log.info("Saved fig2_entropy_vs_psnr")
 
@@ -172,8 +215,7 @@ def fig3_psnr_by_entropy_bin(results_dir: Path, output_dir: Path) -> None:
     ax.legend(title="Entropy Bin", loc="upper right")
 
     fig.tight_layout()
-    fig.savefig(output_dir / "fig3_psnr_by_entropy_bin.pdf")
-    fig.savefig(output_dir / "fig3_psnr_by_entropy_bin.png")
+    _save_figure(fig, output_dir, "fig3_psnr_by_entropy_bin")
     plt.close(fig)
     log.info("Saved fig3_psnr_by_entropy_bin")
 
@@ -199,56 +241,159 @@ def fig4_psnr_by_noise(results_dir: Path, output_dir: Path) -> None:
     ax.legend(title="Noise (dB)", loc="upper right")
 
     fig.tight_layout()
-    fig.savefig(output_dir / "fig4_psnr_by_noise.pdf")
-    fig.savefig(output_dir / "fig4_psnr_by_noise.png")
+    _save_figure(fig, output_dir, "fig4_psnr_by_noise")
     plt.close(fig)
     log.info("Saved fig4_psnr_by_noise")
 
 
 def fig5_lisa_clusters(results_dir: Path, output_dir: Path) -> None:
-    """Fig 5: LISA cluster maps overlaid on error maps.
+    """Fig 5: LISA cluster maps computed on-the-fly from reconstruction errors.
 
-    Requires running spatial_autocorrelation on individual patches.
-    This is a placeholder that generates from precomputed LISA results
-    if available.
+    Selects 3 representative patches at entropy percentiles P10, P50, P90
+    and 2 methods (best and mid-range by mean PSNR). For each combination,
+    computes the squared error map and runs spatial autocorrelation (LISA).
     """
-    log.info("Figure 5: LISA clusters (requires spatial analysis results)")
-    lisa_dir = results_dir / "lisa_maps"
-    if not lisa_dir.exists():
+    from matplotlib.colors import ListedColormap
+    from matplotlib.patches import Patch
+
+    from pdi_pipeline.statistics import spatial_autocorrelation
+
+    log.info("Figure 5: LISA clusters (on-the-fly computation)")
+
+    df = load_results(results_dir)
+    project_root = Path(__file__).resolve().parent.parent
+    preprocessed = project_root / "preprocessed"
+    recon_dir = results_dir / "reconstruction_images"
+
+    if not recon_dir.exists():
         log.warning(
-            "LISA maps not found at %s. Run spatial analysis first.",
-            lisa_dir,
+            "Reconstruction images not found at %s. Skipping fig5.", recon_dir
         )
         return
 
-    import glob
-
-    files = sorted(glob.glob(str(lisa_dir / "*.npy")))[:6]
-    if not files:
-        log.warning("No LISA map files found")
+    valid = df.dropna(subset=["entropy_7", "psnr"])
+    if valid.empty:
+        log.warning("No valid data for fig5")
         return
 
-    n = len(files)
-    ncols = min(3, n)
-    nrows = (n + ncols - 1) // ncols
+    # Constrain to patches that have reconstruction images
+    avail_ids = _available_recon_patch_ids(recon_dir)
+    valid = valid[valid["patch_id"].isin(avail_ids)]
+    if valid.empty:
+        log.warning("No patches with reconstruction images for fig5")
+        return
+
+    # Select 3 representative patches at P10, P50, P90 entropy
+    percentiles = {"P10": 0.10, "P50": 0.50, "P90": 0.90}
+    representatives: list[tuple[str, int, str]] = []
+    for label, q in percentiles.items():
+        target = float(valid["entropy_7"].quantile(q))
+        closest = valid.iloc[
+            (valid["entropy_7"] - target).abs().argsort()[:1]
+        ].iloc[0]
+        representatives.append((
+            label,
+            int(closest["patch_id"]),
+            closest["satellite"],
+        ))
+
+    # Select 2 methods: best (highest mean PSNR) and mid-range
+    method_means = (
+        valid.groupby("method")["psnr"].mean().sort_values(ascending=False)
+    )
+    if len(method_means) < 2:
+        log.warning("Need at least 2 methods for fig5")
+        return
+
+    best_method = method_means.index[0]
+    mid_idx = len(method_means) // 2
+    mid_method = method_means.index[mid_idx]
+    selected_methods = [best_method, mid_method]
+
+    # LISA label names: 0=NS, 1=HH, 2=LH, 3=LL, 4=HL
+    lisa_names = ["NS", "HH", "LH", "LL", "HL"]
+    lisa_colors = ["#d9d9d9", "#e41a1c", "#377eb8", "#4daf4a", "#ff7f00"]
+    cmap = ListedColormap(lisa_colors)
+
+    nrows = len(representatives)
+    ncols = 1 + len(selected_methods)  # error_map(best) + LISA per method
     fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 2.5, nrows * 2.5))
-    axes_flat = np.array(axes).flatten()
+    if nrows == 1:
+        axes = axes[np.newaxis, :]
 
-    cmap = plt.cm.get_cmap("RdYlBu", 5)
+    for row_idx, (label, patch_id, satellite) in enumerate(representatives):
+        clean_path = (
+            preprocessed / "test" / satellite / f"{patch_id:07d}_clean.npy"
+        )
+        mask_path = (
+            preprocessed / "test" / satellite / f"{patch_id:07d}_mask.npy"
+        )
 
-    for idx, fpath in enumerate(files):
-        ax = axes_flat[idx]
-        lisa = np.load(fpath)
-        ax.imshow(lisa, cmap=cmap, vmin=0, vmax=4)
-        ax.axis("off")
-        ax.set_title(Path(fpath).stem, fontsize=6)
+        if not clean_path.exists() or not mask_path.exists():
+            log.warning("Patch files not found for patch_id=%d", patch_id)
+            for c in range(ncols):
+                axes[row_idx, c].set_visible(False)
+            continue
 
-    for idx in range(n, len(axes_flat)):
-        axes_flat[idx].set_visible(False)
+        clean = np.load(clean_path)
+        mask = np.load(mask_path)
+        if mask.ndim == 3:
+            mask = mask[:, :, 0]
 
-    fig.tight_layout()
-    fig.savefig(output_dir / "fig5_lisa_clusters.pdf")
-    fig.savefig(output_dir / "fig5_lisa_clusters.png")
+        for col_idx, method in enumerate(selected_methods):
+            recon_path = recon_dir / method / f"{patch_id:07d}.png"
+            ax = axes[row_idx, col_idx]
+
+            if not recon_path.exists():
+                ax.set_visible(False)
+                continue
+
+            recon = plt.imread(str(recon_path))[:, :, :3]
+            clean_rgb = to_display_rgb(clean)
+            error_map = np.mean((clean_rgb - recon) ** 2, axis=2)
+
+            if col_idx == 0:
+                # First column: error map for context
+                ax.imshow(error_map, cmap="hot")
+                ax.set_title(f"{method}\n(MSE)", fontsize=FONT_SIZE - 1)
+                ax.set_ylabel(f"{label}\npatch {patch_id}", fontsize=FONT_SIZE)
+                ax.axis("off")
+                continue
+
+            # Remaining columns: LISA cluster maps
+            ax.set_title(f"{method}\n(LISA)", fontsize=FONT_SIZE - 1)
+            try:
+                result = spatial_autocorrelation(error_map, mask)
+                ax.imshow(result.lisa_labels, cmap=cmap, vmin=0, vmax=4)
+            except Exception:
+                log.warning(
+                    "LISA failed for patch=%d method=%s", patch_id, method
+                )
+                ax.text(
+                    0.5,
+                    0.5,
+                    "LISA failed",
+                    ha="center",
+                    va="center",
+                    transform=ax.transAxes,
+                    fontsize=FONT_SIZE,
+                )
+            ax.axis("off")
+
+    # Legend
+    legend_patches = [
+        Patch(facecolor=c, label=n) for n, c in zip(lisa_names, lisa_colors)
+    ]
+    fig.legend(
+        handles=legend_patches,
+        loc="lower center",
+        ncol=5,
+        fontsize=FONT_SIZE - 1,
+        frameon=False,
+    )
+
+    fig.tight_layout(rect=[0, 0.06, 1, 1])
+    _save_figure(fig, output_dir, "fig5_lisa_clusters")
     plt.close(fig)
     log.info("Saved fig5_lisa_clusters")
 
@@ -256,128 +401,186 @@ def fig5_lisa_clusters(results_dir: Path, output_dir: Path) -> None:
 def fig6_visual_examples(results_dir: Path, output_dir: Path) -> None:
     """Fig 6: Visual reconstruction examples.
 
-    Shows clean / degraded / top-4 classical methods for two patches
-    at low (10th percentile) and high (90th percentile) entropy.
-    Requires preprocessed patches and reconstruction outputs.
+    Shows clean / degraded / mask / top-4 methods for 3 patches at
+    entropy percentiles P10, P50, P90. Produces one composite figure
+    per satellite and exports individual PNGs for each cell.
     """
     df = load_results(results_dir)
 
     project_root = Path(__file__).resolve().parent.parent
     preprocessed = project_root / "preprocessed"
-    recon_dir = results_dir / "reconstructions"
+    recon_dir = results_dir / "reconstruction_images"
 
     if not recon_dir.exists():
         log.warning(
-            "Reconstructions not found at %s. "
+            "Reconstruction images not found at %s. "
             "Run experiment with --save-reconstructions first.",
             recon_dir,
         )
         return
 
-    # Find representative patches at 10th and 90th entropy percentile
     valid = df.dropna(subset=["entropy_7", "psnr"])
     if valid.empty:
         log.warning("No valid data for fig6")
         return
 
-    p10 = float(valid["entropy_7"].quantile(0.10))
-    p90 = float(valid["entropy_7"].quantile(0.90))
+    # Constrain to patches that have reconstruction images
+    avail_ids = _available_recon_patch_ids(recon_dir)
+    valid_with_recon = valid[valid["patch_id"].isin(avail_ids)]
 
-    low_ent = valid.iloc[(valid["entropy_7"] - p10).abs().argsort()[:1]]
-    high_ent = valid.iloc[(valid["entropy_7"] - p90).abs().argsort()[:1]]
+    # Top 4 methods by global mean PSNR (consistent across all rows)
+    method_ranking = (
+        valid.groupby("method")["psnr"].mean().sort_values(ascending=False)
+    )
+    top_methods = method_ranking.head(4).index.tolist()
+    n_show = len(top_methods)
 
-    representative = [
-        ("Low Entropy", low_ent.iloc[0]),
-        ("High Entropy", high_ent.iloc[0]),
-    ]
-
-    available_methods = sorted(recon_dir.iterdir())
-    method_names = [m.name for m in available_methods]
-
-    n_show = min(4, len(method_names))
-    ncols = 2 + n_show
-    nrows = len(representative)
-
-    if ncols < 3:
-        log.warning("Not enough reconstructions for fig6")
+    if n_show == 0:
+        log.warning("No methods with PSNR data for fig6")
         return
 
-    fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 2.0, nrows * 2.0))
-    if nrows == 1:
-        axes = axes[np.newaxis, :]
+    satellites = sorted(valid["satellite"].unique())
 
-    for row_idx, (label, ref_row) in enumerate(representative):
-        patch_id = int(ref_row["patch_id"])
-        satellite = ref_row["satellite"]
-        noise_level = ref_row.get("noise_level", "inf")
-
-        # Load clean and degraded
-        clean_path = (
-            preprocessed / "test" / satellite / f"{patch_id:07d}_clean.npy"
-        )
-        degraded_path = (
-            preprocessed
-            / "test"
-            / satellite
-            / f"{patch_id:07d}_degraded_{noise_level}.npy"
-        )
-
-        if not clean_path.exists() or not degraded_path.exists():
-            log.warning("Patch files not found for patch_id=%d", patch_id)
+    for sat in satellites:
+        sat_df = valid_with_recon[valid_with_recon["satellite"] == sat]
+        if sat_df.empty:
+            log.warning(
+                "No patches with reconstruction images for fig6 (%s)", sat
+            )
             continue
 
-        clean = np.load(clean_path)
-        degraded = np.load(degraded_path)
+        # 3 representatives at P10, P50, P90
+        percentiles = {
+            "P10 (low)": 0.10,
+            "P50 (median)": 0.50,
+            "P90 (high)": 0.90,
+        }
+        representatives: list[tuple[str, int, str]] = []
+        for label, q in percentiles.items():
+            target = float(sat_df["entropy_7"].quantile(q))
+            closest = sat_df.iloc[
+                (sat_df["entropy_7"] - target).abs().argsort()[:1]
+            ].iloc[0]
+            noise_level = closest.get("noise_level", "inf")
+            representatives.append((
+                label,
+                int(closest["patch_id"]),
+                str(noise_level),
+            ))
 
-        def _to_display(arr: np.ndarray) -> np.ndarray:
-            if arr.ndim == 3 and arr.shape[2] >= 3:
-                arr = arr[:, :, :3]
-            vmin, vmax = float(arr.min()), float(arr.max())
-            if vmax - vmin < 1e-8:
-                return np.zeros_like(arr)
-            return np.clip((arr - vmin) / (vmax - vmin), 0, 1)
+        # Columns: Clean | Degraded | Mask | Method1..MethodN
+        ncols = 3 + n_show
+        nrows = len(representatives)
 
-        # Rank methods by PSNR for this patch
-        patch_df = valid[
-            (valid["patch_id"] == patch_id)
-            & (valid["noise_level"] == noise_level)
-        ]
-        ranked = patch_df.sort_values("psnr", ascending=False)
+        fig, axes = plt.subplots(
+            nrows, ncols, figsize=(ncols * 1.8, nrows * 2.0)
+        )
+        if nrows == 1:
+            axes = axes[np.newaxis, :]
 
-        col = 0
-        axes[row_idx, col].imshow(_to_display(clean))
-        axes[row_idx, col].set_title("Clean")
-        axes[row_idx, col].axis("off")
-        if col == 0:
-            axes[row_idx, col].set_ylabel(label, fontsize=FONT_SIZE + 1)
+        # Output directory for individual PNGs
+        vis_dir = output_dir / "visual_examples" / sat
 
-        col = 1
-        axes[row_idx, col].imshow(_to_display(degraded))
-        axes[row_idx, col].set_title("Degraded")
-        axes[row_idx, col].axis("off")
+        for row_idx, (label, patch_id, noise_level) in enumerate(
+            representatives
+        ):
+            clean_path = (
+                preprocessed / "test" / sat / f"{patch_id:07d}_clean.npy"
+            )
+            degraded_path = (
+                preprocessed
+                / "test"
+                / sat
+                / f"{patch_id:07d}_degraded_{noise_level}.npy"
+            )
+            mask_path = preprocessed / "test" / sat / f"{patch_id:07d}_mask.npy"
 
-        # Top-N methods
-        for k in range(n_show):
-            col = 2 + k
-            if k < len(ranked):
-                mname = ranked.iloc[k]["method"]
-                recon_path = recon_dir / mname / f"{patch_id:07d}.npy"
+            if not clean_path.exists() or not degraded_path.exists():
+                log.warning("Patch files not found for patch_id=%d", patch_id)
+                for c in range(ncols):
+                    axes[row_idx, c].set_visible(False)
+                continue
+
+            clean = np.load(clean_path)
+            degraded = np.load(degraded_path)
+            mask = np.load(mask_path) if mask_path.exists() else None
+            if mask is not None and mask.ndim == 3:
+                mask = mask[:, :, 0]
+
+            # Col 0: Clean
+            axes[row_idx, 0].imshow(to_display_rgb(clean))
+            axes[row_idx, 0].set_title("Clean", fontsize=FONT_SIZE)
+            axes[row_idx, 0].axis("off")
+            axes[row_idx, 0].set_ylabel(label, fontsize=FONT_SIZE)
+
+            save_array_as_png(clean, vis_dir / f"{patch_id:07d}_clean.png")
+
+            # Col 1: Degraded
+            axes[row_idx, 1].imshow(to_display_rgb(degraded))
+            axes[row_idx, 1].set_title("Degraded", fontsize=FONT_SIZE)
+            axes[row_idx, 1].axis("off")
+
+            save_array_as_png(
+                degraded, vis_dir / f"{patch_id:07d}_degraded.png"
+            )
+
+            # Col 2: Mask
+            if mask is not None:
+                axes[row_idx, 2].imshow(mask, cmap="gray", vmin=0, vmax=1)
+                save_array_as_png(mask, vis_dir / f"{patch_id:07d}_mask.png")
+            else:
+                axes[row_idx, 2].text(
+                    0.5,
+                    0.5,
+                    "N/A",
+                    ha="center",
+                    va="center",
+                    transform=axes[row_idx, 2].transAxes,
+                )
+            axes[row_idx, 2].set_title("Mask", fontsize=FONT_SIZE)
+            axes[row_idx, 2].axis("off")
+
+            # Cols 3+: Top methods
+            # Look up per-patch PSNR for annotation
+            patch_metrics = valid[
+                (valid["patch_id"] == patch_id)
+                & (valid["noise_level"] == noise_level)
+            ]
+
+            for k, method in enumerate(top_methods):
+                col = 3 + k
+                recon_path = recon_dir / method / f"{patch_id:07d}.png"
+
                 if recon_path.exists():
-                    recon = np.load(recon_path)
-                    axes[row_idx, col].imshow(_to_display(recon))
-                    psnr_val = ranked.iloc[k]["psnr"]
-                    axes[row_idx, col].set_title(
-                        f"{mname}\n{psnr_val:.1f} dB", fontsize=FONT_SIZE - 1
+                    recon = plt.imread(str(recon_path))[:, :, :3]
+                    axes[row_idx, col].imshow(recon)
+
+                    # PSNR annotation
+                    method_row = patch_metrics[
+                        patch_metrics["method"] == method
+                    ]
+                    if not method_row.empty:
+                        psnr_val = float(method_row.iloc[0]["psnr"])
+                        title = f"{method}\n{psnr_val:.1f} dB"
+                    else:
+                        title = method
+                    axes[row_idx, col].set_title(title, fontsize=FONT_SIZE - 1)
+
+                    save_array_as_png(
+                        recon,
+                        vis_dir / f"{patch_id:07d}_{method}.png",
                     )
                 else:
-                    axes[row_idx, col].set_title(mname)
-            axes[row_idx, col].axis("off")
+                    axes[row_idx, col].set_title(method, fontsize=FONT_SIZE - 1)
 
-    fig.tight_layout()
-    fig.savefig(output_dir / "fig6_visual_examples.pdf")
-    fig.savefig(output_dir / "fig6_visual_examples.png")
-    plt.close(fig)
-    log.info("Saved fig6_visual_examples")
+                axes[row_idx, col].axis("off")
+
+        fig.tight_layout()
+        _save_figure(fig, output_dir, f"fig6_visual_examples_{sat}")
+        plt.close(fig)
+        log.info("Saved fig6_visual_examples_%s", sat)
+
+    log.info("Saved fig6_visual_examples (all satellites)")
 
 
 def fig7_correlation_heatmap(results_dir: Path, output_dir: Path) -> None:
@@ -441,8 +644,7 @@ def fig7_correlation_heatmap(results_dir: Path, output_dir: Path) -> None:
         ax.set_ylabel("")
 
         fig.tight_layout()
-        fig.savefig(output_dir / f"fig7_corr_heatmap_{mcol}.pdf")
-        fig.savefig(output_dir / f"fig7_corr_heatmap_{mcol}.png")
+        _save_figure(fig, output_dir, f"fig7_corr_heatmap_{mcol}")
         plt.close(fig)
 
     log.info("Saved fig7_correlation_heatmap(s)")
@@ -512,8 +714,7 @@ def fig8_dl_vs_classical(results_dir: Path, output_dir: Path) -> None:
         )
 
     fig.tight_layout()
-    fig.savefig(output_dir / "fig8_dl_vs_classical.pdf")
-    fig.savefig(output_dir / "fig8_dl_vs_classical.png")
+    _save_figure(fig, output_dir, "fig8_dl_vs_classical")
     plt.close(fig)
     log.info("Saved fig8_dl_vs_classical")
 
@@ -529,11 +730,11 @@ def fig9_local_metric_maps(results_dir: Path, output_dir: Path) -> None:
     df = load_results(results_dir)
     project_root = Path(__file__).resolve().parent.parent
     preprocessed = project_root / "preprocessed"
-    recon_dir = results_dir / "reconstructions"
+    recon_dir = results_dir / "reconstruction_images"
 
     if not recon_dir.exists():
         log.warning(
-            "Reconstructions not found at %s. Skipping fig9.",
+            "Reconstruction images not found at %s. Skipping fig9.",
             recon_dir,
         )
         return
@@ -541,6 +742,13 @@ def fig9_local_metric_maps(results_dir: Path, output_dir: Path) -> None:
     valid = df.dropna(subset=["entropy_7", "psnr"])
     if valid.empty:
         log.warning("No valid data for fig9")
+        return
+
+    # Constrain to patches that have reconstruction images
+    avail_ids = _available_recon_patch_ids(recon_dir)
+    valid = valid[valid["patch_id"].isin(avail_ids)]
+    if valid.empty:
+        log.warning("No patches with reconstruction images for fig9")
         return
 
     # Pick median-entropy patch
@@ -581,15 +789,16 @@ def fig9_local_metric_maps(results_dir: Path, output_dir: Path) -> None:
         axes = axes[np.newaxis, :]
 
     for row_idx, method in enumerate(top_methods):
-        recon_path = recon_dir / method / f"{patch_id:07d}.npy"
+        recon_path = recon_dir / method / f"{patch_id:07d}.png"
         if not recon_path.exists():
             axes[row_idx, 0].set_visible(False)
             axes[row_idx, 1].set_visible(False)
             continue
 
-        recon = np.load(recon_path)
-        lpsnr = local_psnr(clean, recon, mask, window=15)
-        lssim = local_ssim(clean, recon, mask, window=15)
+        recon = plt.imread(str(recon_path))[:, :, :3]
+        clean_rgb = to_display_rgb(clean)
+        lpsnr = local_psnr(clean_rgb, recon, mask, window=15)
+        lssim = local_ssim(clean_rgb, recon, mask, window=15)
 
         im0 = axes[row_idx, 0].imshow(lpsnr, cmap="RdYlGn")
         axes[row_idx, 0].set_title(f"{method} - Local PSNR")
@@ -606,8 +815,7 @@ def fig9_local_metric_maps(results_dir: Path, output_dir: Path) -> None:
         fontsize=FONT_SIZE + 1,
     )
     fig.tight_layout()
-    fig.savefig(output_dir / "fig9_local_metric_maps.pdf")
-    fig.savefig(output_dir / "fig9_local_metric_maps.png")
+    _save_figure(fig, output_dir, "fig9_local_metric_maps")
     plt.close(fig)
     log.info("Saved fig9_local_metric_maps")
 
@@ -620,7 +828,6 @@ ALL_FIGURES = {
     5: fig5_lisa_clusters,
     6: fig6_visual_examples,
     7: fig7_correlation_heatmap,
-    8: fig8_dl_vs_classical,
     9: fig9_local_metric_maps,
 }
 
@@ -647,6 +854,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Generate only this figure number (1-8).",
     )
+    parser.add_argument(
+        "--png-only",
+        action="store_true",
+        help="Save figures in PNG only (skip PDF). Use for quick validation.",
+    )
     return parser.parse_args(argv)
 
 
@@ -665,7 +877,9 @@ def _setup_file_logging(log_path: Path) -> None:
 
 
 def main(argv: list[str] | None = None) -> None:
+    global _PNG_ONLY
     args = parse_args(argv)
+    _PNG_ONLY = args.png_only
     _setup_style()
 
     results_dir = args.results

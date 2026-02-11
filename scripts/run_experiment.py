@@ -13,6 +13,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import time
 from pathlib import Path
@@ -25,6 +26,7 @@ from tqdm import tqdm
 from pdi_pipeline.config import ExperimentConfig, MethodConfig, load_config
 from pdi_pipeline.dataset import PatchDataset
 from pdi_pipeline.methods.base import BaseMethod
+from pdi_pipeline.visualization import save_array_as_png
 
 logging.basicConfig(
     level=logging.INFO,
@@ -195,6 +197,25 @@ def _setup_file_logging(log_path: Path) -> None:
     logging.getLogger().addHandler(handler)
 
 
+def _load_patch_selections(
+    preprocessed_dir: Path,
+) -> dict[str, dict[int, list[int]]] | None:
+    """Load pre-computed patch selections from JSON.
+
+    Returns ``{satellite: {seed: [patch_ids]}}`` or None if not found.
+    """
+    path = preprocessed_dir / "patch_selections.json"
+    if not path.exists():
+        return None
+    with path.open() as fh:
+        raw = json.load(fh)
+    # Convert string keys back to int
+    return {
+        sat: {int(seed): ids for seed, ids in seed_map.items()}
+        for sat, seed_map in raw.items()
+    }
+
+
 def run_experiment(
     config: ExperimentConfig,
     dry_run: bool = False,
@@ -211,29 +232,38 @@ def run_experiment(
         log.error("Manifest not found: %s", manifest_path)
         return
 
+    # Load pre-computed patch selections (written by preprocess_dataset.py)
+    preprocessed_dir = manifest_path.parent
+    selections = _load_patch_selections(preprocessed_dir)
+    if selections is not None:
+        log.info(
+            "Using pre-computed patch selections from patch_selections.json"
+        )
+
     # Filter out multi-temporal methods
     methods = [mc for mc in config.methods if mc.name not in EXCLUDED_METHODS]
 
-    # Count total work
-    total_patches = 0
-    for noise_level in config.noise_levels:
-        for sat in config.satellites:
-            ds = PatchDataset(
-                manifest_path,
-                split="test",
-                satellite=sat,
-                noise_level=noise_level,
-                max_patches=config.max_patches,
-            )
-            total_patches += len(ds)
-
-    total_work = len(config.seeds) * len(methods) * total_patches
+    # Count total work across all seeds (each seed may select different patches)
+    total_work = 0
+    for seed in config.seeds:
+        for noise_level in config.noise_levels:
+            for sat in config.satellites:
+                sel = selections.get(sat, {}).get(seed) if selections else None
+                ds = PatchDataset(
+                    manifest_path,
+                    split="test",
+                    satellite=sat,
+                    noise_level=noise_level,
+                    max_patches=config.max_patches,
+                    seed=seed,
+                    selected_ids=sel,
+                )
+                total_work += len(ds) * len(methods)
 
     log.info("Experiment: %s", config.name)
     log.info("Seeds: %d", len(config.seeds))
     log.info("Noise levels: %s", config.noise_levels)
     log.info("Methods: %d (%s)", len(methods), [m.name for m in methods])
-    log.info("Total patches per noise level: %d", total_patches)
     log.info("Total evaluations: %d", total_work)
     log.info("Output: %s", output_path)
 
@@ -258,8 +288,6 @@ def run_experiment(
     n_skipped = 0
     t0 = time.monotonic()
 
-    preprocessed_dir = manifest_path.parent
-
     with tqdm(total=total_work, desc="Experiment") as pbar:
         for seed in config.seeds:
             rng = np.random.default_rng(seed)
@@ -267,6 +295,11 @@ def run_experiment(
 
             for noise_level in config.noise_levels:
                 for sat in config.satellites:
+                    sel = (
+                        selections.get(sat, {}).get(seed)
+                        if selections
+                        else None
+                    )
                     ds = PatchDataset(
                         manifest_path,
                         split="test",
@@ -274,6 +307,7 @@ def run_experiment(
                         noise_level=noise_level,
                         max_patches=config.max_patches,
                         seed=seed,
+                        selected_ids=sel,
                     )
 
                     for mc in methods:
@@ -301,31 +335,53 @@ def run_experiment(
                                 status = "ok"
                                 error_msg = ""
 
-                                # Save reconstructions (first seed, no noise only)
+                                # Save reconstruction images (first seed, no noise only)
                                 if (
                                     save_reconstructions > 0
                                     and seed == config.seeds[0]
                                     and noise_level == "inf"
                                 ):
-                                    recon_dir = (
+                                    img_dir = (
                                         output_path
-                                        / "reconstructions"
+                                        / "reconstruction_images"
                                         / mc.name
                                     )
                                     existing = (
-                                        len(list(recon_dir.glob("*.npy")))
-                                        if recon_dir.exists()
+                                        len(list(img_dir.glob("*.png")))
+                                        if img_dir.exists()
                                         else 0
                                     )
                                     if existing < save_reconstructions:
-                                        recon_dir.mkdir(
-                                            parents=True, exist_ok=True
-                                        )
-                                        np.save(
-                                            recon_dir
-                                            / f"{patch.patch_id:07d}.npy",
+                                        save_array_as_png(
                                             result,
+                                            img_dir
+                                            / f"{patch.patch_id:07d}.png",
                                         )
+
+                                        # Reference images (once per patch)
+                                        ref_dir = (
+                                            output_path
+                                            / "reconstruction_images"
+                                            / "_reference"
+                                        )
+                                        clean_png = (
+                                            ref_dir
+                                            / f"{patch.patch_id:07d}_clean.png"
+                                        )
+                                        if not clean_png.exists():
+                                            save_array_as_png(
+                                                patch.clean, clean_png
+                                            )
+                                            save_array_as_png(
+                                                patch.degraded,
+                                                ref_dir
+                                                / f"{patch.patch_id:07d}_degraded.png",
+                                            )
+                                            save_array_as_png(
+                                                patch.mask,
+                                                ref_dir
+                                                / f"{patch.patch_id:07d}_mask.png",
+                                            )
 
                             except Exception as exc:
                                 log.exception(
@@ -424,7 +480,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=int,
         default=0,
         metavar="N",
-        help="Save first N reconstructed arrays per method (first seed, no noise).",
+        help="Save first N reconstruction images per method (first seed, no noise).",
     )
     return parser.parse_args(argv)
 

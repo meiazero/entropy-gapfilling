@@ -25,22 +25,17 @@ test: ## Run test suite with coverage
 # EXPERIMENT PIPELINE
 # =============================================================================
 
-.PHONY: preprocess
-preprocess: ## Preprocess dataset (GeoTIFF to NPY, run once)
-	@echo "Preprocessing dataset"
-	@uv run python scripts/preprocess_dataset.py
-
-.PHONY: preprocess-resume
-preprocess-resume: ## Resume interrupted preprocessing
-	@uv run python scripts/preprocess_dataset.py --resume
-
 .PHONY: experiment
-experiment: preprocess ## Run full paper experiment
+experiment: ## Run full paper experiment (preprocess + run)
+	@echo "Preprocessing dataset for paper_results"
+	@uv run python scripts/preprocess_dataset.py --config config/paper_results.yaml --resume
 	@echo "Running full experiment (paper_results.yaml)"
 	@uv run python scripts/run_experiment.py --config config/paper_results.yaml --save-reconstructions 5
 
 .PHONY: experiment-quick
-experiment-quick: preprocess ## Run quick validation (50 patches, 1 seed)
+experiment-quick: ## Run quick validation (preprocess + run, 50 patches, 1 seed)
+	@echo "Preprocessing dataset for quick_validation"
+	@uv run python scripts/preprocess_dataset.py --config config/quick_validation.yaml --resume
 	@echo "Running quick validation experiment"
 	@uv run python scripts/run_experiment.py --quick --save-reconstructions 5
 
@@ -58,7 +53,7 @@ tables: ## Generate LaTeX tables from full experiment results
 
 .PHONY: figures-quick
 figures-quick: ## Generate figures from quick validation results
-	@uv run python scripts/generate_figures.py --results results/quick_validation
+	@uv run python scripts/generate_figures.py --results results/quick_validation --png-only
 
 .PHONY: tables-quick
 tables-quick: ## Generate tables from quick validation results
