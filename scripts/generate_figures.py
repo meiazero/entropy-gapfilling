@@ -22,15 +22,12 @@ import seaborn as sns
 from pdi_pipeline.aggregation import (
     load_results,
 )
+from pdi_pipeline.logging_utils import setup_file_logging, setup_logging
 from pdi_pipeline.visualization import save_array_as_png, to_display_rgb
 
 matplotlib.use("Agg")
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%H:%M:%S",
-)
+setup_logging()
 log = logging.getLogger(__name__)
 
 # Publication styling
@@ -862,20 +859,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _setup_file_logging(log_path: Path) -> None:
-    """Add a file handler to the root logger."""
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    handler = logging.FileHandler(log_path, encoding="utf-8")
-    handler.setLevel(logging.DEBUG)
-    handler.setFormatter(
-        logging.Formatter(
-            "%(asctime)s [%(levelname)s] %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
-    )
-    logging.getLogger().addHandler(handler)
-
-
 def main(argv: list[str] | None = None) -> None:
     global _PNG_ONLY
     args = parse_args(argv)
@@ -885,7 +868,7 @@ def main(argv: list[str] | None = None) -> None:
     results_dir = args.results
     output_dir = args.output or results_dir / "figures"
     output_dir.mkdir(parents=True, exist_ok=True)
-    _setup_file_logging(results_dir / "figures.log")
+    setup_file_logging(results_dir, name="figures")
 
     if args.figure is not None:
         if args.figure not in ALL_FIGURES:

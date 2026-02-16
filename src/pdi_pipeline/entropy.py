@@ -8,9 +8,15 @@ element inscribed in a square of the requested window size.
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 from skimage.filters.rank import entropy as _rank_entropy
 from skimage.morphology import footprint_rectangle
+
+from pdi_pipeline.exceptions import DimensionError, ValidationError
+
+logger = logging.getLogger(__name__)
 
 
 def shannon_entropy(
@@ -38,7 +44,7 @@ def shannon_entropy(
     """
     if window_size < 1 or window_size % 2 == 0:
         msg = f"window_size must be a positive odd integer, got {window_size}"
-        raise ValueError(msg)
+        raise ValidationError(msg)
 
     image = np.asarray(image, dtype=np.float64)
 
@@ -48,7 +54,7 @@ def shannon_entropy(
         gray = image
     else:
         msg = f"Image must be 2D or 3D, got ndim={image.ndim}"
-        raise ValueError(msg)
+        raise DimensionError(msg)
 
     vmin, vmax = float(gray.min()), float(gray.max())
     span = vmax - vmin

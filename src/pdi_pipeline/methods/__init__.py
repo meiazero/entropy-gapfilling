@@ -1,4 +1,8 @@
-"""Reconstruction methods for image inpainting and interpolation."""
+"""Reconstruction methods for image inpainting and interpolation.
+
+All classical interpolation methods are importable from this package.
+For lazy instantiation by name, use :func:`registry.get_interpolator`.
+"""
 
 from pdi_pipeline.methods.base import BaseMethod
 from pdi_pipeline.methods.bicubic import BicubicInterpolator
@@ -21,6 +25,7 @@ from pdi_pipeline.methods.patch_based import (
     NonLocalMeansInterpolator,
 )
 from pdi_pipeline.methods.rbf import RBFInterpolator
+from pdi_pipeline.methods.registry import get_interpolator, list_methods
 from pdi_pipeline.methods.spline import SplineInterpolator
 from pdi_pipeline.methods.transforms import (
     DCTInpainting,
@@ -48,4 +53,6 @@ __all__ = [
     "TemporalFourierInterpolator",
     "TemporalSplineInterpolator",
     "WaveletInpainting",
+    "get_interpolator",
+    "list_methods",
 ]

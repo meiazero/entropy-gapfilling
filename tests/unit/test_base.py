@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from pdi_pipeline.exceptions import DimensionError
 from pdi_pipeline.methods.base import BaseMethod
 
 
@@ -16,7 +17,7 @@ class _Stub(BaseMethod):
         return degraded
 
 
-# ── _normalize_mask ──────────────────────────────────────────────────────────
+# -- _normalize_mask -----------------------------------------------------------
 
 
 class TestNormalizeMask:
@@ -43,15 +44,48 @@ class TestNormalizeMask:
         assert result[0, 0] is np.False_
 
     def test_4d_raises(self) -> None:
-        with pytest.raises(ValueError, match="2D or 3D"):
+        with pytest.raises(DimensionError, match="2D or 3D"):
             BaseMethod._normalize_mask(np.zeros((2, 2, 3, 4)))
 
     def test_1d_raises(self) -> None:
-        with pytest.raises(ValueError, match="2D or 3D"):
+        with pytest.raises(DimensionError, match="2D or 3D"):
             BaseMethod._normalize_mask(np.zeros((10,)))
 
 
-# ── _finalize ────────────────────────────────────────────────────────────────
+# -- _validate_inputs ---------------------------------------------------------
+
+
+class TestValidateInputs:
+    def test_valid_2d(self) -> None:
+        degraded = np.ones((4, 4), dtype=np.float32)
+        mask = np.zeros((4, 4), dtype=np.float32)
+        d, m = BaseMethod._validate_inputs(degraded, mask)
+        assert d.dtype == np.float32
+        assert m.dtype == bool
+        assert d.shape == (4, 4)
+        assert m.shape == (4, 4)
+
+    def test_valid_3d(self) -> None:
+        degraded = np.ones((4, 4, 3), dtype=np.float32)
+        mask = np.zeros((4, 4), dtype=np.float32)
+        d, m = BaseMethod._validate_inputs(degraded, mask)
+        assert d.shape == (4, 4, 3)
+        assert m.shape == (4, 4)
+
+    def test_shape_mismatch_raises(self) -> None:
+        degraded = np.ones((4, 4), dtype=np.float32)
+        mask = np.zeros((3, 4), dtype=np.float32)
+        with pytest.raises(DimensionError, match="mismatch"):
+            BaseMethod._validate_inputs(degraded, mask)
+
+    def test_4d_degraded_raises(self) -> None:
+        degraded = np.ones((2, 2, 3, 4), dtype=np.float32)
+        mask = np.zeros((2, 2), dtype=np.float32)
+        with pytest.raises(DimensionError, match=r"2D.*3D"):
+            BaseMethod._validate_inputs(degraded, mask)
+
+
+# -- _finalize ----------------------------------------------------------------
 
 
 class TestFinalize:
@@ -93,7 +127,7 @@ class TestFinalize:
         assert result.shape == (0, 0)
 
 
-# ── _apply_channelwise ──────────────────────────────────────────────────────
+# -- _apply_channelwise -------------------------------------------------------
 
 
 class TestApplyChannelwise:
@@ -136,7 +170,27 @@ class TestApplyChannelwise:
             np.testing.assert_array_equal(m, mask)
 
 
-# ── fit (default no-op) ─────────────────────────────────────────────────────
+# -- _early_exit_if_no_gaps ---------------------------------------------------
+
+
+class TestEarlyExitIfNoGaps:
+    def test_returns_finalized_copy_when_no_gaps(self) -> None:
+        degraded = np.array([[0.5, 0.7]], dtype=np.float32)
+        mask_2d = np.zeros((1, 2), dtype=bool)
+        result = BaseMethod._early_exit_if_no_gaps(degraded, mask_2d)
+        assert result is not None
+        assert result is not degraded  # must be a copy
+        assert result.dtype == np.float32
+        np.testing.assert_array_equal(result, degraded)
+
+    def test_returns_none_when_gaps_exist(self) -> None:
+        degraded = np.array([[0.5, 0.7]], dtype=np.float32)
+        mask_2d = np.array([[True, False]])
+        result = BaseMethod._early_exit_if_no_gaps(degraded, mask_2d)
+        assert result is None
+
+
+# -- fit (default no-op) ------------------------------------------------------
 
 
 class TestFit:

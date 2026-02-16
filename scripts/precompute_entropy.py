@@ -22,15 +22,12 @@ import numpy as np
 from tqdm import tqdm
 
 from pdi_pipeline.entropy import shannon_entropy
+from pdi_pipeline.logging_utils import get_project_root, setup_logging
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%H:%M:%S",
-)
+setup_logging()
 log = logging.getLogger(__name__)
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = get_project_root()
 DEFAULT_PREPROCESSED = PROJECT_ROOT / "preprocessed"
 DEFAULT_WINDOWS = [7, 15, 31]
 

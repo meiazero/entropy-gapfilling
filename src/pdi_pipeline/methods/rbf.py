@@ -7,6 +7,7 @@ to find coefficients that satisfy the interpolation conditions.
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Literal, cast
 
 import numpy as np
@@ -14,6 +15,8 @@ from scipy.interpolate import RBFInterpolator as SciPyRBFInterpolator
 
 from pdi_pipeline.methods._scattered_data import select_local_points
 from pdi_pipeline.methods.base import BaseMethod
+
+logger = logging.getLogger(__name__)
 
 
 def _get_kernel_literal(kernel: str) -> Any:
@@ -101,7 +104,20 @@ class RBFInterpolator(BaseMethod):
         gap_y: np.ndarray,
         gap_x: np.ndarray,
     ) -> np.ndarray:
-        """Interpolate a single 2D channel using RBF."""
+        """Interpolate a single 2D channel using RBF.
+
+        Args:
+            channel_data: 2D array of pixel values for one channel.
+            local_valid_y: Row indices of selected valid pixels.
+            local_valid_x: Column indices of selected valid pixels.
+            valid_coords: Stacked (y, x) coordinates of valid pixels.
+            gap_coords: Stacked (y, x) coordinates of gap pixels.
+            gap_y: Row indices of gap pixels.
+            gap_x: Column indices of gap pixels.
+
+        Returns:
+            Channel array with gap pixels filled.
+        """
         valid_values = channel_data[local_valid_y, local_valid_x].astype(
             np.float64
         )
@@ -117,7 +133,14 @@ class RBFInterpolator(BaseMethod):
                 smoothing=self.smoothing,
             )
             result[gap_y, gap_x] = rbf(gap_coords)
-        except Exception:
+        except (np.linalg.LinAlgError, ValueError, RuntimeError) as exc:
+            logger.warning(
+                "RBF interpolation failed (kernel=%s): %s; "
+                "falling back to mean fill for %d gap pixels",
+                self.kernel,
+                exc,
+                len(gap_y),
+            )
             if len(gap_y) > 0:
                 result[gap_y, gap_x] = float(np.mean(valid_values))
 
@@ -133,24 +156,37 @@ class RBFInterpolator(BaseMethod):
         """Apply RBF interpolation to recover missing pixels.
 
         Args:
-            degraded: Array with missing data (e.g., NaN or masked pixels).
-            mask: Binary mask where 1 indicates missing pixels to fill.
+            degraded: Array with missing data, shape ``(H, W)`` or
+                ``(H, W, C)``, dtype ``float32``, values in ``[0, 1]``.
+            mask: Binary mask where ``True``/``1`` marks gap pixels to fill.
             meta: Optional metadata (crs, transform, bands, etc.).
 
         Returns:
-            Reconstructed array with same shape as degraded.
+            Reconstructed ``float32`` array with same shape as *degraded*,
+            values clipped to ``[0, 1]``, no ``NaN``/``Inf``.
         """
-        mask_2d = self._normalize_mask(mask)
-        result = degraded.copy()
+        degraded, mask_2d = self._validate_inputs(degraded, mask)
+        early = self._early_exit_if_no_gaps(degraded, mask_2d)
+        if early is not None:
+            return early
+
         h, w = degraded.shape[:2]
 
         gap_y, gap_x = np.where(mask_2d)
-        if len(gap_y) == 0:
-            return self._finalize(result)
-
         valid_y, valid_x = np.where(~mask_2d)
+
         if len(valid_y) == 0:
-            return self._finalize(result)
+            logger.warning(
+                "No valid pixels available; returning input unchanged"
+            )
+            return self._finalize(degraded.copy())
+
+        logger.debug(
+            "RBF interpolation: %d gap pixels, %d valid pixels, kernel=%s",
+            len(gap_y),
+            len(valid_y),
+            self.kernel,
+        )
 
         local_valid_y, local_valid_x = select_local_points(
             valid_y,

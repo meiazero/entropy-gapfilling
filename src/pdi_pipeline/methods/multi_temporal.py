@@ -6,12 +6,34 @@ missing values across multiple acquisition dates.
 
 from __future__ import annotations
 
+import logging
 from typing import Literal, cast
 
 import numpy as np
 from scipy.interpolate import UnivariateSpline
 
+from pdi_pipeline.exceptions import DimensionError
 from pdi_pipeline.methods.base import BaseMethod
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Module-level constants
+# ---------------------------------------------------------------------------
+_MIN_SPLINE_POINTS = 2
+"""Minimum number of valid time steps required for spline fitting."""
+
+_MAX_SPLINE_DEGREE = 5
+"""Maximum degree for scipy UnivariateSpline."""
+
+_DEFAULT_SMOOTHING = 0.0
+"""Default smoothing factor (exact interpolation)."""
+
+_DEFAULT_N_HARMONICS = 3
+"""Default number of Fourier harmonic components."""
+
+_MIN_KRIGING_OBSERVATIONS = 5
+"""Minimum number of observations for space-time kriging."""
 
 
 class TemporalSplineInterpolator(BaseMethod):
@@ -63,18 +85,27 @@ class TemporalSplineInterpolator(BaseMethod):
         time_mask: np.ndarray,
         time_indices: np.ndarray,
     ) -> np.ndarray | None:
-        """Fit a spline to one pixel's time series and return interpolated missing values.
+        """Fit a spline to one pixel's time series and return interpolated values.
 
-        Returns None if fitting fails or there are too few valid points.
+        Args:
+            time_series: 1D values for this pixel across time.
+            time_mask: 1D boolean mask (``True`` = missing).
+            time_indices: 1D float array of time step indices.
+
+        Returns:
+            Interpolated values at missing time steps, or ``None`` if
+            fitting fails or there are too few valid points.
         """
         valid_times = time_indices[~time_mask]
         valid_values = time_series[~time_mask]
 
-        if len(valid_times) < 2:
+        if len(valid_times) < _MIN_SPLINE_POINTS:
             return None
 
         try:
-            spline_degree = int(min(self.degree, len(valid_times) - 1, 5))
+            spline_degree = int(
+                min(self.degree, len(valid_times) - 1, _MAX_SPLINE_DEGREE)
+            )
             spline_degree = max(1, spline_degree)
             k = cast(Literal[1, 2, 3, 4, 5], spline_degree)
             spline = UnivariateSpline(
@@ -87,8 +118,10 @@ class TemporalSplineInterpolator(BaseMethod):
             missing_times = time_indices[time_mask]
             if len(missing_times) > 0:
                 return np.asarray(spline(missing_times), dtype=np.float32)
-        except Exception:  # noqa: S110
-            pass
+        except np.linalg.LinAlgError:
+            logger.debug("Spline fitting failed (LinAlgError)")
+        except ValueError as exc:
+            logger.debug("Spline fitting failed: %s", exc)
 
         return None
 
@@ -102,21 +135,34 @@ class TemporalSplineInterpolator(BaseMethod):
         """Apply temporal spline interpolation to recover missing pixels.
 
         Args:
-            degraded: Input time series with shape (T, H, W) or (T, H, W, C)
-            mask: Boolean mask where True indicates missing pixels, shape (T, H, W)
+            degraded: Input time series with shape ``(T, H, W)`` or
+                ``(T, H, W, C)``, dtype ``float32``, values in ``[0, 1]``.
+            mask: Boolean mask where ``True`` indicates missing pixels,
+                shape ``(T, H, W)``.
             meta: Optional metadata (crs, transform, bands, etc.).
 
         Returns:
-            Reconstructed time series with gaps filled
+            Reconstructed time series with gaps filled.
+
+        Raises:
+            DimensionError: If *degraded* has fewer than 3 dimensions or
+                the mask shape does not match.
         """
+        degraded = np.asarray(degraded, dtype=np.float32)
         if degraded.ndim < 3:
-            raise ValueError(
-                "Temporal interpolation requires at least 3D data (T, H, W)"
+            msg = (
+                "Temporal interpolation requires at least 3D data (T, H, W), "
+                f"got ndim={degraded.ndim}"
             )
+            raise DimensionError(msg)
 
         mask_arr = np.asarray(mask)
         if mask_arr.shape[:3] != degraded.shape[:3]:
-            raise ValueError("Image and mask must match on (T,H,W)")
+            msg = (
+                f"Image and mask must match on (T, H, W): "
+                f"image={degraded.shape[:3]}, mask={mask_arr.shape[:3]}"
+            )
+            raise DimensionError(msg)
         if mask_arr.ndim == 4:
             mask_3d = np.any(mask_arr, axis=3)
         else:
@@ -126,6 +172,13 @@ class TemporalSplineInterpolator(BaseMethod):
         time_indices = np.arange(n_timesteps, dtype=np.float32)
         height, width = degraded.shape[1], degraded.shape[2]
         n_channels = degraded.shape[3] if degraded.ndim == 4 else 1
+
+        logger.debug(
+            "Temporal spline: shape=%s, gap_fraction=%.3f, degree=%d",
+            degraded.shape,
+            float(np.mean(mask_3d)),
+            self.degree,
+        )
 
         reconstructed = degraded.copy().astype(np.float32)
 
@@ -203,9 +256,16 @@ class TemporalFourierInterpolator(BaseMethod):
         time_mask: np.ndarray,
         design_matrix_full: np.ndarray,
     ) -> np.ndarray | None:
-        """Fit Fourier coefficients for one pixel's time series and return interpolated missing values.
+        """Fit Fourier coefficients for one pixel and return interpolated values.
 
-        Returns None if fitting fails or there are too few valid points.
+        Args:
+            time_series: 1D values for this pixel across time.
+            time_mask: 1D boolean mask (``True`` = missing).
+            design_matrix_full: Design matrix of shape ``(T, 1+2M)``.
+
+        Returns:
+            Interpolated values at missing time steps, or ``None`` if
+            fitting fails or there are too few valid points.
         """
         valid_mask = ~time_mask
         if valid_mask.sum() < (1 + 2 * self.n_harmonics):
@@ -220,8 +280,8 @@ class TemporalFourierInterpolator(BaseMethod):
             if time_mask.sum() > 0:
                 x_missing = design_matrix_full[time_mask]
                 return np.asarray(x_missing @ coeffs, dtype=np.float32)
-        except Exception:  # noqa: S110
-            pass
+        except np.linalg.LinAlgError:
+            logger.debug("Fourier fitting failed (LinAlgError)")
 
         return None
 
@@ -235,20 +295,33 @@ class TemporalFourierInterpolator(BaseMethod):
         """Apply Fourier harmonic analysis to recover missing pixels.
 
         Args:
-            degraded: Input time series with shape (T, H, W) or (T, H, W, C)
-            mask: Boolean mask where True indicates missing pixels, shape (T, H, W)
+            degraded: Input time series with shape ``(T, H, W)`` or
+                ``(T, H, W, C)``, dtype ``float32``, values in ``[0, 1]``.
+            mask: Boolean mask where ``True`` indicates missing pixels,
+                shape ``(T, H, W)``.
             meta: Optional metadata (crs, transform, bands, etc.).
 
         Returns:
-            Reconstructed time series with gaps filled
+            Reconstructed time series with gaps filled.
+
+        Raises:
+            DimensionError: If *degraded* is not 3D or 4D, or mask shape
+                does not match.
         """
+        degraded = np.asarray(degraded, dtype=np.float32)
         if degraded.ndim not in (3, 4):
-            raise ValueError(
-                "Temporal Fourier requires input shape (T,H,W[,C])"
+            msg = (
+                "Temporal Fourier requires input shape (T, H, W) or "
+                f"(T, H, W, C), got ndim={degraded.ndim}"
             )
+            raise DimensionError(msg)
         mask_arr = np.asarray(mask)
         if mask_arr.shape[:3] != degraded.shape[:3]:
-            raise ValueError("Image and mask must match on (T,H,W)")
+            msg = (
+                f"Image and mask must match on (T, H, W): "
+                f"image={degraded.shape[:3]}, mask={mask_arr.shape[:3]}"
+            )
+            raise DimensionError(msg)
         if mask_arr.ndim == 4:
             mask_3d = np.any(mask_arr, axis=3)
         else:
@@ -260,6 +333,15 @@ class TemporalFourierInterpolator(BaseMethod):
         n_channels = degraded.shape[3] if degraded.ndim == 4 else 1
 
         period = self.period if self.period is not None else n_timesteps
+
+        logger.debug(
+            "Temporal Fourier: shape=%s, gap_fraction=%.3f, "
+            "n_harmonics=%d, period=%d",
+            degraded.shape,
+            float(np.mean(mask_3d)),
+            self.n_harmonics,
+            period,
+        )
 
         reconstructed = degraded.copy().astype(np.float32)
 
@@ -359,15 +441,21 @@ class SpaceTimeKriging(BaseMethod):
         self.kernel_size = kernel_size
 
     def _normalize_time_mask(self, mask: np.ndarray) -> np.ndarray:
-        """Normalize mask to 3D (T, H, W) format."""
+        """Normalize mask to 3D ``(T, H, W)`` boolean format.
+
+        Raises:
+            DimensionError: If the mask is not 3D or 4D.
+        """
         mask_bool = np.asarray(mask, dtype=bool)
         if mask_bool.ndim == 3:
             return mask_bool
         if mask_bool.ndim == 4:
             return np.any(mask_bool, axis=3).astype(bool, copy=False)
-        raise ValueError(
-            "For space-time kriging, mask must have shape (T, H, W) or (T, H, W, C)."
+        msg = (
+            "Space-time kriging mask must have shape (T, H, W) or "
+            f"(T, H, W, C), got ndim={mask_bool.ndim}"
         )
+        raise DimensionError(msg)
 
     def _covariance(
         self,
@@ -494,15 +582,19 @@ class SpaceTimeKriging(BaseMethod):
         """
         image_float = np.asarray(degraded, dtype=np.float32)
         if image_float.ndim < 3:
-            raise ValueError(
-                "Space-time kriging requires a time series with shape (T, H, W) or (T, H, W, C)."
+            msg = (
+                "Space-time kriging requires a time series (T, H, W) or "
+                f"(T, H, W, C), got ndim={image_float.ndim}"
             )
+            raise DimensionError(msg)
 
         mask_3d = self._normalize_time_mask(mask)
         if image_float.shape[:3] != mask_3d.shape:
-            raise ValueError(
-                f"Image and mask must match on (T, H, W). Image: {image_float.shape[:3]}, Mask: {mask_3d.shape}."
+            msg = (
+                f"Image and mask must match on (T, H, W): "
+                f"image={image_float.shape[:3]}, mask={mask_3d.shape}"
             )
+            raise DimensionError(msg)
 
         _n_timesteps, height, width = image_float.shape[:3]
         spatial_radius = (
@@ -519,7 +611,26 @@ class SpaceTimeKriging(BaseMethod):
         obs_t, obs_y, obs_x = np.where(~mask_3d)
         gap_t, gap_y, gap_x = np.where(mask_3d)
 
-        if obs_t.size < 5 or gap_t.size == 0:
+        logger.debug(
+            "Space-time kriging: shape=%s, %d gap pixels, %d observed, "
+            "spatial_radius=%d, time_radius=%d",
+            image_float.shape,
+            gap_t.size,
+            obs_t.size,
+            spatial_radius,
+            time_radius,
+        )
+
+        if obs_t.size < _MIN_KRIGING_OBSERVATIONS or gap_t.size == 0:
+            if gap_t.size == 0:
+                logger.debug("Space-time kriging: no gaps; returning as-is")
+            else:
+                logger.warning(
+                    "Space-time kriging: only %d observations "
+                    "(need >= %d); returning input unchanged",
+                    obs_t.size,
+                    _MIN_KRIGING_OBSERVATIONS,
+                )
             return self._finalize(reconstructed)
 
         rng = np.random.default_rng(self.random_seed)

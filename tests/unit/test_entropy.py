@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from pdi_pipeline.entropy import shannon_entropy
+from pdi_pipeline.exceptions import DimensionError, ValidationError
 
 
 class TestShannonEntropy:
@@ -55,19 +56,29 @@ class TestShannonEntropy:
         e_2d = shannon_entropy(mean_band, window_size=7)
         np.testing.assert_array_equal(e_3d, e_2d)
 
-    def test_invalid_even_window_raises(self) -> None:
+    def test_invalid_even_window_raises_validation_error(self) -> None:
         img = np.zeros((16, 16), dtype=np.float32)
-        with pytest.raises(ValueError, match="positive odd integer"):
+        with pytest.raises(ValidationError, match="positive odd integer"):
             shannon_entropy(img, window_size=8)
 
-    def test_invalid_zero_window_raises(self) -> None:
+    def test_invalid_zero_window_raises_validation_error(self) -> None:
         img = np.zeros((16, 16), dtype=np.float32)
-        with pytest.raises(ValueError, match="positive odd integer"):
+        with pytest.raises(ValidationError, match="positive odd integer"):
             shannon_entropy(img, window_size=0)
 
-    def test_invalid_ndim_raises(self) -> None:
+    def test_negative_window_raises_validation_error(self) -> None:
+        img = np.zeros((16, 16), dtype=np.float32)
+        with pytest.raises(ValidationError, match="positive odd integer"):
+            shannon_entropy(img, window_size=-3)
+
+    def test_invalid_ndim_raises_dimension_error(self) -> None:
         img = np.zeros((4,), dtype=np.float32)
-        with pytest.raises(ValueError, match="2D or 3D"):
+        with pytest.raises(DimensionError, match="2D or 3D"):
+            shannon_entropy(img, window_size=7)
+
+    def test_4d_raises_dimension_error(self) -> None:
+        img = np.zeros((4, 4, 3, 2), dtype=np.float32)
+        with pytest.raises(DimensionError, match="2D or 3D"):
             shannon_entropy(img, window_size=7)
 
     def test_entropy_values_non_negative(self) -> None:
@@ -75,3 +86,15 @@ class TestShannonEntropy:
         img = rng.random((32, 32), dtype=np.float64)
         result = shannon_entropy(img, window_size=7)
         assert np.all(result >= 0.0)
+
+    def test_validation_error_is_also_value_error(self) -> None:
+        """ValidationError inherits ValueError, so callers can catch either."""
+        img = np.zeros((16, 16), dtype=np.float32)
+        with pytest.raises(ValueError, match="positive odd integer"):
+            shannon_entropy(img, window_size=4)
+
+    def test_dimension_error_is_also_value_error(self) -> None:
+        """DimensionError inherits ValueError, so callers can catch either."""
+        img = np.zeros((4,), dtype=np.float32)
+        with pytest.raises(ValueError, match="2D or 3D"):
+            shannon_entropy(img, window_size=7)

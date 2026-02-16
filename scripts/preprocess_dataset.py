@@ -33,17 +33,15 @@ import rasterio
 import rasterio.errors
 from tqdm import tqdm
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%H:%M:%S",
-)
+from pdi_pipeline.logging_utils import get_project_root, setup_logging
+
+setup_logging()
 log = logging.getLogger(__name__)
 
 DEFAULT_DATA_ROOT = Path("/opt/datasets/satellite-images")
 MANIFEST_NAME = "manifest.csv"
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = get_project_root()
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "preprocessed"
 
 VARIANTS = [

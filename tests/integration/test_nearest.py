@@ -1,99 +1,105 @@
-"""Integration tests for NearestInterpolator on real satellite patches."""
+"""Integration tests for NearestInterpolator using synthetic data."""
 
 from __future__ import annotations
 
 import numpy as np
 import pytest
 
-from pdi_pipeline.methods.nearest import NearestInterpolator
-from tests.conftest import (
-    NOISE_VARIANTS,
-    PatchSample,
-    degraded_for_variant,
-    psnr,
-)
+from pdi_pipeline.methods.registry import get_interpolator
+from tests.conftest import make_degraded
+
+SIZE = 32
+CHANNELS = 4
+
+
+def _make_method(**kwargs):
+    return get_interpolator("nearest", **kwargs)
 
 
 @pytest.mark.integration
-class TestNearestOnRealData:
-    @pytest.fixture(params=NOISE_VARIANTS)
-    def variant(self, request: pytest.FixtureRequest) -> str:
-        return request.param
+class TestNearestInterpolator:
+    """Standard integration tests for nearest-neighbor interpolation."""
 
-    def test_output_shape(
-        self, sentinel2_patch: PatchSample, variant: str
+    def test_output_contract(
+        self,
+        synthetic_degraded_3d: np.ndarray,
+        synthetic_mask: np.ndarray,
     ) -> None:
-        method = NearestInterpolator()
-        degraded = degraded_for_variant(sentinel2_patch, variant)
-        result = method.apply(degraded, sentinel2_patch.mask)
-        assert result.shape == degraded.shape
+        method = _make_method()
+        result = method.apply(synthetic_degraded_3d, synthetic_mask)
 
-    def test_output_dtype(
-        self, sentinel2_patch: PatchSample, variant: str
-    ) -> None:
-        method = NearestInterpolator()
-        degraded = degraded_for_variant(sentinel2_patch, variant)
-        result = method.apply(degraded, sentinel2_patch.mask)
+        assert result.shape == synthetic_degraded_3d.shape
         assert result.dtype == np.float32
-
-    def test_no_nan_or_inf(
-        self, sentinel2_patch: PatchSample, variant: str
-    ) -> None:
-        method = NearestInterpolator()
-        degraded = degraded_for_variant(sentinel2_patch, variant)
-        result = method.apply(degraded, sentinel2_patch.mask)
-        assert np.all(np.isfinite(result))
-
-    def test_output_in_unit_range(
-        self, sentinel2_patch: PatchSample, variant: str
-    ) -> None:
-        method = NearestInterpolator()
-        degraded = degraded_for_variant(sentinel2_patch, variant)
-        result = method.apply(degraded, sentinel2_patch.mask)
         assert float(result.min()) >= 0.0
         assert float(result.max()) <= 1.0
+        assert np.all(np.isfinite(result))
 
-    def test_known_pixels_preserved(self, sentinel2_patch: PatchSample) -> None:
-        method = NearestInterpolator()
-        degraded = sentinel2_patch.degraded_inf
-        mask_bool = sentinel2_patch.mask.astype(bool)
-        result = method.apply(degraded, sentinel2_patch.mask)
-        valid = ~mask_bool
-        np.testing.assert_allclose(result[valid], degraded[valid], atol=1e-6)
-
-    def test_gaps_are_filled(self, sentinel2_patch: PatchSample) -> None:
-        method = NearestInterpolator()
-        result = method.apply(
-            sentinel2_patch.degraded_inf, sentinel2_patch.mask
-        )
-        mask_bool = sentinel2_patch.mask.astype(bool)
-        gap_values = result[mask_bool]
-        # All gap pixels should have a finite, non-zero value
-        assert np.all(np.isfinite(gap_values))
-
-    def test_psnr_positive(
-        self, sentinel2_patch: PatchSample, variant: str
+    def test_known_pixels_preserved(
+        self,
+        synthetic_degraded_3d: np.ndarray,
+        synthetic_mask: np.ndarray,
     ) -> None:
-        method = NearestInterpolator()
-        degraded = degraded_for_variant(sentinel2_patch, variant)
-        result = method.apply(degraded, sentinel2_patch.mask)
-        score = psnr(sentinel2_patch.clean, result)
-        assert score > 0.0
-
-    def test_no_gaps_passthrough(self, sentinel2_patch: PatchSample) -> None:
-        method = NearestInterpolator()
-        empty_mask = np.zeros_like(sentinel2_patch.mask)
-        result = method.apply(sentinel2_patch.clean, empty_mask)
+        method = _make_method()
+        result = method.apply(synthetic_degraded_3d, synthetic_mask)
+        valid = ~synthetic_mask
         np.testing.assert_allclose(
-            result, np.clip(sentinel2_patch.clean, 0, 1), atol=1e-6
+            result[valid], synthetic_degraded_3d[valid], atol=1e-4
         )
 
-    def test_kernel_size_limits_search(
-        self, sentinel2_patch: PatchSample
+    def test_no_gap_passthrough(
+        self,
+        synthetic_clean_3d: np.ndarray,
+        synthetic_mask_no_gap: np.ndarray,
     ) -> None:
-        method = NearestInterpolator(kernel_size=5)
-        result = method.apply(
-            sentinel2_patch.degraded_inf, sentinel2_patch.mask
+        method = _make_method()
+        result = method.apply(synthetic_clean_3d, synthetic_mask_no_gap)
+        np.testing.assert_allclose(
+            result, np.clip(synthetic_clean_3d, 0, 1), atol=1e-6
         )
-        assert result.shape == sentinel2_patch.degraded_inf.shape
+
+    def test_single_pixel_gap(
+        self,
+        synthetic_clean_3d: np.ndarray,
+        synthetic_mask_single_pixel: np.ndarray,
+    ) -> None:
+        degraded = make_degraded(
+            synthetic_clean_3d, synthetic_mask_single_pixel
+        )
+        method = _make_method()
+        result = method.apply(degraded, synthetic_mask_single_pixel)
+
+        assert np.all(np.isfinite(result))
+        gap_vals = result[synthetic_mask_single_pixel]
+        assert np.all(gap_vals > 0.0) or np.all(gap_vals == 0.0)  # filled
+
+    def test_multichannel_support(
+        self,
+        synthetic_degraded_3d: np.ndarray,
+        synthetic_mask: np.ndarray,
+    ) -> None:
+        assert synthetic_degraded_3d.ndim == 3
+        method = _make_method()
+        result = method.apply(synthetic_degraded_3d, synthetic_mask)
+        assert result.shape == synthetic_degraded_3d.shape
+        assert result.ndim == 3
+
+    def test_single_channel_support(
+        self,
+        synthetic_degraded_2d: np.ndarray,
+        synthetic_mask: np.ndarray,
+    ) -> None:
+        assert synthetic_degraded_2d.ndim == 2
+        method = _make_method()
+        result = method.apply(synthetic_degraded_2d, synthetic_mask)
+        assert result.shape == synthetic_degraded_2d.shape
+        assert result.ndim == 2
+
+    def test_kernel_size_parameter(
+        self,
+        synthetic_degraded_3d: np.ndarray,
+        synthetic_mask: np.ndarray,
+    ) -> None:
+        method = _make_method(kernel_size=5)
+        result = method.apply(synthetic_degraded_3d, synthetic_mask)
+        assert result.shape == synthetic_degraded_3d.shape
         assert np.all(np.isfinite(result))

@@ -7,8 +7,14 @@ per-pixel maps via sliding windows for spatial analysis (LISA).
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 from skimage.metrics import structural_similarity
+
+from pdi_pipeline.exceptions import DimensionError
+
+logger = logging.getLogger(__name__)
 
 
 def _as_gap_mask(mask: np.ndarray) -> np.ndarray:
@@ -40,7 +46,7 @@ def _validate_inputs(
             f"Shape mismatch: clean {clean.shape} "
             f"vs reconstructed {reconstructed.shape}"
         )
-        raise ValueError(msg)
+        raise DimensionError(msg)
 
     mask_2d = mask
     if mask_2d.ndim == 3:
@@ -48,7 +54,7 @@ def _validate_inputs(
 
     if mask_2d.ndim != 2:
         msg = f"Mask must be 2D or 3D, got ndim={mask.ndim}"
-        raise ValueError(msg)
+        raise DimensionError(msg)
 
     h, w = mask_2d.shape[:2]
     if clean.ndim == 2 and clean.shape != (h, w):
@@ -56,13 +62,13 @@ def _validate_inputs(
             f"Spatial dims mismatch: clean {clean.shape} "
             f"vs mask {mask_2d.shape}"
         )
-        raise ValueError(msg)
+        raise DimensionError(msg)
     if clean.ndim == 3 and clean.shape[:2] != (h, w):
         msg = (
             f"Spatial dims mismatch: clean {clean.shape[:2]} "
             f"vs mask {mask_2d.shape}"
         )
-        raise ValueError(msg)
+        raise DimensionError(msg)
 
     return clean, reconstructed, _as_gap_mask(mask_2d)
 
@@ -200,7 +206,7 @@ def sam(
             "SAM requires multichannel input (H, W, C) with C >= 2, "
             f"got shape {clean.shape}"
         )
-        raise ValueError(msg)
+        raise DimensionError(msg)
 
     gap = mask_2d
     if not np.any(gap):
@@ -257,7 +263,7 @@ def ergas(
             "ERGAS requires multichannel input (H, W, C) with C >= 2, "
             f"got shape {clean.shape}"
         )
-        raise ValueError(msg)
+        raise DimensionError(msg)
 
     gap = mask_2d
     if not np.any(gap):
@@ -317,20 +323,40 @@ def local_psnr(
     result = np.full((h, w), np.nan, dtype=np.float32)
 
     # Pad arrays for border handling
-    sq_err_pad = np.pad(sq_err, half, mode="reflect")
-    gap_pad = np.pad(gap, half, mode="constant", constant_values=False)
+    sq_err_pad = np.pad(sq_err, half, mode="reflect").astype(np.float64)
+    gap_pad = np.pad(
+        gap.astype(np.float64), half, mode="constant", constant_values=0.0
+    )
 
-    for i in range(h):
-        for j in range(w):
-            local_gap = gap_pad[i : i + window, j : j + window]
-            if not np.any(local_gap):
-                continue
-            local_err = sq_err_pad[i : i + window, j : j + window]
-            mse = float(np.mean(local_err[local_gap]))
-            if mse < 1e-12:
-                result[i, j] = 100.0  # cap at 100 dB
-            else:
-                result[i, j] = 10.0 * np.log10(1.0 / mse)
+    # Vectorized sliding-window sums via cumulative sums.
+    # gap_count[i, j] = number of gap pixels in the window centered at (i, j)
+    # err_sum[i, j]  = sum of sq_err at gap pixels in the window
+    masked_err = sq_err_pad * gap_pad
+
+    # Vectorized sliding-window sums via scipy uniform_filter -- O(HW)
+    from scipy.ndimage import uniform_filter
+
+    kernel = float(window)
+    area = kernel * kernel
+    gap_count = uniform_filter(gap_pad, size=window, mode="constant", cval=0.0)
+    err_sum = uniform_filter(masked_err, size=window, mode="constant", cval=0.0)
+
+    # Extract the valid (unpadded) region
+    gap_count = gap_count[half : half + h, half : half + w] * area
+    err_sum = err_sum[half : half + h, half : half + w] * area
+
+    # Compute MSE and PSNR only where there are gap pixels in the window
+    has_gap = gap_count > 0.5  # at least 1 gap pixel
+    mse = np.where(has_gap, err_sum / gap_count, 0.0)
+
+    # PSNR: cap at 100 dB for near-zero MSE
+    _PSNR_CAP = 100.0
+    _MSE_FLOOR = 1e-12
+    valid_mse = mse > _MSE_FLOOR
+    result[has_gap & valid_mse] = (
+        10.0 * np.log10(1.0 / mse[has_gap & valid_mse])
+    ).astype(np.float32)
+    result[has_gap & ~valid_mse] = _PSNR_CAP
 
     return result
 

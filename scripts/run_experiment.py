@@ -25,17 +25,18 @@ from tqdm import tqdm
 
 from pdi_pipeline.config import ExperimentConfig, MethodConfig, load_config
 from pdi_pipeline.dataset import PatchDataset
+from pdi_pipeline.logging_utils import (
+    get_project_root,
+    setup_file_logging,
+    setup_logging,
+)
 from pdi_pipeline.methods.base import BaseMethod
 from pdi_pipeline.visualization import save_array_as_png
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%H:%M:%S",
-)
+setup_logging()
 log = logging.getLogger(__name__)
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = get_project_root()
 DEFAULT_MANIFEST = PROJECT_ROOT / "preprocessed" / "manifest.csv"
 
 # Multi-temporal methods excluded from this paper
@@ -160,10 +161,12 @@ def _load_completed(output_path: Path) -> set[tuple[int, str, str, int]]:
     if not csv_path.exists():
         return set()
     df = pd.read_csv(
-        csv_path, usecols=["seed", "noise_level", "method", "patch_id"]
+        csv_path,
+        usecols=["seed", "noise_level", "method", "patch_id"],
+        dtype={"noise_level": str},
     )
     return {
-        (int(r["seed"]), r["noise_level"], r["method"], int(r["patch_id"]))
+        (int(r["seed"]), str(r["noise_level"]), r["method"], int(r["patch_id"]))
         for _, r in df.iterrows()
     }
 
@@ -181,20 +184,6 @@ def _save_checkpoint(rows: list[dict[str, Any]], output_path: Path) -> None:
     else:
         combined = new_df
     combined.to_csv(csv_path, index=False)
-
-
-def _setup_file_logging(log_path: Path) -> None:
-    """Add a file handler to the root logger."""
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    handler = logging.FileHandler(log_path, encoding="utf-8")
-    handler.setLevel(logging.DEBUG)
-    handler.setFormatter(
-        logging.Formatter(
-            "%(asctime)s [%(levelname)s] %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
-    )
-    logging.getLogger().addHandler(handler)
 
 
 def _load_patch_selections(
@@ -225,7 +214,7 @@ def run_experiment(
     from pdi_pipeline import metrics as m
 
     output_path = config.output_path
-    _setup_file_logging(output_path / "experiment.log")
+    setup_file_logging(output_path, name="experiment")
     manifest_path = DEFAULT_MANIFEST
 
     if not manifest_path.exists():

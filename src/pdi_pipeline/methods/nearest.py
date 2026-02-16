@@ -7,10 +7,14 @@ interpolant. This method is simple but can produce blocky artifacts.
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 from scipy.ndimage import distance_transform_edt
 
 from pdi_pipeline.methods.base import BaseMethod
+
+logger = logging.getLogger(__name__)
 
 
 class NearestInterpolator(BaseMethod):
@@ -34,10 +38,11 @@ class NearestInterpolator(BaseMethod):
     name = "nearest"
 
     def __init__(self, kernel_size: int | None = None) -> None:
-        """Initialize the interpolator.
+        """Initialize the nearest neighbor interpolator.
 
         Args:
-            kernel_size: Search window size. If None, uses entire image.
+            kernel_size: Search window size (max distance in pixels). If None,
+                uses the full image extent.
         """
         self.kernel_size = kernel_size
 
@@ -51,14 +56,20 @@ class NearestInterpolator(BaseMethod):
         """Apply nearest neighbor interpolation to recover missing pixels.
 
         Args:
-            degraded: Array with missing data (e.g., NaN or masked pixels).
-            mask: Binary mask where 1 indicates missing pixels to fill.
-            meta: Optional metadata (crs, transform, bands, etc.).
+            degraded: Array with missing data, shape ``(H, W)`` or
+                ``(H, W, C)``, dtype ``float32``, values in ``[0, 1]``.
+            mask: Binary mask where ``True``/``1`` marks gap pixels to fill.
+                Shape ``(H, W)`` or broadcastable ``(H, W, C)``.
+            meta: Optional metadata (CRS, transform, band names, etc.).
 
         Returns:
-            Reconstructed array with same shape as degraded.
+            Reconstructed ``float32`` array with same shape as *degraded*,
+            values clipped to ``[0, 1]``, no ``NaN``/``Inf``.
         """
-        mask_2d = self._normalize_mask(mask)
+        degraded, mask_2d = self._validate_inputs(degraded, mask)
+        early = self._early_exit_if_no_gaps(degraded, mask_2d)
+        if early is not None:
+            return early
 
         # Create a copy to avoid modifying the input
         result = degraded.copy()
@@ -87,6 +98,9 @@ class NearestInterpolator(BaseMethod):
         gap_pixels_y, gap_pixels_x = np.where(mask_2d & within_radius)
 
         if len(gap_pixels_y) == 0:
+            logger.debug(
+                "No gap pixels within radius %d; returning as-is.", radius
+            )
             return self._finalize(result)
 
         nearest_y = indices[0, gap_pixels_y, gap_pixels_x]
@@ -94,12 +108,20 @@ class NearestInterpolator(BaseMethod):
 
         if is_multichannel:
             channels = degraded.shape[2]
+            logger.debug(
+                "Filling %d gap pixels across %d channels.",
+                len(gap_pixels_y),
+                channels,
+            )
             for channel_idx in range(channels):
                 channel_data = degraded[:, :, channel_idx]
                 result[gap_pixels_y, gap_pixels_x, channel_idx] = channel_data[
                     nearest_y, nearest_x
                 ]
         else:
+            logger.debug(
+                "Filling %d gap pixels (single channel).", len(gap_pixels_y)
+            )
             result[gap_pixels_y, gap_pixels_x] = degraded[nearest_y, nearest_x]
 
         return self._finalize(result)

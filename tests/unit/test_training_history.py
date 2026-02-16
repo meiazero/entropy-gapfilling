@@ -94,8 +94,8 @@ class TestComputeValidationMetrics:
             "val_f1_002",
             "val_pixel_acc_005",
             "val_f1_005",
-            "val_pixel_acc_010",
-            "val_f1_010",
+            "val_pixel_acc_01",
+            "val_f1_01",
         }
         assert set(result.keys()) == expected_keys
 
@@ -118,14 +118,14 @@ class TestComputeValidationMetrics:
 
         assert result["val_pixel_acc_002"] == 1.0
         assert result["val_pixel_acc_005"] == 1.0
-        assert result["val_pixel_acc_010"] == 1.0
+        assert result["val_pixel_acc_01"] == 1.0
         assert result["val_rmse"] < 1e-6
 
     def test_f1_derivation_from_pixel_accuracy(self) -> None:
         preds, targets, masks = self._make_batch(noise=0.03)
         result = compute_validation_metrics(preds, targets, masks)
 
-        for tau_key in ["002", "005", "010"]:
+        for tau_key in ["002", "005", "01"]:
             pa = result[f"val_pixel_acc_{tau_key}"]
             f1 = result[f"val_f1_{tau_key}"]
             expected_f1 = 2 * pa / (1 + pa) if (1 + pa) > 0 else 0.0

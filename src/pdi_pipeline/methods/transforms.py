@@ -6,12 +6,20 @@ promote piecewise smoothness (Total Variation) to reconstruct missing data.
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import pywt
 from numpy.typing import NDArray
 from scipy.fftpack import dct, idct
 
 from pdi_pipeline.methods.base import BaseMethod
+
+logger = logging.getLogger(__name__)
+
+_DCT_CONVERGENCE_TOL = 1e-4
+_WAVELET_CONVERGENCE_TOL = 1e-4
+_TV_CONVERGENCE_TOL = 1e-4
 
 
 class DCTInpainting(BaseMethod):
@@ -67,14 +75,21 @@ class DCTInpainting(BaseMethod):
         """Apply DCT-based inpainting to recover missing pixels.
 
         Args:
-            degraded: Array with missing data (e.g., NaN or masked pixels).
-            mask: Binary mask where 1 indicates missing pixels to fill.
-            meta: Optional metadata (crs, transform, bands, etc.).
+            degraded: Array with missing data, shape ``(H, W)`` or
+                ``(H, W, C)``, dtype ``float32``, values in ``[0, 1]``.
+            mask: Binary mask where ``True``/``1`` marks gap pixels to fill.
+                Shape ``(H, W)`` or broadcastable ``(H, W, C)``.
+            meta: Optional metadata (CRS, transform, band names, etc.).
 
         Returns:
-            Reconstructed array with same shape as degraded.
+            Reconstructed ``float32`` array with same shape as *degraded*,
+            values clipped to ``[0, 1]``, no ``NaN``/``Inf``.
         """
-        mask_2d = self._normalize_mask(mask)
+        degraded, mask_2d = self._validate_inputs(degraded, mask)
+        early = self._early_exit_if_no_gaps(degraded, mask_2d)
+        if early is not None:
+            return early
+
         result = self._apply_channelwise(
             degraded, mask_2d, self._dct_inpaint_channel
         )
@@ -86,11 +101,11 @@ class DCTInpainting(BaseMethod):
         """Apply DCT inpainting to a single channel.
 
         Args:
-            channel_data: Single channel image data
-            mask: Boolean mask where True indicates missing pixels
+            channel_data: Single channel image data.
+            mask: Boolean mask where True indicates missing pixels.
 
         Returns:
-            Reconstructed channel
+            Reconstructed channel.
         """
         # Initialize missing pixels with local mean
         reconstructed = channel_data.copy()
@@ -104,7 +119,9 @@ class DCTInpainting(BaseMethod):
         reconstructed[mask] = mean_val
 
         # Iterative DCT-based reconstruction
-        for _ in range(self.max_iterations):
+        iteration = 0
+        change = float("inf")
+        for iteration in range(self.max_iterations):
             # Forward DCT
             dct_coeffs = dct(dct(reconstructed.T, norm="ortho").T, norm="ortho")
 
@@ -128,9 +145,19 @@ class DCTInpainting(BaseMethod):
             )
             reconstructed = reconstructed_new.astype(np.float32, copy=False)
 
-            if change < 1e-4:
+            if change < _DCT_CONVERGENCE_TOL:
+                logger.debug(
+                    "DCT converged at iteration %d (change=%.2e).",
+                    iteration + 1,
+                    change,
+                )
                 break
 
+        logger.debug(
+            "DCT finished after %d iterations (final change=%.2e).",
+            iteration + 1,
+            change,
+        )
         return reconstructed.astype(np.float32)
 
 
@@ -196,14 +223,21 @@ class WaveletInpainting(BaseMethod):
         """Apply wavelet-based inpainting to recover missing pixels.
 
         Args:
-            degraded: Array with missing data (e.g., NaN or masked pixels).
-            mask: Binary mask where 1 indicates missing pixels to fill.
-            meta: Optional metadata (crs, transform, bands, etc.).
+            degraded: Array with missing data, shape ``(H, W)`` or
+                ``(H, W, C)``, dtype ``float32``, values in ``[0, 1]``.
+            mask: Binary mask where ``True``/``1`` marks gap pixels to fill.
+                Shape ``(H, W)`` or broadcastable ``(H, W, C)``.
+            meta: Optional metadata (CRS, transform, band names, etc.).
 
         Returns:
-            Reconstructed array with same shape as degraded.
+            Reconstructed ``float32`` array with same shape as *degraded*,
+            values clipped to ``[0, 1]``, no ``NaN``/``Inf``.
         """
-        mask_2d = self._normalize_mask(mask)
+        degraded, mask_2d = self._validate_inputs(degraded, mask)
+        early = self._early_exit_if_no_gaps(degraded, mask_2d)
+        if early is not None:
+            return early
+
         result = self._apply_channelwise(
             degraded, mask_2d, self._wavelet_inpaint_channel
         )
@@ -215,11 +249,11 @@ class WaveletInpainting(BaseMethod):
         """Apply wavelet inpainting to a single channel.
 
         Args:
-            channel_data: Single channel image data
-            mask: Boolean mask where True indicates missing pixels
+            channel_data: Single channel image data.
+            mask: Boolean mask where True indicates missing pixels.
 
         Returns:
-            Reconstructed channel
+            Reconstructed channel.
         """
         reconstructed = np.asarray(channel_data, dtype=np.float32).copy()
         valid_mask = ~mask
@@ -232,7 +266,9 @@ class WaveletInpainting(BaseMethod):
         reconstructed[mask] = mean_val
 
         # Iterative wavelet-based reconstruction
-        for _ in range(self.max_iterations):
+        iteration = 0
+        change = float("inf")
+        for iteration in range(self.max_iterations):
             # Wavelet decomposition
             coeffs = pywt.wavedec2(
                 reconstructed, self.wavelet, level=self.level
@@ -277,9 +313,19 @@ class WaveletInpainting(BaseMethod):
             )
             reconstructed = reconstructed_new
 
-            if change < 1e-4:
+            if change < _WAVELET_CONVERGENCE_TOL:
+                logger.debug(
+                    "Wavelet converged at iteration %d (change=%.2e).",
+                    iteration + 1,
+                    change,
+                )
                 break
 
+        logger.debug(
+            "Wavelet finished after %d iterations (final change=%.2e).",
+            iteration + 1,
+            change,
+        )
         return np.real(reconstructed).astype(np.float32, copy=False)
 
 
@@ -320,8 +366,9 @@ class TVInpainting(BaseMethod):
         """Initialize TV inpainting.
 
         Args:
-            lambda_param: Data fidelity weight
-            max_iterations: Maximum number of iterations
+            lambda_param: Data fidelity weight. Higher values enforce
+                stronger agreement with observed pixels.
+            max_iterations: Maximum number of primal-dual iterations.
         """
         self.lambda_param = lambda_param
         self.max_iterations = max_iterations
@@ -336,14 +383,21 @@ class TVInpainting(BaseMethod):
         """Apply Total Variation inpainting to recover missing pixels.
 
         Args:
-            degraded: Array with missing data (e.g., NaN or masked pixels).
-            mask: Binary mask where 1 indicates missing pixels to fill.
-            meta: Optional metadata (crs, transform, bands, etc.).
+            degraded: Array with missing data, shape ``(H, W)`` or
+                ``(H, W, C)``, dtype ``float32``, values in ``[0, 1]``.
+            mask: Binary mask where ``True``/``1`` marks gap pixels to fill.
+                Shape ``(H, W)`` or broadcastable ``(H, W, C)``.
+            meta: Optional metadata (CRS, transform, band names, etc.).
 
         Returns:
-            Reconstructed array with same shape as degraded.
+            Reconstructed ``float32`` array with same shape as *degraded*,
+            values clipped to ``[0, 1]``, no ``NaN``/``Inf``.
         """
-        mask_2d = self._normalize_mask(mask)
+        degraded, mask_2d = self._validate_inputs(degraded, mask)
+        early = self._early_exit_if_no_gaps(degraded, mask_2d)
+        if early is not None:
+            return early
+
         result = self._apply_channelwise(
             degraded, mask_2d, self._tv_inpaint_channel
         )
@@ -355,11 +409,11 @@ class TVInpainting(BaseMethod):
         """Apply TV inpainting to a single channel.
 
         Args:
-            channel_data: Single channel image data
-            mask: Boolean mask where True indicates missing pixels
+            channel_data: Single channel image data.
+            mask: Boolean mask where True indicates missing pixels.
 
         Returns:
-            Reconstructed channel
+            Reconstructed channel.
         """
         if not np.any(mask):
             return channel_data.astype(np.float32, copy=False)
@@ -385,7 +439,7 @@ class TVInpainting(BaseMethod):
         primal = filled
         primal_bar = primal
 
-        for _ in range(self.max_iterations):
+        for _iteration in range(self.max_iterations):
             grad_x = np.roll(primal_bar, -1, axis=1) - primal_bar
             grad_y = np.roll(primal_bar, -1, axis=0) - primal_bar
             grad_x[:, -1] = 0.0
@@ -410,4 +464,7 @@ class TVInpainting(BaseMethod):
             primal = numerator / denominator
             primal_bar = primal + theta * (primal - primal_prev)
 
+        logger.debug(
+            "TV primal-dual finished after %d iterations.", self.max_iterations
+        )
         return primal.astype(np.float32, copy=False)

@@ -7,11 +7,27 @@ while ensuring unbiasedness through the constraint that weights sum to unity.
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 from pykrige.ok import OrdinaryKriging
 from scipy.interpolate import griddata
 
 from pdi_pipeline.methods.base import BaseMethod
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Module-level constants
+# ---------------------------------------------------------------------------
+_MIN_TRAINING_POINTS = 10
+"""Minimum number of unique training points required for variogram fitting."""
+
+_DEFAULT_RANDOM_SEED = 13
+"""Default random seed used when ``random_seed`` is ``None``."""
+
+_MIN_KERNEL_RADIUS = 1
+"""Minimum kernel radius in pixels."""
 
 
 class KrigingInterpolator(BaseMethod):
@@ -57,9 +73,9 @@ class KrigingInterpolator(BaseMethod):
         """Initialize Kriging interpolator.
 
         Args:
-            variogram_model: Type of variogram model. Options: 'spherical', 'exponential',
-                            'gaussian', 'linear', 'power'
-            nlags: Number of averaging bins for the semivariogram
+            variogram_model: Type of variogram model. Options: 'spherical',
+                'exponential', 'gaussian', 'linear', 'power'.
+            nlags: Number of averaging bins for the semivariogram.
             max_points: Maximum number of training points to use.
             random_seed: Random seed for reproducible downsampling.
             kernel_size: Search window size. If None, uses entire image.
@@ -80,11 +96,24 @@ class KrigingInterpolator(BaseMethod):
     ) -> np.ndarray | None:
         """Interpolate one 2D channel via ordinary kriging.
 
-        Returns the filled channel, or None if insufficient data.
+        Args:
+            channel_data: 2D array of pixel values for one channel.
+            train_y: Row indices of training pixels.
+            train_x: Column indices of training pixels.
+            gap_y: Row indices of gap pixels.
+            gap_x: Column indices of gap pixels.
+
+        Returns:
+            Filled channel array, or ``None`` if insufficient data.
         """
         train_values = channel_data[train_y, train_x]
         finite_mask = np.isfinite(train_values)
-        if int(np.sum(finite_mask)) < 10:
+        if int(np.sum(finite_mask)) < _MIN_TRAINING_POINTS:
+            logger.warning(
+                "Insufficient finite training values (%d < %d); skipping channel",
+                int(np.sum(finite_mask)),
+                _MIN_TRAINING_POINTS,
+            )
             return None
 
         x_points = train_x[finite_mask].astype(np.float64)
@@ -98,7 +127,12 @@ class KrigingInterpolator(BaseMethod):
         y_points = unique_xy[:, 1]
         z_points = z_points[unique_index]
 
-        if x_points.size < 10:
+        if x_points.size < _MIN_TRAINING_POINTS:
+            logger.warning(
+                "Insufficient unique training points (%d < %d); skipping channel",
+                x_points.size,
+                _MIN_TRAINING_POINTS,
+            )
             return None
 
         result = channel_data.copy()
@@ -118,7 +152,13 @@ class KrigingInterpolator(BaseMethod):
                 gap_y.astype(np.float64),
             )
             result[gap_y, gap_x] = interpolated_values
-        except Exception:
+        except (np.linalg.LinAlgError, ValueError, RuntimeError) as exc:
+            logger.warning(
+                "Kriging failed (variogram=%s): %s; "
+                "falling back to nearest-neighbor griddata",
+                self.variogram_model,
+                exc,
+            )
             coords_valid = np.column_stack([x_points, y_points])
             coords_gap = np.column_stack([
                 gap_x.astype(np.float64),
@@ -141,28 +181,51 @@ class KrigingInterpolator(BaseMethod):
         """Apply Ordinary Kriging to recover missing pixels.
 
         Args:
-            degraded: Array with missing data (e.g., NaN or masked pixels).
-            mask: Binary mask where 1 indicates missing pixels to fill.
+            degraded: Array with missing data, shape ``(H, W)`` or
+                ``(H, W, C)``, dtype ``float32``, values in ``[0, 1]``.
+            mask: Binary mask where ``True``/``1`` marks gap pixels to fill.
             meta: Optional metadata (crs, transform, bands, etc.).
 
         Returns:
-            Reconstructed array with same shape as degraded.
+            Reconstructed ``float32`` array with same shape as *degraded*,
+            values clipped to ``[0, 1]``, no ``NaN``/``Inf``.
         """
-        mask_2d = self._normalize_mask(mask)
+        degraded, mask_2d = self._validate_inputs(degraded, mask)
+        early = self._early_exit_if_no_gaps(degraded, mask_2d)
+        if early is not None:
+            return early
+
         h, w = mask_2d.shape
-        result = degraded.copy()
 
         valid_y, valid_x = np.where(~mask_2d)
         gap_y, gap_x = np.where(mask_2d)
 
-        if len(valid_y) < 10 or len(gap_y) == 0:
-            return self._finalize(result)
+        if len(valid_y) < _MIN_TRAINING_POINTS:
+            logger.warning(
+                "Insufficient valid pixels (%d < %d); returning input unchanged",
+                len(valid_y),
+                _MIN_TRAINING_POINTS,
+            )
+            return self._finalize(degraded.copy())
+
+        logger.debug(
+            "Kriging interpolation: %d gap pixels, %d valid pixels, variogram=%s",
+            len(gap_y),
+            len(valid_y),
+            self.variogram_model,
+        )
 
         selected_indices = self._select_training_points(
             valid_y, valid_x, gap_y, gap_x, (h, w)
         )
-        if selected_indices.size < 10:
-            return self._finalize(result)
+        if selected_indices.size < _MIN_TRAINING_POINTS:
+            logger.warning(
+                "Insufficient selected training points (%d < %d); "
+                "returning input unchanged",
+                selected_indices.size,
+                _MIN_TRAINING_POINTS,
+            )
+            return self._finalize(degraded.copy())
 
         train_y = valid_y[selected_indices]
         train_x = valid_x[selected_indices]
@@ -186,15 +249,15 @@ class KrigingInterpolator(BaseMethod):
     ) -> np.ndarray:
         """Select a spatially limited subset of valid points.
 
-        The goal is to reduce numerical issues and cubic cost in kriging by restricting
-        the number of training points.
+        The goal is to reduce numerical issues and cubic cost in kriging
+        by restricting the number of training points.
 
         Args:
             valid_y: Y coordinates of valid pixels.
             valid_x: X coordinates of valid pixels.
             gap_y: Y coordinates of gap pixels.
             gap_x: X coordinates of gap pixels.
-            image_shape: (height, width) of the image.
+            image_shape: ``(height, width)`` of the image.
 
         Returns:
             Indices of selected training points.
@@ -204,7 +267,7 @@ class KrigingInterpolator(BaseMethod):
 
         h, w = image_shape
         radius = self.kernel_size if self.kernel_size is not None else max(h, w)
-        radius = max(1, radius)
+        radius = max(_MIN_KERNEL_RADIUS, radius)
 
         if gap_y.size == 0 or radius <= 0:
             indices = np.arange(valid_y.size, dtype=np.int64)
@@ -225,7 +288,11 @@ class KrigingInterpolator(BaseMethod):
                 indices = np.arange(valid_y.size, dtype=np.int64)
 
         if indices.size > self.max_points:
-            rng_seed = self.random_seed if self.random_seed is not None else 13
+            rng_seed = (
+                self.random_seed
+                if self.random_seed is not None
+                else _DEFAULT_RANDOM_SEED
+            )
             rng = np.random.default_rng(rng_seed)
             indices = rng.choice(
                 indices, size=self.max_points, replace=False
