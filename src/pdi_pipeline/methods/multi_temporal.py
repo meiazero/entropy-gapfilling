@@ -1,8 +1,4 @@
-"""Multi-temporal interpolators: temporal spline, temporal Fourier, space-time kriging.
-
-These methods exploit temporal correlation in time-series data to reconstruct
-missing values across multiple acquisition dates.
-"""
+"""Multi-temporal interpolators: spline, Fourier, space-time kriging."""
 
 from __future__ import annotations
 
@@ -37,31 +33,9 @@ _MIN_KRIGING_OBSERVATIONS = 5
 
 
 class TemporalSplineInterpolator(BaseMethod):
-    r"""Temporal Spline interpolation for time-series reconstruction.
+    """Per-pixel cubic spline along the temporal axis.
 
-    This method fits cubic splines along the temporal dimension for each spatial
-    location, allowing smooth interpolation of missing values across time.
-
-    Mathematical Formulation:
-        For each pixel location $(x, y)$, the time series $f(t)$ is approximated by a
-        piecewise cubic polynomial $S(t)$ with continuous first and second derivatives:
-
-        $$S(t) = \begin{cases}
-            S_0(t) & t \in [t_0, t_1] \\
-            \vdots \\
-            S_{n-1}(t) & t \in [t_{n-1}, t_n]
-        \end{cases}$$
-
-        where each piece $S_i(t)$ is a cubic polynomial:
-        $$S_i(t) = a_i + b_i(t - t_i) + c_i(t - t_i)^2 + d_i(t - t_i)^3$$
-
-        satisfying continuity conditions $S(t) \in C^2[t_0, t_n]$:
-        - $S_i(t_{i+1}) = S_{i+1}(t_{i+1})$ (value continuity)
-        - $S_i'(t_{i+1}) = S_{i+1}'(t_{i+1})$ (first derivative continuity)
-        - $S_i''(t_{i+1}) = S_{i+1}''(t_{i+1})$ (second derivative continuity)
-
-    Note:
-        This interpolator requires temporal data with shape (T, H, W) or (T, H, W, C).
+    Requires input shape (T, H, W) or (T, H, W, C).
 
     Citation: Wikipedia contributors. "Spline interpolation." Wikipedia, The Free Encyclopedia.
     https://en.wikipedia.org/wiki/Spline_interpolation
@@ -209,30 +183,9 @@ class TemporalSplineInterpolator(BaseMethod):
 
 
 class TemporalFourierInterpolator(BaseMethod):
-    r"""Fourier Temporal interpolation using harmonic analysis.
+    """Truncated Fourier series fit per pixel along the temporal axis.
 
-    This method decomposes time series into harmonic components (Fourier series)
-    and reconstructs missing values. It is particularly effective for periodic
-    phenomena like seasonal vegetation cycles.
-
-    Mathematical Formulation:
-        The time series $f(t)$ is modeled as a truncated Fourier series:
-
-        $$f(t) = a_0 + \sum_{k=1}^{M} \left[ a_k \cos\left(\frac{2\pi k t}{T}\right) + b_k \sin\left(\frac{2\pi k t}{T}\right) \right]$$
-
-        where:
-        - $a_0$ is the mean (DC component).
-        - $a_k, b_k$ are Fourier coefficients determined by least-squares fitting to observed data.
-        - $T$ is the period of the series.
-        - $M$ is the number of harmonics (user-specified).
-
-        The coefficients are found by solving the linear system:
-        $$\mathbf{X}^T \mathbf{X} \mathbf{c} = \mathbf{X}^T \mathbf{y}$$
-        where $\mathbf{X}$ is the design matrix containing $[1, \cos(\omega_k t), \sin(\omega_k t)]$
-        for each harmonic $k$, and $\mathbf{y}$ are the observed values.
-
-    Note:
-        This interpolator requires temporal data with shape (T, H, W) or (T, H, W, C).
+    Requires input shape (T, H, W) or (T, H, W, C).
 
     Citation: Wikipedia contributors. "Fourier series." Wikipedia, The Free Encyclopedia.
     https://en.wikipedia.org/wiki/Fourier_series
@@ -373,37 +326,9 @@ class TemporalFourierInterpolator(BaseMethod):
 
 
 class SpaceTimeKriging(BaseMethod):
-    r"""Space-Time Kriging for spatiotemporal interpolation.
+    """Ordinary kriging in the (space, time) domain with separable exponential covariance.
 
-    Extends ordinary kriging to the spatiotemporal domain by modeling correlation
-    structures in both space and time through a space-time variogram.
-
-    Mathematical Formulation:
-        The estimator at a space-time point $(s_0, t_0)$ is:
-
-        $$\hat{Z}(s_0, t_0) = \sum_{i=1}^N \lambda_i Z(s_i, t_i)$$
-
-        where the weights $\lambda_i$ are determined by solving the space-time kriging system:
-
-        $$\begin{bmatrix}
-            C(h_{11}, \tau_{11}) & \cdots & C(h_{1N}, \tau_{1N}) & 1 \\
-            \vdots & \ddots & \vdots & \vdots \\
-            C(h_{N1}, \tau_{N1}) & \cdots & C(h_{NN}, \tau_{NN}) & 1 \\
-            1 & \cdots & 1 & 0
-        \end{bmatrix}
-        \begin{bmatrix} \lambda_1 \\ \vdots \\ \lambda_N \\ \mu \end{bmatrix} =
-        \begin{bmatrix} C(h_{10}, \tau_{10}) \\ \vdots \\ C(h_{N0}, \tau_{N0}) \\ 1 \end{bmatrix}$$
-
-        where:
-        - $C(h, \tau)$ is the space-time covariance function depending on spatial lag $h = \|s_i - s_j\|$
-          and temporal lag $\tau = |t_i - t_j|$.
-        - A common separable model is: $C(h, \tau) = C_s(h) \cdot C_t(\tau)$
-        - Example: $C(h, \tau) = \sigma^2 \exp(-h/r_s) \exp(-\tau/r_t)$ (exponential model).
-
-    Note:
-        This interpolator requires spatiotemporal data with shape (T, H, W) or (T, H, W, C).
-        Space-time kriging exploits temporal correlation to improve predictions,
-        ideal for filling cloud-cover gaps across multiple acquisition dates.
+    Requires input shape (T, H, W) or (T, H, W, C).
 
     Citation: Wikipedia contributors. "Kriging." Wikipedia, The Free Encyclopedia.
     https://en.wikipedia.org/wiki/Kriging

@@ -1,10 +1,4 @@
-"""DINEOF (Data Interpolating Empirical Orthogonal Functions) interpolation.
-
-DINEOF is an iterative method for reconstructing missing data in geophysical
-datasets using Empirical Orthogonal Functions (EOF), also known as Principal
-Component Analysis (PCA). It is particularly effective for spatiotemporal data
-but can be adapted for spatial-only reconstruction.
-"""
+"""DINEOF (Data Interpolating EOF) iterative SVD reconstruction."""
 
 from __future__ import annotations
 
@@ -34,33 +28,9 @@ _MIN_MODES = 1
 
 
 class DINEOFInterpolator(BaseMethod):
-    r"""DINEOF (Data Interpolating Empirical Orthogonal Functions) interpolation.
+    """Iterative truncated-SVD (EOF/PCA) reconstruction for time-series data.
 
-    DINEOF is an iterative method for reconstructing missing data in geophysical
-    datasets using Empirical Orthogonal Functions (EOF), also known as Principal
-    Component Analysis (PCA). It is particularly effective for spatiotemporal data
-    but can be adapted for spatial-only reconstruction.
-
-    Mathematical Formulation:
-        The DINEOF algorithm iteratively reconstructs missing data by:
-
-        1. Initializing missing values (e.g., with spatial mean).
-        2. Computing EOF decomposition:
-           $$X = U \Sigma V^T$$
-        3. Reconstructing data using truncated EOF with $k$ modes:
-           $$X_{rec} = U_k \Sigma_k V_k^T$$
-        4. Updating missing values with reconstructed values.
-        5. Repeating until convergence.
-
-        The convergence criterion is based on the RMS change in reconstructed values:
-        $$\text{RMS} = \sqrt{\frac{1}{N} \sum_{i \in \text{missing}} (x_i^{(k+1)} - x_i^{(k)})^2}$$
-
-        where $N$ is the number of missing pixels, and $k$ is the iteration number.
-
-    Note:
-        DINEOF is a spatiotemporal method designed for time-series data with shape
-        (T, H, W, C). It is not intended for single images. For single-image gap
-        filling, use spatial methods such as Kriging, RBF, or other interpolators.
+    Requires input shape (T, H, W) or (T, H, W, C).
 
     Citation: Wikipedia contributors. "Empirical orthogonal functions." Wikipedia, The Free Encyclopedia.
     https://en.wikipedia.org/wiki/Empirical_orthogonal_functions

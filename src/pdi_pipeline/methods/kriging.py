@@ -1,9 +1,4 @@
-"""Ordinary Kriging interpolation with variogram modeling.
-
-Kriging is a geostatistical method that provides Best Linear Unbiased Prediction (BLUP)
-by modeling spatial correlation through a variogram. It minimizes prediction variance
-while ensuring unbiasedness through the constraint that weights sum to unity.
-"""
+"""Ordinary Kriging interpolation with variogram modeling."""
 
 from __future__ import annotations
 
@@ -31,30 +26,9 @@ _MIN_KERNEL_RADIUS = 1
 
 
 class KrigingInterpolator(BaseMethod):
-    r"""Ordinary Kriging interpolation with variogram modeling.
+    """Ordinary Kriging (BLUP) with variogram-modelled spatial correlation.
 
-    Kriging is a geostatistical method that provides Best Linear Unbiased Prediction (BLUP)
-    by modeling spatial correlation through a variogram. It minimizes prediction variance
-    while ensuring unbiasedness through the constraint that weights sum to unity.
-
-    Mathematical Formulation:
-        The kriging estimator is:
-
-        $$\hat{Z}(x_0) = \sum_{i=1}^N w_i(x_0) Z(x_i)$$
-
-        where the weights $w_i$ are found by solving the kriging system:
-
-        $$\begin{bmatrix}
-            \gamma(x_1, x_1) & \cdots & \gamma(x_1, x_n) & 1 \\
-            \vdots & \ddots & \vdots & \vdots \\
-            \gamma(x_n, x_1) & \cdots & \gamma(x_n, x_n) & 1 \\
-            1 & \cdots & 1 & 0
-        \end{bmatrix}
-        \begin{bmatrix} w_1 \\ \vdots \\ w_n \\ \mu \end{bmatrix} =
-        \begin{bmatrix} \gamma(x_1, x_0) \\ \vdots \\ \gamma(x_n, x_0) \\ 1 \end{bmatrix}$$
-
-        Here $\gamma$ is the semivariogram, and $\mu$ is a Lagrange multiplier ensuring
-        unbiasedness (weights sum to 1).
+    Uses ``pykrige.ok.OrdinaryKriging`` with configurable variogram model.
 
     Citation: Wikipedia contributors. "Kriging." Wikipedia, The Free Encyclopedia.
     https://en.wikipedia.org/wiki/Kriging

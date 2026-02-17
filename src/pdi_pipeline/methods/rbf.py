@@ -1,9 +1,4 @@
-"""Radial Basis Function (RBF) interpolation.
-
-RBF interpolation constructs a smooth surface through scattered data points
-using radially symmetric basis functions. The method solves a linear system
-to find coefficients that satisfy the interpolation conditions.
-"""
+"""Radial Basis Function (RBF) interpolation."""
 
 from __future__ import annotations
 
@@ -37,28 +32,9 @@ def _get_kernel_literal(kernel: str) -> Any:
 
 
 class RBFInterpolator(BaseMethod):
-    r"""Radial Basis Function (RBF) interpolation.
+    """Radial Basis Function interpolation via ``scipy.interpolate.RBFInterpolator``.
 
-    RBF interpolation constructs a smooth surface through scattered data points
-    using radially symmetric basis functions. The method solves a linear system
-    to find coefficients that satisfy the interpolation conditions.
-
-    Mathematical Formulation:
-        Given N sample points {x_k}, the RBF interpolant is:
-
-        $$s(x) = \sum_{k=1}^N w_k \phi(\|x - x_k\|)$$
-
-        where \phi is a radial basis function (e.g., Gaussian, multiquadric, thin-plate spline),
-        and the weights w_k are found by solving the linear system:
-
-        $$\begin{bmatrix}
-            \phi(\|x_1 - x_1\|) & \phi(\|x_2 - x_1\|) & \cdots & \phi(\|x_N - x_1\|) \\
-            \phi(\|x_1 - x_2\|) & \phi(\|x_2 - x_2\|) & \cdots & \phi(\|x_N - x_2\|) \\
-            \vdots & \vdots & \ddots & \vdots \\
-            \phi(\|x_1 - x_N\|) & \phi(\|x_2 - x_N\|) & \cdots & \phi(\|x_N - x_N\|)
-        \end{bmatrix}
-        \begin{bmatrix} w_1 \\ w_2 \\ \vdots \\ w_N \end{bmatrix} =
-        \begin{bmatrix} f(x_1) \\ f(x_2) \\ \vdots \\ f(x_N) \end{bmatrix}$$
+    Solves s(x) = sum_k w_k phi(||x - x_k||) for gap pixels.
 
     Citation: Wikipedia contributors. "Radial basis function interpolation." Wikipedia, The Free Encyclopedia.
     https://en.wikipedia.org/wiki/Radial_basis_function_interpolation
@@ -77,16 +53,11 @@ class RBFInterpolator(BaseMethod):
         """Initialize RBF interpolator.
 
         Args:
-            kernel: RBF kernel type. Options: 'thin_plate_spline', 'gaussian',
-                    'multiquadric', 'inverse_multiquadric', 'linear', 'cubic'.
-                    'thin_plate_spline' is recommended for satellite imagery
-                    as it provides smooth interpolation without scale parameter.
-            epsilon: Shape parameter for RBF (affects smoothness). Only used
-                     by 'gaussian', 'multiquadric', and 'inverse_multiquadric'.
-            smoothing: Smoothing parameter (0 = exact interpolation). Small
-                       positive values (0.01-0.1) can improve numerical stability.
-            max_training_points: Maximum number of training points to use.
-            kernel_size: Search window size. If None, uses entire image.
+            kernel: RBF kernel ('thin_plate_spline', 'gaussian', etc.).
+            epsilon: Shape parameter (kernel-dependent).
+            smoothing: Smoothing factor (0 = exact interpolation).
+            max_training_points: Max known pixels to use.
+            kernel_size: Search window size. None = full image.
         """
         self.kernel = kernel
         self.epsilon = epsilon

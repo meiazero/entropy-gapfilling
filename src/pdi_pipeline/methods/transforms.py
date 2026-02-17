@@ -23,26 +23,7 @@ _TV_CONVERGENCE_TOL = 1e-4
 
 
 class DCTInpainting(BaseMethod):
-    r"""DCT (Discrete Cosine Transform) based inpainting.
-
-    DCT inpainting exploits the energy compaction property of DCT in the frequency domain.
-    Missing pixels are recovered by minimizing a cost function that combines data fidelity
-    on known pixels with sparsity or smoothness in the DCT domain.
-
-    Mathematical Formulation:
-        The reconstruction is obtained by solving:
-
-        $$\min_{\alpha} \|\alpha\|_1 \quad \text{subject to data fidelity constraints}$$
-
-        where $\alpha$ are the DCT coefficients.
-
-        Iterative thresholding algorithm:
-        1. Forward DCT: $C = \text{DCT}(f)$
-        2. Soft thresholding: $\hat{C} = \text{sign}(C) \cdot \max(|C| - \lambda, 0)$
-        3. Inverse DCT: $f_{\text{new}} = \text{IDCT}(\hat{C})$
-        4. Data fidelity: $f_{\text{new}}[\text{known}] = f_{\text{orig}}[\text{known}]$
-        5. Repeat until convergence
-
+    """DCT inpainting via iterative soft-thresholding in the frequency domain.
     Citation: Wikipedia contributors. "Discrete cosine transform." Wikipedia, The Free Encyclopedia.
     https://en.wikipedia.org/wiki/Discrete_cosine_transform
     """
@@ -55,12 +36,8 @@ class DCTInpainting(BaseMethod):
         """Initialize DCT inpainting.
 
         Args:
-            max_iterations: Maximum number of optimization iterations.
-            lambda_param: Regularization parameter controlling DCT sparsity.
-                          Lower values (0.01-0.05) preserve more detail for
-                          satellite imagery. Higher values (0.1-0.2) produce
-                          smoother results. Default reduced from 0.1 to 0.05
-                          for better preservation of spectral characteristics.
+            max_iterations: Maximum ISTA iterations.
+            lambda_param: Soft-thresholding sparsity weight.
         """
         self.max_iterations = max_iterations
         self.lambda_param = lambda_param
@@ -162,27 +139,7 @@ class DCTInpainting(BaseMethod):
 
 
 class WaveletInpainting(BaseMethod):
-    r"""Wavelet-based inpainting.
-
-    Wavelet inpainting exploits the multi-scale decomposition property of wavelets
-    to reconstruct missing data. Natural images are typically sparse in wavelet domain,
-    allowing effective reconstruction through iterative thresholding.
-
-    Mathematical Formulation:
-        The problem is formulated as sparse recovery in the wavelet domain:
-
-        $$\min_f \|W(f)\|_1 \quad \text{subject to} \quad f|_{\Omega} = y$$
-
-        where $W$ is the wavelet transform, $\Omega$ is the set of known pixels, and $y$ are
-        the observed values.
-
-        The iterative solution:
-        1. Wavelet decomposition: $C = W(f)$
-        2. Soft thresholding of detail coefficients: $\hat{C} = \text{thresh}(C, \lambda)$
-        3. Wavelet reconstruction: $f_{\text{new}} = W^{-1}(\hat{C})$
-        4. Data fidelity: $f_{\text{new}}[\text{known}] = y$
-        5. Repeat until convergence
-
+    """Wavelet inpainting via iterative soft-thresholding of detail coefficients.
     Citation: Wikipedia contributors. "Wavelet transform." Wikipedia, The Free Encyclopedia.
     https://en.wikipedia.org/wiki/Wavelet_transform
     """
@@ -199,14 +156,10 @@ class WaveletInpainting(BaseMethod):
         """Initialize wavelet inpainting.
 
         Args:
-            wavelet: Wavelet family (e.g., 'db4', 'haar', 'sym4', 'coif1').
-                     'db4' (Daubechies-4) provides good balance between
-                     smoothness and localization for satellite imagery.
-            level: Decomposition level. For 64x64 patches, level=3 is
-                   appropriate (8x8 approximation coefficients).
-            max_iterations: Maximum number of iterations.
-            lambda_param: Regularization parameter for wavelet sparsity.
-                          Lower values preserve more texture detail.
+            wavelet: Wavelet family (e.g. 'db4', 'haar', 'sym4').
+            level: Decomposition level.
+            max_iterations: Maximum ISTA iterations.
+            lambda_param: Soft-thresholding sparsity weight.
         """
         self.wavelet = wavelet
         self.level = level
@@ -330,28 +283,9 @@ class WaveletInpainting(BaseMethod):
 
 
 class TVInpainting(BaseMethod):
-    r"""Total Variation (TV) inpainting.
+    """Total Variation inpainting via primal-dual (Chambolle-Pock) algorithm.
 
-    TV inpainting is a variational method that reconstructs missing data by minimizing
-    the total variation norm, which measures the amount of variation in the image.
-    This promotes piecewise smooth solutions while preserving edges.
-
-    Mathematical Formulation:
-        The energy functional to minimize is:
-
-        $$E(u) = \int_{\Omega} |\nabla u| \, dx + \frac{\lambda}{2} \int_{\Omega \setminus D} (u - f)^2 \, dx$$
-
-        where:
-        - $\int |\nabla u|$ is the Total Variation (TV) term promoting piecewise smoothness.
-        - The second term enforces fidelity to known data $f$ outside missing region $D$.
-        - $\lambda$ balances smoothness and data fidelity.
-
-        Solution via primal-dual algorithm:
-        1. Initialize primal variable $u$ and dual variables $p$
-        2. Update dual: $p \leftarrow \text{proj}(p + \sigma \nabla \bar{u})$
-        3. Update primal: $u \leftarrow (u + \tau \text{div}(p) + \tau \lambda M f) / (1 + \tau \lambda M)$
-        4. Extrapolation: $\bar{u} \leftarrow u + \theta (u - u_{\text{old}})$
-
+        Minimizes TV(u) + (lambda/2) * data-fidelity on known pixels.
     Citation: Wikipedia contributors. "Total variation denoising." Wikipedia, The Free Encyclopedia.
     https://en.wikipedia.org/wiki/Total_variation_denoising
     """

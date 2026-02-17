@@ -324,30 +324,82 @@ def run_experiment(
                                 status = "ok"
                                 error_msg = ""
 
-                                # Save reconstruction images (first seed, no noise only)
+                                # Save reconstruction arrays and PNGs
+                                # (first seed, all noise levels)
                                 if (
                                     save_reconstructions > 0
                                     and seed == config.seeds[0]
-                                    and noise_level == "inf"
                                 ):
-                                    img_dir = (
+                                    # Raw .npy arrays per noise level
+                                    npy_dir = (
                                         output_path
-                                        / "reconstruction_images"
+                                        / "reconstruction_arrays"
+                                        / noise_level
                                         / mc.name
                                     )
-                                    existing = (
-                                        len(list(img_dir.glob("*.png")))
-                                        if img_dir.exists()
+                                    npy_dir.mkdir(parents=True, exist_ok=True)
+                                    existing_npy = (
+                                        len(list(npy_dir.glob("*.npy")))
+                                        if npy_dir.exists()
                                         else 0
                                     )
-                                    if existing < save_reconstructions:
-                                        save_array_as_png(
+                                    if existing_npy < save_reconstructions:
+                                        np.save(
+                                            npy_dir
+                                            / f"{patch.patch_id:07d}.npy",
                                             result,
-                                            img_dir
-                                            / f"{patch.patch_id:07d}.png",
                                         )
 
-                                        # Reference images (once per patch)
+                                    # PNG previews (no-noise only, for
+                                    # quick visual inspection)
+                                    if noise_level == "inf":
+                                        img_dir = (
+                                            output_path
+                                            / "reconstruction_images"
+                                            / mc.name
+                                        )
+                                        existing_png = (
+                                            len(list(img_dir.glob("*.png")))
+                                            if img_dir.exists()
+                                            else 0
+                                        )
+                                        if existing_png < save_reconstructions:
+                                            save_array_as_png(
+                                                result,
+                                                img_dir
+                                                / f"{patch.patch_id:07d}.png",
+                                            )
+
+                                    # Reference arrays and PNGs (once
+                                    # per patch per noise level)
+                                    ref_npy_dir = (
+                                        output_path
+                                        / "reconstruction_arrays"
+                                        / noise_level
+                                        / "_reference"
+                                    )
+                                    ref_npy_path = (
+                                        ref_npy_dir
+                                        / f"{patch.patch_id:07d}_clean.npy"
+                                    )
+                                    if not ref_npy_path.exists():
+                                        ref_npy_dir.mkdir(
+                                            parents=True, exist_ok=True
+                                        )
+                                        np.save(ref_npy_path, patch.clean)
+                                        np.save(
+                                            ref_npy_dir
+                                            / f"{patch.patch_id:07d}_degraded.npy",
+                                            patch.degraded,
+                                        )
+                                        np.save(
+                                            ref_npy_dir
+                                            / f"{patch.patch_id:07d}_mask.npy",
+                                            patch.mask,
+                                        )
+
+                                    # PNG reference (no-noise only)
+                                    if noise_level == "inf":
                                         ref_dir = (
                                             output_path
                                             / "reconstruction_images"
@@ -469,7 +521,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=int,
         default=0,
         metavar="N",
-        help="Save first N reconstruction images per method (first seed, no noise).",
+        help="Save first N reconstruction arrays per method per noise level (first seed).",
     )
     return parser.parse_args(argv)
 

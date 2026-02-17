@@ -1,9 +1,4 @@
-r"""Thin Plate Spline interpolation for image reconstruction.
-
-Thin Plate Splines (TPS) are a popular choice for scattered data interpolation
-because they minimize bending energy, producing smooth surfaces. TPS is equivalent
-to RBF with a specific kernel: \phi(r) = r^2 \log(r).
-"""
+"""Thin Plate Spline (TPS) interpolation."""
 
 from __future__ import annotations
 
@@ -25,20 +20,9 @@ _MIN_VALID_POINTS = 4
 
 
 class SplineInterpolator(BaseMethod):
-    r"""Thin Plate Spline interpolation for image reconstruction.
+    """Thin Plate Spline (TPS) interpolation - minimizes bending energy.
 
-    Thin Plate Splines (TPS) are a popular choice for scattered data interpolation
-    because they minimize bending energy, producing smooth surfaces. TPS is equivalent
-    to RBF with a specific kernel: \phi(r) = r^2 \log(r).
-
-    Mathematical Formulation:
-        The Thin Plate Spline interpolant f(x,y) minimizes the bending energy:
-        $$E[f] = \iint_{\mathbb{R}^2} \left( \left(\frac{\partial^2 f}{\partial x^2}\right)^2 + 2\left(\frac{\partial^2 f}{\partial x \partial y}\right)^2 + \left(\frac{\partial^2 f}{\partial y^2}\right)^2 \right) dx dy$$
-
-        The solution has the form:
-        $$f(x,y) = a_0 + a_1 x + a_2 y + \sum_{i=1}^N w_i \phi(\| (x,y) - (x_i,y_i) \|)$$
-
-        where $\phi(r) = r^2 \log(r)$ is the radial basis function.
+    Equivalent to RBF with phi(r) = r^2 log(r).
 
     Citation: Wikipedia contributors. "Thin plate spline." Wikipedia, The Free Encyclopedia.
     https://en.wikipedia.org/wiki/Thin_plate_spline

@@ -1,9 +1,4 @@
-"""Inverse Distance Weighting (IDW) interpolation.
-
-IDW is a deterministic spatial interpolation method that estimates values
-at unmeasured locations using a weighted average of neighboring known values.
-Weights are inversely proportional to the distance raised to a power parameter.
-"""
+"""Inverse Distance Weighting (IDW) interpolation."""
 
 from __future__ import annotations
 
@@ -26,30 +21,9 @@ _MIN_KERNEL_RADIUS = 1
 
 
 class IDWInterpolator(BaseMethod):
-    r"""Inverse Distance Weighting (IDW) interpolation.
+    """Inverse Distance Weighting: weighted average with w_i = 1/d^p.
 
-    IDW is a deterministic spatial interpolation method that estimates values
-    at unmeasured locations using a weighted average of neighboring known values.
-    Weights are inversely proportional to the distance raised to a power parameter.
-
-    Mathematical Formulation:
-        Given a set of sample points {(x_i, u_i)}, the IDW interpolation function u(x) is:
-
-        $$u(x) = \begin{cases}
-            \frac{\sum_{i=1}^N w_i(x) u_i}{\sum_{i=1}^N w_i(x)} & \text{if } d(x, x_i) \neq 0 \text{ for all } i \\
-            u_i & \text{if } d(x, x_i) = 0 \text{ for some } i
-        \end{cases}$$
-
-        where the weight function is:
-        $$w_i(x) = \frac{1}{d(x, x_i)^p}$$
-
-        and $p$ is the power parameter (typically 2), $d$ is the Euclidean distance metric.
-
-    Note:
-        For satellite imagery with varying texture complexity (entropy), consider
-        adjusting the power parameter: lower values (p=1) for high-entropy regions
-        to incorporate more neighbors, higher values (p=3) for low-entropy regions
-        where nearby pixels are more representative.
+    Shepard's method (p=2 default). Vectorized when kernel_size is None.
 
     Citation: Wikipedia contributors. "Inverse distance weighting." Wikipedia, The Free Encyclopedia.
     https://en.wikipedia.org/wiki/Inverse_distance_weighting
@@ -63,11 +37,8 @@ class IDWInterpolator(BaseMethod):
         """Initialize IDW interpolator.
 
         Args:
-            power: Power parameter for distance weighting (default: 2.0, Shepard's method).
-                   p=1: Linear decay, more neighbors contribute.
-                   p=2: Standard IDW, balanced weighting (recommended default).
-                   p=3+: Stronger locality, closer neighbors dominate.
-            kernel_size: Search window size. If None, uses entire image.
+            power: Distance exponent (default 2.0).
+            kernel_size: Search window size. None = full image.
         """
         self.power = power
         self.kernel_size = kernel_size

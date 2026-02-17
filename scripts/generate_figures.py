@@ -54,9 +54,25 @@ STYLE_PARAMS = {
 _PNG_ONLY: bool = False
 
 
-def _available_recon_patch_ids(recon_dir: Path) -> set[int]:
-    """Return patch IDs that have reconstruction PNGs for at least one method."""
+def _available_recon_patch_ids(
+    recon_dir: Path,
+    noise_level: str = "inf",
+) -> set[int]:
+    """Return patch IDs that have reconstruction arrays for at least one method."""
     ids: set[int] = set()
+    # Prefer raw .npy arrays organized by noise level
+    npy_base = recon_dir.parent / "reconstruction_arrays" / noise_level
+    if npy_base.exists():
+        for method_dir in npy_base.iterdir():
+            if not method_dir.is_dir() or method_dir.name.startswith("_"):
+                continue
+            for npy in method_dir.glob("*.npy"):
+                try:
+                    ids.add(int(npy.stem))
+                except ValueError:
+                    continue
+        return ids
+    # Fall back to legacy PNG directory
     if not recon_dir.exists():
         return ids
     for method_dir in recon_dir.iterdir():
@@ -68,6 +84,34 @@ def _available_recon_patch_ids(recon_dir: Path) -> set[int]:
             except ValueError:
                 continue
     return ids
+
+
+def _load_recon_array(
+    results_dir: Path,
+    method: str,
+    patch_id: int,
+    noise_level: str = "inf",
+) -> np.ndarray | None:
+    """Load a reconstruction array, preferring raw .npy over legacy PNG.
+
+    Returns None if no reconstruction is found.
+    """
+    npy_path = (
+        results_dir
+        / "reconstruction_arrays"
+        / noise_level
+        / method
+        / f"{patch_id:07d}.npy"
+    )
+    if npy_path.exists():
+        return np.load(npy_path)
+    # Fall back to legacy PNG (lossy, 8-bit)
+    png_path = (
+        results_dir / "reconstruction_images" / method / f"{patch_id:07d}.png"
+    )
+    if png_path.exists():
+        return plt.imread(str(png_path))[:, :, :3]
+    return None
 
 
 def _save_figure(fig: plt.Figure, output_dir: Path, name: str) -> None:
@@ -261,11 +305,10 @@ def fig5_lisa_clusters(results_dir: Path, output_dir: Path) -> None:
     project_root = Path(__file__).resolve().parent.parent
     preprocessed = project_root / "preprocessed"
     recon_dir = results_dir / "reconstruction_images"
+    arrays_dir = results_dir / "reconstruction_arrays"
 
-    if not recon_dir.exists():
-        log.warning(
-            "Reconstruction images not found at %s. Skipping fig5.", recon_dir
-        )
+    if not recon_dir.exists() and not arrays_dir.exists():
+        log.warning("No reconstruction data found. Skipping fig5.")
         return
 
     valid = df.dropna(subset=["entropy_7", "psnr"])
@@ -273,11 +316,11 @@ def fig5_lisa_clusters(results_dir: Path, output_dir: Path) -> None:
         log.warning("No valid data for fig5")
         return
 
-    # Constrain to patches that have reconstruction images
+    # Constrain to patches that have reconstruction data
     avail_ids = _available_recon_patch_ids(recon_dir)
     valid = valid[valid["patch_id"].isin(avail_ids)]
     if valid.empty:
-        log.warning("No patches with reconstruction images for fig5")
+        log.warning("No patches with reconstruction data for fig5")
         return
 
     # Select 3 representative patches at P10, P50, P90 entropy
@@ -338,16 +381,32 @@ def fig5_lisa_clusters(results_dir: Path, output_dir: Path) -> None:
             mask = mask[:, :, 0]
 
         for col_idx, method in enumerate(selected_methods):
-            recon_path = recon_dir / method / f"{patch_id:07d}.png"
             ax = axes[row_idx, col_idx]
 
-            if not recon_path.exists():
+            recon = _load_recon_array(results_dir, method, patch_id)
+            if recon is None:
                 ax.set_visible(False)
                 continue
 
-            recon = plt.imread(str(recon_path))[:, :, :3]
-            clean_rgb = to_display_rgb(clean)
-            error_map = np.mean((clean_rgb - recon) ** 2, axis=2)
+            # Compute error map from raw arrays (not normalized PNGs)
+            recon_matched = recon
+            if clean.ndim == 3 and recon.ndim == 3:
+                # Ensure same number of bands
+                c_bands = min(clean.shape[2], recon.shape[2])
+                recon_matched = recon[:, :, :c_bands]
+                clean_crop = clean[:, :, :c_bands]
+            elif clean.ndim == 2 and recon.ndim == 2:
+                clean_crop = clean
+            else:
+                clean_crop = clean
+            error_map = np.mean(
+                (
+                    clean_crop.astype(np.float32)
+                    - recon_matched.astype(np.float32)
+                )
+                ** 2,
+                axis=2 if clean_crop.ndim == 3 else None,
+            )
 
             if col_idx == 0:
                 # First column: error map for context
@@ -407,12 +466,12 @@ def fig6_visual_examples(results_dir: Path, output_dir: Path) -> None:
     project_root = Path(__file__).resolve().parent.parent
     preprocessed = project_root / "preprocessed"
     recon_dir = results_dir / "reconstruction_images"
+    arrays_dir = results_dir / "reconstruction_arrays"
 
-    if not recon_dir.exists():
+    if not recon_dir.exists() and not arrays_dir.exists():
         log.warning(
-            "Reconstruction images not found at %s. "
+            "No reconstruction data found. "
             "Run experiment with --save-reconstructions first.",
-            recon_dir,
         )
         return
 
@@ -421,7 +480,7 @@ def fig6_visual_examples(results_dir: Path, output_dir: Path) -> None:
         log.warning("No valid data for fig6")
         return
 
-    # Constrain to patches that have reconstruction images
+    # Constrain to patches that have reconstruction data
     avail_ids = _available_recon_patch_ids(recon_dir)
     valid_with_recon = valid[valid["patch_id"].isin(avail_ids)]
 
@@ -546,11 +605,12 @@ def fig6_visual_examples(results_dir: Path, output_dir: Path) -> None:
 
             for k, method in enumerate(top_methods):
                 col = 3 + k
-                recon_path = recon_dir / method / f"{patch_id:07d}.png"
+                recon = _load_recon_array(
+                    results_dir, method, patch_id, noise_level
+                )
 
-                if recon_path.exists():
-                    recon = plt.imread(str(recon_path))[:, :, :3]
-                    axes[row_idx, col].imshow(recon)
+                if recon is not None:
+                    axes[row_idx, col].imshow(to_display_rgb(recon))
 
                     # PSNR annotation
                     method_row = patch_metrics[
@@ -728,12 +788,10 @@ def fig9_local_metric_maps(results_dir: Path, output_dir: Path) -> None:
     project_root = Path(__file__).resolve().parent.parent
     preprocessed = project_root / "preprocessed"
     recon_dir = results_dir / "reconstruction_images"
+    arrays_dir = results_dir / "reconstruction_arrays"
 
-    if not recon_dir.exists():
-        log.warning(
-            "Reconstruction images not found at %s. Skipping fig9.",
-            recon_dir,
-        )
+    if not recon_dir.exists() and not arrays_dir.exists():
+        log.warning("No reconstruction data found. Skipping fig9.")
         return
 
     valid = df.dropna(subset=["entropy_7", "psnr"])
@@ -741,11 +799,11 @@ def fig9_local_metric_maps(results_dir: Path, output_dir: Path) -> None:
         log.warning("No valid data for fig9")
         return
 
-    # Constrain to patches that have reconstruction images
+    # Constrain to patches that have reconstruction data
     avail_ids = _available_recon_patch_ids(recon_dir)
     valid = valid[valid["patch_id"].isin(avail_ids)]
     if valid.empty:
-        log.warning("No patches with reconstruction images for fig9")
+        log.warning("No patches with reconstruction data for fig9")
         return
 
     # Pick median-entropy patch
@@ -786,16 +844,15 @@ def fig9_local_metric_maps(results_dir: Path, output_dir: Path) -> None:
         axes = axes[np.newaxis, :]
 
     for row_idx, method in enumerate(top_methods):
-        recon_path = recon_dir / method / f"{patch_id:07d}.png"
-        if not recon_path.exists():
+        recon = _load_recon_array(results_dir, method, patch_id)
+        if recon is None:
             axes[row_idx, 0].set_visible(False)
             axes[row_idx, 1].set_visible(False)
             continue
 
-        recon = plt.imread(str(recon_path))[:, :, :3]
-        clean_rgb = to_display_rgb(clean)
-        lpsnr = local_psnr(clean_rgb, recon, mask, window=15)
-        lssim = local_ssim(clean_rgb, recon, mask, window=15)
+        # Use raw arrays for local metrics (not normalized PNGs)
+        lpsnr = local_psnr(clean, recon, mask, window=15)
+        lssim = local_ssim(clean, recon, mask, window=15)
 
         im0 = axes[row_idx, 0].imshow(lpsnr, cmap="RdYlGn")
         axes[row_idx, 0].set_title(f"{method} - Local PSNR")

@@ -1,9 +1,6 @@
-"""Local Shannon entropy computation for satellite image patches.
+"""Local Shannon entropy via sliding-window rank filter.
 
-Entropy is computed on a uint8-quantized grayscale version of the input
-(mean across all bands for multichannel images). The sliding-window
-approach uses skimage.filters.rank.entropy with a disk structuring
-element inscribed in a square of the requested window size.
+Grayscale (uint8) from band-mean; uses a rectangular structuring element.
 """
 
 from __future__ import annotations

@@ -1,15 +1,4 @@
-r"""Lanczos spectral gap-filling via iterative band-limited projection.
-
-The Lanczos kernel approximates the ideal low-pass (sinc) filter with a
-compactly supported window.  For gap-filling at integer grid positions the
-classical separable kernel evaluates to zero at non-zero integer lags
-(a property of the Nyquist sampling theorem), so a direct weighted-average
-formulation is degenerate.
-
-Instead we implement the Papoulis--Gerchberg iterative algorithm with a
-Lanczos-windowed frequency response, which recovers the minimum-bandwidth
-signal consistent with the observed samples.
-"""
+"""Lanczos spectral gap-filling (Papoulis-Gerchberg iteration)."""
 
 from __future__ import annotations
 
@@ -27,54 +16,11 @@ logger = logging.getLogger(__name__)
 
 
 class LanczosInterpolator(BaseMethod):
-    r"""Lanczos spectral gap-filling (Papoulis--Gerchberg projection).
+    """Lanczos spectral gap-filling via Papoulis-Gerchberg iteration.
 
-    Mathematical Formulation
-    ------------------------
-    The 1-D Lanczos-$a$ kernel is
-
-    $$L_a(t) = \operatorname{sinc}(t)\,\operatorname{sinc}\!\left(\frac{t}{a}\right),
-      \quad |t| < a,$$
-
-    whose Fourier transform is the convolution of two rectangular pulses --
-    a trapezoidal frequency response $\hat{L}_a(\nu)$:
-
-    $$\hat{L}_a(\nu) = \begin{cases}
-        1 & |\nu| \le \dfrac{a-1}{2a} \\[6pt]
-        \dfrac{a + 1 - 2a|\nu|}{2} & \dfrac{a-1}{2a} < |\nu| \le \dfrac{a+1}{2a} \\[6pt]
-        0 & |\nu| > \dfrac{a+1}{2a}
-    \end{cases}$$
-
-    The 2-D filter is separable:
-    $\hat{H}_a(\nu_x, \nu_y) = \hat{L}_a(\nu_x)\,\hat{L}_a(\nu_y)$.
-
-    **Papoulis--Gerchberg iteration.**  Let $M$ denote the binary mask of
-    known pixels ($M_{ij} = 1$ if observed), $f$ the observed image, and
-    $H_a$ the Lanczos low-pass operator.  Starting from an initial estimate
-    $u^{(0)}$ (nearest-neighbour fill), the iteration is
-
-    $$u^{(k+1)} = M \odot f \;+\; (1 - M) \odot (H_a * u^{(k)})$$
-
-    i.e.\ known pixels are restored exactly while gap pixels receive the
-    band-limited projection of the current estimate.  Under mild conditions
-    the sequence converges to the minimum-bandwidth signal that agrees with
-    the observations on $M$.
-
-    Properties
-    ----------
-    * **Complexity per iteration:** $O(HW \log(HW))$ via FFT.
-    * **Smoothness:** The result is band-limited (smooth), controlled by $a$.
-    * **Convergence:** Monotone decrease in gap-pixel RMS change; typically
-      converges in 20--50 iterations for 64x64 patches.
-
-    Citation
-    --------
-    Papoulis, A. (1975). "A new algorithm in spectral analysis and
-    band-limited extrapolation." *IEEE Trans. Circuits and Systems*,
-    22(9), 735--742.
-
-    Gerchberg, R. W. (1974). "Super-resolution through error energy
-    reduction." *Optica Acta*, 21(9), 709--720.
+    Iteratively applies a Lanczos-windowed low-pass in the FFT domain,
+    restoring known pixels after each step until convergence.
+    See: Papoulis (1975), IEEE Trans. CAS; Gerchberg (1974), Optica Acta.
     """
 
     name = "lanczos"

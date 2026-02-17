@@ -1,11 +1,4 @@
-r"""Compressive Sensing gap-filling with $\ell_1$ minimisation in transform domains.
-
-Compressive Sensing (CS) exploits the sparsity of natural images in
-appropriate transform domains (wavelet, DCT) to reconstruct signals from
-incomplete observations.  Missing pixels are recovered by iterative soft
-thresholding (ISTA), which alternates between promoting sparsity in the
-transform domain and enforcing data fidelity on the observed pixels.
-"""
+"""Compressive Sensing gap-filling via L1 minimization (ISTA)."""
 
 from __future__ import annotations
 
@@ -26,51 +19,9 @@ _CS_DCT_CONVERGENCE_TOL = 1e-5
 
 
 class L1WaveletInpainting(BaseMethod):
-    r"""Compressive Sensing gap-filling via $\ell_1$-wavelet minimisation.
+    """Compressive Sensing gap-filling via L1-wavelet ISTA.
 
-    Mathematical Formulation
-    ------------------------
-    Let $\Psi$ denote the discrete wavelet transform and $\alpha = \Psi(f)$
-    the wavelet coefficients of image $f$.  Natural images are approximately
-    sparse in the wavelet domain ($\|\alpha\|_0 \ll N$).
-
-    The reconstruction solves the basis-pursuit denoising problem:
-
-    $$\min_{\alpha} \;\|\alpha\|_1
-      \quad\text{subject to}\quad
-      \|y - \Phi\,\Psi^{-1}\alpha\|_2 \le \varepsilon$$
-
-    where $\Phi$ is the sampling operator (diagonal mask matrix) and $y$
-    are the observed pixel values.
-
-    **ISTA (Iterative Soft Thresholding Algorithm):**
-
-    $$\alpha^{(k)} = \Psi\!\left(u^{(k)}\right)$$
-    $$\hat\alpha^{(k)} = \mathcal{S}_\lambda\!\left(\alpha^{(k)}\right)
-      = \operatorname{sign}(\alpha^{(k)})\,
-        \max\!\left(|\alpha^{(k)}| - \lambda, 0\right)$$
-    $$v^{(k)} = \Psi^{-1}\!\left(\hat\alpha^{(k)}\right)$$
-    $$u^{(k+1)} = M \odot f + (1-M) \odot v^{(k)}$$
-
-    where $M$ is the known-pixel mask and $\lambda$ is the thresholding
-    parameter controlling the sparsity-fidelity trade-off.
-
-    Properties
-    ----------
-    * **Complexity per iteration:** $O(HW)$ for the wavelet transform.
-    * **Convergence:** Monotone; guaranteed for convex $\ell_1$ + quadratic.
-    * **Sparsity:** Wavelet basis captures both smooth regions and edges via
-      multi-resolution analysis.
-
-    Citation
-    --------
-    Candes, E. J. and Wakin, M. B. (2008). "An introduction to compressive
-    sampling." *IEEE Signal Processing Magazine*, 25(2), 21--30.
-
-    Daubechies, I., Defrise, M. and De Mol, C. (2004). "An iterative
-    thresholding algorithm for linear inverse problems with a sparsity
-    constraint." *Communications on Pure and Applied Mathematics*,
-    57(11), 1413--1457.
+    See: Candes & Wakin (2008), IEEE SPM; Daubechies et al. (2004), CPAM.
     """
 
     name = "cs_wavelet"
@@ -187,38 +138,10 @@ class L1WaveletInpainting(BaseMethod):
 
 
 class L1DCTInpainting(BaseMethod):
-    r"""Compressive Sensing gap-filling via $\ell_1$-DCT minimisation.
+    """Compressive Sensing gap-filling via L1-DCT ISTA.
 
-    Mathematical Formulation
-    ------------------------
-    Identical to ``L1WaveletInpainting`` but with $\Psi$ being the 2-D
-    Discrete Cosine Transform (type-II, orthonormal):
-
-    $$\Psi = \text{DCT-II}_{2D}, \qquad
-      \alpha = \Psi(f), \qquad
-      f = \Psi^{-1}(\alpha).$$
-
-    The DCT concentrates energy in low-frequency coefficients for smooth
-    natural images, providing an alternative sparsifying basis to wavelets.
-
-    The ISTA iteration is:
-
-    $$\alpha^{(k)} = \text{DCT}(u^{(k)})$$
-    $$\hat\alpha^{(k)} = \mathcal{S}_\lambda(\alpha^{(k)})$$
-    $$v^{(k)} = \text{IDCT}(\hat\alpha^{(k)})$$
-    $$u^{(k+1)} = M \odot f + (1-M) \odot v^{(k)}$$
-
-    Properties
-    ----------
-    * **Complexity per iteration:** $O(HW \log(HW))$ via FFT-based DCT.
-    * **Basis:** DCT is real-valued and orthonormal; no complex arithmetic.
-    * **Boundary:** Implicit symmetric (mirror) boundary conditions avoid
-      Gibbs-like ringing at image edges.
-
-    Citation
-    --------
-    Candes, E. J. and Wakin, M. B. (2008). "An introduction to compressive
-    sampling." *IEEE Signal Processing Magazine*, 25(2), 21--30.
+    Same as L1WaveletInpainting but uses DCT-II as sparsifying basis.
+    See: Candes & Wakin (2008), IEEE SPM.
     """
 
     name = "cs_dct"

@@ -17,29 +17,10 @@ logger = logging.getLogger(__name__)
 
 
 class NonLocalMeansInterpolator(BaseMethod):
-    r"""Non-local means interpolation for image gap-filling.
+    """Non-local means gap-filling using patch-similarity weights.
 
-    Mathematical Formulation
-    ------------------------
-    For each pixel $i$ in the gap region, the restored value is a weighted
-    average over all observed pixels $j$:
-
-    $$\hat{u}(i) = \frac{\sum_{j} w(i, j)\, u(j)}{\sum_{j} w(i, j)}$$
-
-    where the weight between two pixels is determined by the similarity of
-    their surrounding patches:
-
-    $$w(i, j) = \exp\!\Bigl(-\frac{\|P_i - P_j\|_2^2}{h^2}\Bigr)$$
-
-    Here $P_i$ and $P_j$ are the (patch_size x patch_size) patches centred
-    at $i$ and $j$, and $h$ is a filtering parameter that controls the decay
-    of the weights.
-
-    Citation
-    --------
-    Buades, A., Coll, B. and Morel, J.-M. (2005). "A non-local algorithm
-    for image denoising." *Proceedings of the IEEE Conference on Computer
-    Vision and Pattern Recognition (CVPR)*, vol. 2, 60--65.
+    Wraps ``skimage.restoration.denoise_nl_means``.
+    See: Buades, Coll & Morel (2005), CVPR.
     """
 
     name = "non_local"
@@ -153,27 +134,10 @@ class NonLocalMeansInterpolator(BaseMethod):
 
 
 class ExemplarBasedInterpolator(BaseMethod):
-    r"""Exemplar-based inpainting via biharmonic equation.
+    """Biharmonic inpainting (C1-smooth, minimizes bending energy).
 
-    Mathematical Formulation
-    ------------------------
-    The missing region $\Omega$ is filled by solving the biharmonic equation:
-
-    $$\nabla^4 u = \Delta(\Delta u) = 0 \quad \text{in } \Omega$$
-
-    subject to the Dirichlet boundary conditions $u = f$ on $\partial\Omega$,
-    where $f$ denotes the known pixel values at the boundary of the gap.
-
-    The biharmonic operator $\nabla^4$ is the composition of two Laplacians
-    and yields a $C^1$-smooth surface that minimises the bending energy:
-
-    $$E[u] = \iint_\Omega (\Delta u)^2 \, dx\,dy$$
-
-    Citation
-    --------
-    Criminisi, A., Perez, P. and Toyama, K. (2004). "Region filling and
-    object removal by exemplar-based image inpainting." *IEEE Transactions
-    on Image Processing*, 13(9), 1200--1212.
+    Wraps ``skimage.restoration.inpaint.inpaint_biharmonic``.
+    See: Criminisi, Perez & Toyama (2004), IEEE TIP.
     """
 
     name = "exemplar_based"

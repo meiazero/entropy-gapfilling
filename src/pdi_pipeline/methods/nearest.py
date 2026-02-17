@@ -1,9 +1,4 @@
-"""Nearest Neighbor interpolation for image reconstruction.
-
-Nearest-neighbor interpolation selects the value of the nearest point and does
-not consider the values of neighboring points at all, yielding a piecewise-constant
-interpolant. This method is simple but can produce blocky artifacts.
-"""
+"""Nearest-neighbor interpolation via Euclidean distance transform."""
 
 from __future__ import annotations
 
@@ -18,19 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class NearestInterpolator(BaseMethod):
-    r"""Nearest Neighbor interpolation for image reconstruction.
-
-    Nearest-neighbor interpolation selects the value of the nearest point and does
-    not consider the values of neighboring points at all, yielding a piecewise-constant
-    interpolant. This method is simple but can produce blocky artifacts.
-
-    Mathematical Formulation:
-        For a point (x, y), find the nearest known point (x_i, y_i):
-
-        $$f(x, y) = f(x_i, y_i)$$
-
-        where (x_i, y_i) is the closest known point to (x, y) in Euclidean distance.
-
+    """Piecewise-constant fill using the closest known pixel (Euclidean).
     Citation: Wikipedia contributors. "Nearest-neighbor interpolation." Wikipedia, The Free Encyclopedia.
     https://en.wikipedia.org/wiki/Nearest-neighbor_interpolation
     """

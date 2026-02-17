@@ -1,11 +1,4 @@
-r"""Bilinear interpolation for image gap-filling.
-
-Uses piecewise linear interpolation on a Delaunay triangulation of known
-pixels.  For each gap pixel the enclosing triangle is identified and the
-value is recovered via barycentric (affine) weighting of its three
-vertices -- the natural 2-D generalisation of linear interpolation to
-irregularly spaced data.
-"""
+"""Bilinear (Delaunay linear) gap-filling."""
 
 from __future__ import annotations
 
@@ -20,50 +13,10 @@ logger = logging.getLogger(__name__)
 
 
 class BilinearInterpolator(BaseMethod):
-    r"""Piecewise-linear interpolation on Delaunay triangulation.
+    """C0 piecewise-linear fill on Delaunay triangulation (barycentric weights).
 
-    Mathematical Formulation
-    ------------------------
-    Given a set of known pixels $\{(x_i, y_i, f_i)\}_{i=1}^N$ on a regular
-    grid, we construct the Delaunay triangulation $\mathcal{T}$ of the sites
-    $\{(x_i, y_i)\}$.
-
-    For a gap pixel at position $\mathbf{p} = (x_0, y_0)$ lying inside
-    triangle $T_k = \{(x_a, y_a),\,(x_b, y_b),\,(x_c, y_c)\}$, the
-    interpolated value is the unique affine (barycentric) combination:
-
-    $$\hat f(\mathbf{p})
-      = \lambda_a\, f_a + \lambda_b\, f_b + \lambda_c\, f_c$$
-
-    where the barycentric coordinates $(\lambda_a, \lambda_b, \lambda_c)$
-    satisfy
-
-    $$\begin{pmatrix} x_a - x_c & x_b - x_c \\
-                       y_a - y_c & y_b - y_c \end{pmatrix}
-      \begin{pmatrix} \lambda_a \\ \lambda_b \end{pmatrix}
-      = \begin{pmatrix} x_0 - x_c \\ y_0 - y_c \end{pmatrix},
-      \qquad \lambda_c = 1 - \lambda_a - \lambda_b.$$
-
-    The surface is $C^0$ (continuous) across triangle edges and reproduces
-    linear functions exactly.  For gap pixels outside the convex hull of
-    the known sites (e.g.\ at image borders), a nearest-neighbour fallback
-    is applied.
-
-    Properties
-    ----------
-    * **Complexity:** $O(N \log N)$ for the Delaunay triangulation plus
-      $O(M \log N)$ point-location queries ($M$ = number of gap pixels).
-    * **Smoothness:** $C^0$ -- value-continuous but gradient-discontinuous
-      across triangle edges.
-    * **Locality:** Each gap pixel depends on exactly three known pixels.
-
-    Citation
-    --------
-    Amidror, I. (2002). "Scattered data interpolation methods for
-    electronic imaging systems: a survey." *Journal of Electronic
-    Imaging*, 11(2), 157--176.
-
-    See also: ``scipy.interpolate.griddata`` with *method='linear'*.
+    Wraps ``scipy.interpolate.griddata(method='linear')``.
+    See: Amidror (2002), J. Electronic Imaging 11(2).
     """
 
     name = "bilinear"
