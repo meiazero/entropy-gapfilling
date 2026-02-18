@@ -635,12 +635,17 @@ class TestRobustRegression:
 # ---------------------------------------------------------------------------
 
 
+esda = pytest.importorskip("esda", reason="esda not installed")
+libpysal = pytest.importorskip("libpysal", reason="libpysal not installed")
+
+
+@pytest.mark.slow
 class TestSpatialAutocorrelation:
     """Tests for spatial_autocorrelation using esda and libpysal.
 
-    These libraries may not be installed in all environments, so each
-    test catches ImportError gracefully. Marked slow because lattice
-    weight construction is non-trivial even for small grids.
+    Requires esda and libpysal. The entire class is skipped when
+    either library is absent. Marked slow because lattice weight
+    construction is non-trivial even for small grids.
     """
 
     @staticmethod
@@ -668,104 +673,62 @@ class TestSpatialAutocorrelation:
         )
         return error_map
 
-    @pytest.mark.slow
     def test_returns_spatial_result(self) -> None:
-        try:
-            error_map = self._make_spatially_correlated_map()
-            result = spatial_autocorrelation(error_map)
-        except ImportError:
-            pytest.skip("esda/libpysal not installed")
+        error_map = self._make_spatially_correlated_map()
+        result = spatial_autocorrelation(error_map)
         assert isinstance(result, SpatialResult)
 
-    @pytest.mark.slow
     def test_morans_i_positive_for_clustered_map(self) -> None:
-        try:
-            error_map = self._make_spatially_correlated_map()
-            result = spatial_autocorrelation(error_map)
-        except ImportError:
-            pytest.skip("esda/libpysal not installed")
+        error_map = self._make_spatially_correlated_map()
+        result = spatial_autocorrelation(error_map)
         assert result.morans_i > 0.0
 
-    @pytest.mark.slow
     def test_expected_i_negative(self) -> None:
         """Expected Moran's I under spatial randomness is -1/(N-1), which
         is negative for any N > 1."""
-        try:
-            error_map = self._make_spatially_correlated_map()
-            result = spatial_autocorrelation(error_map)
-        except ImportError:
-            pytest.skip("esda/libpysal not installed")
+        error_map = self._make_spatially_correlated_map()
+        result = spatial_autocorrelation(error_map)
         assert result.expected_i < 0.0
 
-    @pytest.mark.slow
     def test_morans_p_small_for_clustered_map(self) -> None:
-        try:
-            error_map = self._make_spatially_correlated_map()
-            result = spatial_autocorrelation(error_map)
-        except ImportError:
-            pytest.skip("esda/libpysal not installed")
+        error_map = self._make_spatially_correlated_map()
+        result = spatial_autocorrelation(error_map)
         assert result.morans_p < 0.10
 
-    @pytest.mark.slow
     def test_lisa_labels_shape(self) -> None:
-        try:
-            error_map = self._make_spatially_correlated_map(size=8)
-            result = spatial_autocorrelation(error_map)
-        except ImportError:
-            pytest.skip("esda/libpysal not installed")
+        error_map = self._make_spatially_correlated_map(size=8)
+        result = spatial_autocorrelation(error_map)
         assert result.lisa_labels.shape == (8, 8)
 
-    @pytest.mark.slow
     def test_lisa_p_values_shape(self) -> None:
-        try:
-            error_map = self._make_spatially_correlated_map(size=8)
-            result = spatial_autocorrelation(error_map)
-        except ImportError:
-            pytest.skip("esda/libpysal not installed")
+        error_map = self._make_spatially_correlated_map(size=8)
+        result = spatial_autocorrelation(error_map)
         assert result.lisa_p_values.shape == (8, 8)
 
-    @pytest.mark.slow
     def test_lisa_p_values_in_valid_range(self) -> None:
-        try:
-            error_map = self._make_spatially_correlated_map()
-            result = spatial_autocorrelation(error_map)
-        except ImportError:
-            pytest.skip("esda/libpysal not installed")
+        error_map = self._make_spatially_correlated_map()
+        result = spatial_autocorrelation(error_map)
         assert np.all(result.lisa_p_values >= 0.0)
         assert np.all(result.lisa_p_values <= 1.0)
 
-    @pytest.mark.slow
     def test_with_mask(self) -> None:
-        try:
-            error_map = self._make_spatially_correlated_map()
-            mask = np.ones_like(error_map, dtype=bool)
-            # Mask out a small corner.
-            mask[0, 0] = False
-            mask[0, 1] = False
-            result = spatial_autocorrelation(error_map, mask=mask)
-        except ImportError:
-            pytest.skip("esda/libpysal not installed")
+        error_map = self._make_spatially_correlated_map()
+        mask = np.ones_like(error_map, dtype=bool)
+        mask[0, 0] = False
+        mask[0, 1] = False
+        result = spatial_autocorrelation(error_map, mask=mask)
         assert isinstance(result, SpatialResult)
         assert result.lisa_labels.shape == error_map.shape
 
-    @pytest.mark.slow
     def test_no_mask_means_all_included(self) -> None:
-        try:
-            error_map = self._make_spatially_correlated_map()
-            result = spatial_autocorrelation(error_map, mask=None)
-        except ImportError:
-            pytest.skip("esda/libpysal not installed")
+        error_map = self._make_spatially_correlated_map()
+        result = spatial_autocorrelation(error_map, mask=None)
         assert isinstance(result, SpatialResult)
 
-    @pytest.mark.slow
     def test_random_map_has_low_morans_i(self) -> None:
         """A purely random map should have Moran's I close to the expected
         value under randomness."""
-        try:
-            rng = np.random.default_rng(99)
-            error_map = rng.uniform(0, 1, (8, 8))
-            result = spatial_autocorrelation(error_map)
-        except ImportError:
-            pytest.skip("esda/libpysal not installed")
-        # Moran's I for random data should be near expected_i.
+        rng = np.random.default_rng(99)
+        error_map = rng.uniform(0, 1, (8, 8))
+        result = spatial_autocorrelation(error_map)
         assert abs(result.morans_i - result.expected_i) < 0.5

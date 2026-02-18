@@ -332,20 +332,6 @@ def sentinel2_patch(all_patches: list[PatchSample]) -> PatchSample:
     pytest.skip("No Sentinel-2 patch available")
 
 
-# Keep backward compatibility for existing test references
-NOISE_VARIANTS = ("inf", "40", "30", "20")
-
-
-def degraded_for_variant(patch: PatchSample, variant: str) -> np.ndarray:
-    """Return the degraded array for a named noise variant."""
-    return {
-        "inf": patch.degraded_inf,
-        "40": patch.degraded_40,
-        "30": patch.degraded_30,
-        "20": patch.degraded_20,
-    }[variant]
-
-
 # Backward-compatible aliases
 psnr = compute_psnr
 rmse = compute_rmse
