@@ -14,11 +14,6 @@ from pdi_pipeline.methods.compressive import (
 from pdi_pipeline.methods.idw import IDWInterpolator
 from pdi_pipeline.methods.kriging import KrigingInterpolator
 from pdi_pipeline.methods.lanczos import LanczosInterpolator
-from pdi_pipeline.methods.multi_temporal import (
-    SpaceTimeKriging,
-    TemporalFourierInterpolator,
-    TemporalSplineInterpolator,
-)
 from pdi_pipeline.methods.nearest import NearestInterpolator
 from pdi_pipeline.methods.patch_based import (
     ExemplarBasedInterpolator,
@@ -47,11 +42,8 @@ __all__ = [
     "NearestInterpolator",
     "NonLocalMeansInterpolator",
     "RBFInterpolator",
-    "SpaceTimeKriging",
     "SplineInterpolator",
     "TVInpainting",
-    "TemporalFourierInterpolator",
-    "TemporalSplineInterpolator",
     "WaveletInpainting",
     "get_interpolator",
     "list_methods",

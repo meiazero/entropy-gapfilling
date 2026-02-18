@@ -34,15 +34,14 @@ def _bootstrap_ci(
     ci: float = 0.95,
     seed: int = 42,
 ) -> tuple[float, float]:
-    """Compute bootstrap confidence interval for the mean."""
+    """Compute bootstrap confidence interval for the mean (vectorized)."""
     rng = np.random.default_rng(seed)
     values = values[~np.isnan(values)]
     if len(values) == 0:
         return (float("nan"), float("nan"))
-    means = np.array([
-        float(np.mean(rng.choice(values, size=len(values), replace=True)))
-        for _ in range(n_boot)
-    ])
+    # Vectorized: draw all bootstrap samples at once -> (n_boot, n)
+    indices = rng.integers(0, len(values), size=(n_boot, len(values)))
+    means = values[indices].mean(axis=1)
     alpha = (1.0 - ci) / 2.0
     return (
         float(np.percentile(means, 100 * alpha)),

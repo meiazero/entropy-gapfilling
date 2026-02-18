@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 
 import numpy as np
+from scipy.ndimage import uniform_filter
 from skimage.metrics import structural_similarity
 
 from pdi_pipeline.exceptions import DimensionError
@@ -269,23 +270,22 @@ def ergas(
     if not np.any(gap):
         return 0.0
 
-    n_bands = clean.shape[2]
-    band_sum = 0.0
+    # Vectorized: extract gap pixels for all bands at once (N_gap, B)
+    clean_gap = clean[gap]  # (N_gap, B)
+    recon_gap = reconstructed[gap]  # (N_gap, B)
 
-    for b in range(n_bands):
-        clean_b = clean[:, :, b]
-        recon_b = reconstructed[:, :, b]
+    rmse_per_band = np.sqrt(
+        np.mean((clean_gap - recon_gap) ** 2, axis=0)
+    )  # (B,)
+    mean_per_band = np.mean(clean_gap, axis=0)  # (B,)
 
-        diff = clean_b[gap] - recon_b[gap]
-        rmse_b = float(np.sqrt(np.mean(diff**2)))
-        mean_b = float(np.mean(clean_b[gap]))
+    valid = np.abs(mean_per_band) > 1e-10
+    if not np.any(valid):
+        return 0.0
 
-        if abs(mean_b) < 1e-10:
-            continue
-
-        band_sum += (rmse_b / mean_b) ** 2
-
-    return float(100.0 * np.sqrt(band_sum / n_bands))
+    # Divide by number of *valid* bands, not total bands (bug fix)
+    ratio_sq = (rmse_per_band[valid] / mean_per_band[valid]) ** 2
+    return float(100.0 * np.sqrt(np.mean(ratio_sq)))
 
 
 def local_psnr(
@@ -334,8 +334,6 @@ def local_psnr(
     masked_err = sq_err_pad * gap_pad
 
     # Vectorized sliding-window sums via scipy uniform_filter -- O(HW)
-    from scipy.ndimage import uniform_filter
-
     kernel = float(window)
     area = kernel * kernel
     gap_count = uniform_filter(gap_pad, size=window, mode="constant", cval=0.0)

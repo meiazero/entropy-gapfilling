@@ -29,23 +29,19 @@ classifiers = [
 dependencies = [
      "cvxpy>=1.7.5",
      "esda>=2.5.1",
-     "ipython>=8.18.1",
      "libpysal>=4.8.1",
      "matplotlib>=3.9.4",
      "numpy>=2.0.2",
      "opencv-python>=4.11.0.86",
      "pandas>=2.3.3",
-     "pandas-stubs>=2.2.2.240807",
      "pyarrow>=21.0.0",
      "pykrige>=1.7.3",
      "pywavelets>=1.6.0",
      "pyyaml>=6.0.3",
      "rasterio>=1.4.3",
-     "ruff>=0.14.8",
      "scikit-image>=0.24.0",
      "scikit-learn>=1.6.1",
      "scipy>=1.13.1",
-     "scipy-stubs==1.17.0.2",
      "seaborn>=0.13.2",
      "statsmodels>=0.14.4",
      "torch>=2.8.0",
@@ -64,12 +60,15 @@ pdi-experiment = "scripts.run_experiment:main"
 
 [dependency-groups]
 dev = [
+    "ipython>=8.18.1",
+    "pandas-stubs>=2.2.2.240807",
     "pytest>=9.0.2",
     "pre-commit>=4.5.1",
-    "tox-uv>=1.11.3",
-    "deptry>=0.23.0",
     "pytest-cov>=7.0.0",
     "ruff>=0.14.8",
+    "scipy-stubs==1.17.0.2",
+    "tox-uv>=1.11.3",
+    "deptry>=0.23.0",
 ]
 
 [build-system]
@@ -90,7 +89,7 @@ warn_unused_configs = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "."]
 addopts = "-ra -q --strict-markers"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",

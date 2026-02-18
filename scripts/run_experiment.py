@@ -23,14 +23,14 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from pdi_pipeline.config import ExperimentConfig, MethodConfig, load_config
+from pdi_pipeline.config import ExperimentConfig, load_config
 from pdi_pipeline.dataset import PatchDataset
 from pdi_pipeline.logging_utils import (
     get_project_root,
     setup_file_logging,
     setup_logging,
 )
-from pdi_pipeline.methods.base import BaseMethod
+from pdi_pipeline.methods.registry import get_interpolator
 from pdi_pipeline.visualization import save_array_as_png
 
 setup_logging()
@@ -38,87 +38,6 @@ log = logging.getLogger(__name__)
 
 PROJECT_ROOT = get_project_root()
 DEFAULT_MANIFEST = PROJECT_ROOT / "preprocessed" / "manifest.csv"
-
-# Multi-temporal methods excluded from this paper
-EXCLUDED_METHODS = {
-    "temporal_spline",
-    "temporal_fourier",
-    "kriging_spacetime",
-    "dineof",
-}
-
-# Registry: config name -> (class, default kwargs)
-_METHOD_REGISTRY: dict[str, type[BaseMethod]] = {}
-
-
-def _build_registry() -> dict[str, type[BaseMethod]]:
-    """Lazy-build the method registry from the methods package."""
-    if _METHOD_REGISTRY:
-        return _METHOD_REGISTRY
-
-    from pdi_pipeline.methods import (
-        BicubicInterpolator,
-        BilinearInterpolator,
-        DCTInpainting,
-        ExemplarBasedInterpolator,
-        IDWInterpolator,
-        KrigingInterpolator,
-        L1DCTInpainting,
-        L1WaveletInpainting,
-        LanczosInterpolator,
-        NearestInterpolator,
-        NonLocalMeansInterpolator,
-        RBFInterpolator,
-        SplineInterpolator,
-        TVInpainting,
-        WaveletInpainting,
-    )
-
-    classes: list[type[BaseMethod]] = [
-        NearestInterpolator,
-        BilinearInterpolator,
-        BicubicInterpolator,
-        LanczosInterpolator,
-        IDWInterpolator,
-        RBFInterpolator,
-        SplineInterpolator,
-        KrigingInterpolator,
-        DCTInpainting,
-        WaveletInpainting,
-        TVInpainting,
-        L1DCTInpainting,
-        L1WaveletInpainting,
-        NonLocalMeansInterpolator,
-        ExemplarBasedInterpolator,
-    ]
-
-    # Map both class.name and config aliases
-    config_aliases = {
-        "l1_dct": "cs_dct",
-        "l1_wavelet": "cs_wavelet",
-        "non_local": "non_local",
-        "exemplar_based": "exemplar_based",
-    }
-
-    for cls in classes:
-        _METHOD_REGISTRY[cls.name] = cls
-
-    for alias, real_name in config_aliases.items():
-        if real_name in _METHOD_REGISTRY:
-            _METHOD_REGISTRY[alias] = _METHOD_REGISTRY[real_name]
-
-    return _METHOD_REGISTRY
-
-
-def instantiate_method(cfg: MethodConfig) -> BaseMethod:
-    """Instantiate a method from its config."""
-    registry = _build_registry()
-    name = cfg.name
-    if name not in registry:
-        msg = f"Unknown method: {name!r}. Available: {sorted(registry.keys())}"
-        raise ValueError(msg)
-    cls = registry[name]
-    return cls(**cfg.params)
 
 
 def _load_entropy(
@@ -165,25 +84,25 @@ def _load_completed(output_path: Path) -> set[tuple[int, str, str, int]]:
         usecols=["seed", "noise_level", "method", "patch_id"],
         dtype={"noise_level": str},
     )
-    return {
-        (int(r["seed"]), str(r["noise_level"]), r["method"], int(r["patch_id"]))
-        for _, r in df.iterrows()
-    }
+    return set(
+        zip(
+            df["seed"].astype(int),
+            df["noise_level"].astype(str),
+            df["method"],
+            df["patch_id"].astype(int),
+        )
+    )
 
 
 def _save_checkpoint(rows: list[dict[str, Any]], output_path: Path) -> None:
-    """Append rows to the CSV file."""
+    """Append rows to the CSV file in O(len(rows)) time."""
     if not rows:
         return
     output_path.mkdir(parents=True, exist_ok=True)
     csv_path = output_path / "raw_results.csv"
     new_df = pd.DataFrame(rows)
-    if csv_path.exists():
-        existing = pd.read_csv(csv_path)
-        combined = pd.concat([existing, new_df], ignore_index=True)
-    else:
-        combined = new_df
-    combined.to_csv(csv_path, index=False)
+    write_header = not csv_path.exists()
+    new_df.to_csv(csv_path, mode="a", header=write_header, index=False)
 
 
 def _load_patch_selections(
@@ -229,8 +148,7 @@ def run_experiment(
             "Using pre-computed patch selections from patch_selections.json"
         )
 
-    # Filter out multi-temporal methods
-    methods = [mc for mc in config.methods if mc.name not in EXCLUDED_METHODS]
+    methods = config.methods
 
     # Count total work across all seeds (each seed may select different patches)
     total_work = 0
@@ -268,7 +186,7 @@ def run_experiment(
     # Instantiate all methods
     method_instances = {}
     for mc in methods:
-        method_instances[mc.name] = instantiate_method(mc)
+        method_instances[mc.name] = get_interpolator(mc.name, **mc.params)
         log.info("Loaded method: %s", mc.name)
 
     checkpoint_interval = 500

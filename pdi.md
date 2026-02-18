@@ -86,5 +86,3 @@ Uso de Sentinel-2, Landsat-8/9 e MODIS. Simulação de lacunas (máscaras de nuv
 - Kruskal-Wallis + Dunn post-hoc com Bonferroni, incluindo epsilon-squared e Cliff's delta.
 - Regressao robusta: metrica ~ entropia (multi-escala) + metodo + ruido. Coeficientes, p-values, IC95%, R-squared ajustado, VIF.
 - Moran's I global e LISA local para autocorrelacao espacial de mapas de erro.
-
-opencode -s ses_3aba01d12ffeQEnA2bEOYzpc7K

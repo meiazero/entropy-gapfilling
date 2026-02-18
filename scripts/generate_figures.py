@@ -882,6 +882,7 @@ ALL_FIGURES = {
     5: fig5_lisa_clusters,
     6: fig6_visual_examples,
     7: fig7_correlation_heatmap,
+    8: fig8_dl_vs_classical,
     9: fig9_local_metric_maps,
 }
 
