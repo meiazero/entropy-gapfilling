@@ -8,6 +8,7 @@ for the full 77k-patch corpus (~4.7 GB if loaded at once).
 from __future__ import annotations
 
 import csv
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -173,7 +174,7 @@ class PatchDataset:
             mean_entropy=entropy_dict if entropy_dict else None,
         )
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[PatchSample]:
         for i in range(len(self)):
             yield self[i]
 

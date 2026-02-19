@@ -27,11 +27,13 @@ install: ## Install dependencies and pre-commit hooks
 	@uv run pre-commit install
 
 .PHONY: check
-check: ## Run linting and dependency checks
+check: ## Run code quality tools
+	@echo "Checking lock file consistency with 'pyproject.toml'"
 	@uv lock --locked
+	@echo "Linting code: Running pre-commit"
 	@uv run pre-commit run -a
+	@echo "Checking for obsolete dependencies: Running deptry"
 	@uv run deptry src
-
 .PHONY: test
 test: ## Run full test suite with coverage
 	@uv run python -m pytest --cov --cov-config=pyproject.toml --cov-report=xml

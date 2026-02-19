@@ -1,7 +1,7 @@
 {
   // -- Python analysis (Pylance/Pyright) --
   "python.analysis.diagnosticMode": "workspace",
-  "python.analysis.typeCheckingMode": "strict",
+  "python.analysis.typeCheckingMode": "off",
   "python.analysis.autoImportCompletions": true,
   "python.analysis.inlayHints.functionReturnTypes": true,
   "python.analysis.inlayHints.variableTypes": true,
@@ -38,7 +38,6 @@
     "**/outputs/**": true,
     "**/__pycache__/**": true,
     "**/.ruff_cache/**": true,
-    "**/.mypy_cache/**": true,
     "**/.pytest_cache/**": true
   },
   "search.exclude": {

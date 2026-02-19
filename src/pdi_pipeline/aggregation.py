@@ -95,17 +95,16 @@ def _summary_with_ci(
     """
     rows: list[dict[str, object]] = []
     for keys, group in df.groupby(groupby_cols, observed=True):
-        vals = group[metric].dropna().values
+        vals = group[metric].dropna().to_numpy()
         ci_lo, ci_hi = _bootstrap_ci(vals)
         n = len(vals)
         has_vals = n > 0
 
         row: dict[str, object] = {}
-        if isinstance(keys, tuple):
-            for col, val in zip(groupby_cols, keys, strict=True):
-                row[col] = val
-        else:
-            row[groupby_cols[0]] = keys
+        if not isinstance(keys, tuple):
+            keys = (keys,)
+        for col, val in zip(groupby_cols, keys, strict=True):
+            row[col] = val
 
         row["n"] = n
         row["mean"] = float(np.mean(vals)) if has_vals else float("nan")

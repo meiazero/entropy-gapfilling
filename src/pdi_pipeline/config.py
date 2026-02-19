@@ -154,7 +154,7 @@ def _validate_raw(raw: dict[str, Any]) -> None:
     _validate_methods_section(raw["methods"])
 
 
-def _parse_methods(raw: dict[str, list[dict]]) -> list[MethodConfig]:
+def _parse_methods(raw: dict[str, list[dict[str, Any]]]) -> list[MethodConfig]:
     """Flatten category -> method list into a flat list of MethodConfig."""
     methods: list[MethodConfig] = []
     for category, items in raw.items():

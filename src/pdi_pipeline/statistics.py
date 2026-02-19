@@ -184,7 +184,7 @@ def method_comparison(
     groups = []
     method_names = []
     for method, group in df.groupby("method", observed=True):
-        vals = group[metric_col].dropna().values
+        vals = group[metric_col].dropna().to_numpy()
         if len(vals) > 0:
             groups.append(vals)
             method_names.append(method)
@@ -301,7 +301,7 @@ def robust_regression(
         axis=1,
     )
     X = sm.add_constant(X)
-    y = valid[metric_col].reset_index(drop=True).values
+    y = valid[metric_col].reset_index(drop=True).to_numpy()
 
     # Fit RLM with Huber's T
     rlm_model = sm.RLM(y, X, M=sm.robust.norms.HuberT())
