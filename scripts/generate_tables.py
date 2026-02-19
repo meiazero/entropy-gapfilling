@@ -14,6 +14,8 @@ import argparse
 import logging
 from pathlib import Path
 
+import numpy as np
+
 from pdi_pipeline.aggregation import (
     load_results,
     summary_by_entropy_bin,
@@ -298,14 +300,21 @@ def table4_correlation(results_dir: Path, output_dir: Path) -> None:
                 else:
                     r = row.iloc[0]
                     rho = r["spearman_rho"]
-                    p = r["spearman_p"]
+                    # Use FDR-corrected p-value when available
+                    p_col = (
+                        "spearman_p_corrected"
+                        if "spearman_p_corrected" in r.index
+                        else "spearman_p"
+                    )
+                    p = r[p_col]
                     stars = ""
-                    if p < 0.001:
-                        stars = "***"
-                    elif p < 0.01:
-                        stars = "**"
-                    elif p < 0.05:
-                        stars = "*"
+                    if not np.isnan(p):
+                        if p < 0.001:
+                            stars = "***"
+                        elif p < 0.01:
+                            stars = "**"
+                        elif p < 0.05:
+                            stars = "*"
                     cells.append(f"${rho:.3f}${stars}")
         lines.append(" & ".join(cells) + r" \\")
 
