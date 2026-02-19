@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import hashlib
 import json
 import logging
 import os
@@ -64,6 +65,13 @@ VARIANT_COL_MAP = {
 
 EXPECTED_IMAGE_SHAPE = (4, 64, 64)
 EXPECTED_MASK_SHAPE = (1, 64, 64)
+
+SPLIT_RATIOS = {
+    "train": 0.80,
+    "val": 0.10,
+    "test": 0.10,
+}
+SPLIT_SEED = 42
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -266,6 +274,68 @@ def _cleanup(paths: list[Path]) -> None:
             p.unlink(missing_ok=True)
 
 
+def _stable_seed(base_seed: int, salt: str) -> int:
+    digest = hashlib.sha256(salt.encode("utf-8")).hexdigest()
+    return base_seed + int(digest[:8], 16)
+
+
+def _assign_splits(
+    df: pd.DataFrame,
+    ratios: dict[str, float],
+    seed: int,
+) -> pd.DataFrame:
+    total_ratio = sum(ratios.values())
+    if not np.isclose(total_ratio, 1.0, atol=1e-6):
+        msg = f"Split ratios must sum to 1.0, got {total_ratio:.6f}"
+        raise ValueError(msg)
+
+    df = df.copy()
+    df["split"] = ""
+
+    for sat in sorted(df["satellite"].unique()):
+        sat_idx = df.index[df["satellite"] == sat].to_numpy()
+        rng = np.random.default_rng(_stable_seed(seed, sat))
+        rng.shuffle(sat_idx)
+
+        n = len(sat_idx)
+        n_train = int(n * ratios["train"])
+        n_val = int(n * ratios["val"])
+
+        train_idx = sat_idx[:n_train]
+        val_idx = sat_idx[n_train : n_train + n_val]
+        test_idx = sat_idx[n_train + n_val :]
+
+        df.loc[train_idx, "split"] = "train"
+        df.loc[val_idx, "split"] = "val"
+        df.loc[test_idx, "split"] = "test"
+
+    if (df["split"] == "").any():
+        msg = "Split assignment incomplete - some rows are unassigned"
+        raise RuntimeError(msg)
+
+    return df
+
+
+def _split_ratios_ok(
+    splits: pd.Series,
+    ratios: dict[str, float],
+    tol: float = 0.01,
+) -> bool:
+    counts = splits.value_counts()
+    total = int(counts.sum())
+    if total == 0:
+        return False
+    for name, expected in ratios.items():
+        actual = counts.get(name, 0) / total
+        if abs(actual - expected) > tol:
+            return False
+    return True
+
+
+def _raise_split_ratio_mismatch() -> None:
+    raise ValueError("split ratios mismatch")
+
+
 def _simulate_selection(
     df: pd.DataFrame,
     satellites: list[str],
@@ -334,6 +404,45 @@ def main(argv: list[str] | None = None) -> None:
 
     df = pd.read_parquet(parquet_path)
     log.info("Loaded %d patches from metadata.parquet", len(df))
+
+    df = _assign_splits(df, SPLIT_RATIOS, SPLIT_SEED)
+    log.info(
+        "Assigned splits with ratios %s (seed=%d)",
+        SPLIT_RATIOS,
+        SPLIT_SEED,
+    )
+
+    # Fast path: if manifest already exists with train/val/test splits and
+    # has the expected number of rows, skip the entire preprocessing step.
+    manifest_path = output_dir / MANIFEST_NAME
+    if args.resume and manifest_path.exists():
+        try:
+            existing = pd.read_csv(manifest_path, usecols=["split"], dtype=str)
+            existing_splits = set(existing["split"].unique())
+            expected_splits = {"train", "val", "test"}
+            if expected_splits.issubset(existing_splits):
+                if not _split_ratios_ok(existing["split"], SPLIT_RATIOS):
+                    log.info(
+                        "Manifest split ratios differ from expected %s; "
+                        "reprocessing.",
+                        SPLIT_RATIOS,
+                    )
+                    _raise_split_ratio_mismatch()
+                n_existing = len(existing)
+                # When using --config the parquet is filtered, so we can't
+                # compare counts directly. Without --config the expected
+                # count is the full parquet.
+                n_expected = len(df) if args.config is None else None
+                if n_expected is None or n_existing >= n_expected:
+                    log.info(
+                        "Manifest already complete (%d rows, splits=%s). "
+                        "Skipping preprocessing.",
+                        n_existing,
+                        sorted(existing_splits),
+                    )
+                    return
+        except Exception:
+            log.debug("Could not read existing manifest, will re-process")
 
     if args.config is not None:
         from pdi_pipeline.config import load_config

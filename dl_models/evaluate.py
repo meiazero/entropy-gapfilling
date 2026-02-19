@@ -42,6 +42,7 @@ MODEL_REGISTRY: dict[str, tuple[str, str]] = {
     "gan": ("dl_models.gan.model", "GANInpainting"),
     "unet": ("dl_models.unet.model", "UNetInpainting"),
     "transformer": ("dl_models.transformer.model", "TransformerInpainting"),
+    "unet_jax": ("dl_models.unet_jax.model", "UNetInpaintingJAX"),
 }
 
 

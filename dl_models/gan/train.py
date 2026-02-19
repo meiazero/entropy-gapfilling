@@ -3,7 +3,7 @@
 Usage:
     uv run python -m dl_models.gan.train \
         --manifest preprocessed/manifest.csv \
-        --output dl_models/checkpoints/gan_best.pth
+        --output results/gan/checkpoints/gan_best.pth
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ def main() -> None:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("dl_models/checkpoints/gan_best.pth"),
+        default=Path("results/gan/checkpoints/gan_best.pth"),
     )
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--batch-size", type=int, default=16)
@@ -54,7 +54,13 @@ def main() -> None:
     parser.add_argument("--num-workers", type=int, default=None)
     args = parser.parse_args()
 
-    setup_file_logging(args.output.parent / "gan_train.log")
+    if args.output.parent.name == "checkpoints":
+        results_dir = args.output.parent.parent
+    else:
+        results_dir = args.output.parent
+    checkpoints_dir = args.output.parent
+
+    setup_file_logging(results_dir / "gan_train.log")
 
     device = torch.device(
         args.device
@@ -72,6 +78,17 @@ def main() -> None:
     val_ds = InpaintingDataset(
         args.manifest, split="val", satellite=args.satellite
     )
+
+    if len(train_ds) == 0:
+        log.error(
+            "No training samples found in manifest '%s' "
+            "(split='train', satellite='%s'). "
+            "The manifest may only contain 'test' patches. "
+            "Use the full preprocessing pipeline first.",
+            args.manifest,
+            args.satellite,
+        )
+        return
 
     train_loader = DataLoader(
         train_ds,
@@ -103,14 +120,14 @@ def main() -> None:
     early_stop = EarlyStopping(patience=args.patience)
 
     use_amp = device.type == "cuda"
-    scaler_g = torch.cuda.amp.GradScaler(enabled=use_amp)
-    scaler_d = torch.cuda.amp.GradScaler(enabled=use_amp)
+    scaler_g = torch.amp.GradScaler(device.type, enabled=use_amp)
+    scaler_d = torch.amp.GradScaler(device.type, enabled=use_amp)
 
     best_val_loss = float("inf")
 
     history = TrainingHistory(
         "gan",
-        args.output.parent,
+        results_dir,
         metadata={
             "epochs": args.epochs,
             "batch_size": args.batch_size,
@@ -125,6 +142,8 @@ def main() -> None:
         },
     )
 
+    global_step = 0
+    n_batches = len(train_loader)
     for epoch in range(1, args.epochs + 1):
         gen.train()
         disc.train()
@@ -133,7 +152,7 @@ def main() -> None:
         g_adv_sum = 0.0
         g_recon_sum = 0.0
 
-        for x, clean, mask in train_loader:
+        for step, (x, clean, mask) in enumerate(train_loader, 1):
             x, clean, mask = x.to(device), clean.to(device), mask.to(device)
             b = x.size(0)
 
@@ -171,6 +190,29 @@ def main() -> None:
             g_loss_sum += g_loss.item() * b
             g_adv_sum += g_adv.item() * b
             g_recon_sum += g_recon.item() * b
+            global_step += 1
+            if step % 100 == 0 or step == n_batches:
+                log.info(
+                    "  [%d/%d] step %d/%d  g_loss=%.6f  d_loss=%.6f",
+                    epoch,
+                    args.epochs,
+                    step,
+                    n_batches,
+                    g_loss.item(),
+                    d_loss.item(),
+                )
+            if global_step % 500 == 0:
+                periodic_path = checkpoints_dir / f"gan_step_{global_step}.pth"
+                save_checkpoint(
+                    periodic_path,
+                    gen,
+                    opt_g,
+                    epoch,
+                    g_loss_sum / (step * args.batch_size),
+                    disc_state_dict=disc.state_dict(),
+                    opt_d_state_dict=opt_d.state_dict(),
+                )
+                log.info("  Periodic checkpoint saved: %s", periodic_path)
 
         n = len(train_ds)
         g_loss_avg = g_loss_sum / n
@@ -225,8 +267,16 @@ def main() -> None:
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            save_checkpoint(args.output, gen, opt_g, epoch, val_loss)
-            log.info("Saved best checkpoint: %.6f", val_loss)
+            save_checkpoint(
+                args.output,
+                gen,
+                opt_g,
+                epoch,
+                val_loss,
+                disc_state_dict=disc.state_dict(),
+                opt_d_state_dict=opt_d.state_dict(),
+            )
+            log.info("Saved best checkpoint: %s", args.output)
 
         if early_stop.step(val_loss):
             log.info("Early stopping at epoch %d", epoch)

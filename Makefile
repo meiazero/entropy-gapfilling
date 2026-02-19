@@ -96,20 +96,20 @@ SAVE_RECON  ?= 0
 _DEVICE_ARG  = $(if $(DEVICE),--device $(DEVICE),)
 
 # --- AE hyperparameters -------------------------------------------------------
-AE_EPOCHS   ?= 50
+AE_EPOCHS   ?= 2
 AE_BATCH    ?= 32
 AE_LR       ?= 1e-3
 AE_PATIENCE ?= 10
 
 # --- VAE hyperparameters ------------------------------------------------------
-VAE_EPOCHS   ?= 80
+VAE_EPOCHS   ?= 1
 VAE_BATCH    ?= 32
 VAE_LR       ?= 1e-3
 VAE_BETA     ?= 0.001
 VAE_PATIENCE ?= 10
 
 # --- GAN hyperparameters ------------------------------------------------------
-GAN_EPOCHS      ?= 100
+GAN_EPOCHS      ?= 2
 GAN_BATCH       ?= 16
 GAN_LR          ?= 2e-4
 GAN_PATIENCE    ?= 15
@@ -117,14 +117,14 @@ GAN_LAMBDA_L1   ?= 10.0
 GAN_LAMBDA_ADV  ?= 0.1
 
 # --- UNet hyperparameters -----------------------------------------------------
-UNET_EPOCHS   ?= 60
+UNET_EPOCHS   ?= 2
 UNET_BATCH    ?= 32
 UNET_LR       ?= 1e-3
 UNET_WD       ?= 1e-4
 UNET_PATIENCE ?= 12
 
 # --- Transformer hyperparameters ----------------------------------------------
-TF_EPOCHS   ?= 100
+TF_EPOCHS   ?= 2
 TF_BATCH    ?= 32
 TF_LR       ?= 1e-4
 TF_WD       ?= 0.05
@@ -154,7 +154,7 @@ dl-preprocess: ## Preprocess satellite patches to NPY format (resume-safe)
 # =============================================================================
 
 .PHONY: dl-train-ae
-dl-train-ae: ## Train Autoencoder (AE)
+dl-train-ae: dl-preprocess ## Train Autoencoder (AE)
 	@printf "\033[34m==>\033[0m Training AE | epochs=$(AE_EPOCHS) lr=$(AE_LR) batch=$(AE_BATCH) satellite=$(SATELLITE)\n"
 	@uv run python -m dl_models.ae.train \
 		--manifest   $(MANIFEST)             \
@@ -167,7 +167,7 @@ dl-train-ae: ## Train Autoencoder (AE)
 		$(_DEVICE_ARG)
 
 .PHONY: dl-train-vae
-dl-train-vae: ## Train Variational Autoencoder (VAE)
+dl-train-vae: dl-preprocess ## Train Variational Autoencoder (VAE)
 	@printf "\033[34m==>\033[0m Training VAE | epochs=$(VAE_EPOCHS) lr=$(VAE_LR) beta=$(VAE_BETA) satellite=$(SATELLITE)\n"
 	@uv run python -m dl_models.vae.train \
 		--manifest   $(MANIFEST)              \
@@ -181,7 +181,7 @@ dl-train-vae: ## Train Variational Autoencoder (VAE)
 		$(_DEVICE_ARG)
 
 .PHONY: dl-train-gan
-dl-train-gan: ## Train GAN (UNet generator + PatchGAN discriminator)
+dl-train-gan: dl-preprocess ## Train GAN (UNet generator + PatchGAN discriminator)
 	@printf "\033[34m==>\033[0m Training GAN | epochs=$(GAN_EPOCHS) lr=$(GAN_LR) lambda_l1=$(GAN_LAMBDA_L1) satellite=$(SATELLITE)\n"
 	@uv run python -m dl_models.gan.train \
 		--manifest    $(MANIFEST)              \
@@ -196,7 +196,7 @@ dl-train-gan: ## Train GAN (UNet generator + PatchGAN discriminator)
 		$(_DEVICE_ARG)
 
 .PHONY: dl-train-unet
-dl-train-unet: ## Train U-Net (skip connections + residual blocks)
+dl-train-unet: dl-preprocess ## Train U-Net (skip connections + residual blocks)
 	@printf "\033[34m==>\033[0m Training UNet | epochs=$(UNET_EPOCHS) lr=$(UNET_LR) wd=$(UNET_WD) satellite=$(SATELLITE)\n"
 	@uv run python -m dl_models.unet.train \
 		--manifest     $(MANIFEST)               \
@@ -210,7 +210,7 @@ dl-train-unet: ## Train U-Net (skip connections + residual blocks)
 		$(_DEVICE_ARG)
 
 .PHONY: dl-train-transformer
-dl-train-transformer: ## Train MAE-style Transformer
+dl-train-transformer: dl-preprocess ## Train MAE-style Transformer
 	@printf "\033[34m==>\033[0m Training Transformer | epochs=$(TF_EPOCHS) lr=$(TF_LR) wd=$(TF_WD) satellite=$(SATELLITE)\n"
 	@uv run python -m dl_models.transformer.train \
 		--manifest     $(MANIFEST)                    \
@@ -223,8 +223,21 @@ dl-train-transformer: ## Train MAE-style Transformer
 		--patience     $(TF_PATIENCE)                 \
 		$(_DEVICE_ARG)
 
+.PHONY: dl-train-unet-jax
+dl-train-unet-jax: dl-preprocess ## Train U-Net JAX/Flax (experimental)
+	@printf "\033[34m==>\033[0m Training UNet (JAX) | epochs=$(UNET_EPOCHS) lr=$(UNET_LR) satellite=$(SATELLITE)\n"
+	@uv run python -m dl_models.unet_jax.train \
+		--manifest     $(MANIFEST)                          \
+		--output       $(CKPT_DIR)/unet_jax_best.msgpack    \
+		--satellite    $(SATELLITE)                          \
+		--epochs       $(UNET_EPOCHS)                        \
+		--batch-size   $(UNET_BATCH)                         \
+		--lr           $(UNET_LR)                             \
+		--weight-decay $(UNET_WD)                             \
+		--patience     $(UNET_PATIENCE)
+
 .PHONY: dl-train-all
-dl-train-all: dl-train-ae dl-train-vae dl-train-gan dl-train-unet dl-train-transformer ## Train all 5 models sequentially
+dl-train-all: dl-train-ae dl-train-vae dl-train-gan dl-train-unet dl-train-transformer dl-train-unet-jax ## Train all 6 models sequentially
 
 # =============================================================================
 ##@ Deep Learning - Evaluation (test split)
@@ -295,8 +308,20 @@ dl-eval-transformer: ## Evaluate Transformer on test split (requires dl-train-tr
 		--save-reconstructions $(SAVE_RECON)                   \
 		$(_DEVICE_ARG)
 
+.PHONY: dl-eval-unet-jax
+dl-eval-unet-jax: ## Evaluate U-Net JAX on test split (requires dl-train-unet-jax)
+	$(call _check_ckpt,$(CKPT_DIR)/unet_jax_best.msgpack,dl-train-unet-jax)
+	@printf "\033[34m==>\033[0m Evaluating UNet (JAX)  ->  $(EVAL_DIR)/unet_jax_inpainting/results.csv\n"
+	@uv run python -m dl_models.evaluate \
+		--model               unet_jax                          \
+		--checkpoint          $(CKPT_DIR)/unet_jax_best.msgpack \
+		--manifest            $(MANIFEST)                       \
+		--satellite           $(SATELLITE)                      \
+		--output              $(EVAL_DIR)                       \
+		--save-reconstructions $(SAVE_RECON)
+
 .PHONY: dl-eval-all
-dl-eval-all: dl-eval-ae dl-eval-vae dl-eval-gan dl-eval-unet dl-eval-transformer ## Evaluate all 5 models on test split
+dl-eval-all: dl-eval-ae dl-eval-vae dl-eval-gan dl-eval-unet dl-eval-transformer dl-eval-unet-jax ## Evaluate all 6 models on test split
 
 # =============================================================================
 ##@ Deep Learning - Testing & Plots

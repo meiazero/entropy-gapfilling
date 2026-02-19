@@ -3,7 +3,7 @@
 Usage:
     uv run python -m dl_models.unet.train \
         --manifest preprocessed/manifest.csv \
-        --output dl_models/checkpoints/unet_best.pth
+        --output results/unet/checkpoints/unet_best.pth
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ def main() -> None:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("dl_models/checkpoints/unet_best.pth"),
+        default=Path("results/unet/checkpoints/unet_best.pth"),
     )
     parser.add_argument("--epochs", type=int, default=60)
     parser.add_argument("--batch-size", type=int, default=32)
@@ -55,7 +55,13 @@ def main() -> None:
     parser.add_argument("--num-workers", type=int, default=None)
     args = parser.parse_args()
 
-    setup_file_logging(args.output.parent / "unet_train.log")
+    if args.output.parent.name == "checkpoints":
+        results_dir = args.output.parent.parent
+    else:
+        results_dir = args.output.parent
+    checkpoints_dir = args.output.parent
+
+    setup_file_logging(results_dir / "unet_train.log")
 
     device = torch.device(
         args.device
@@ -73,6 +79,17 @@ def main() -> None:
     val_ds = InpaintingDataset(
         args.manifest, split="val", satellite=args.satellite
     )
+
+    if len(train_ds) == 0:
+        log.error(
+            "No training samples found in manifest '%s' "
+            "(split='train', satellite='%s'). "
+            "The manifest may only contain 'test' patches. "
+            "Use the full preprocessing pipeline first.",
+            args.manifest,
+            args.satellite,
+        )
+        return
 
     train_loader = DataLoader(
         train_ds,
@@ -107,13 +124,13 @@ def main() -> None:
     early_stop = EarlyStopping(patience=args.patience)
 
     use_amp = device.type == "cuda"
-    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
+    scaler = torch.amp.GradScaler(device.type, enabled=use_amp)
 
     best_val_loss = float("inf")
 
     history = TrainingHistory(
         "unet",
-        args.output.parent,
+        results_dir,
         metadata={
             "epochs": args.epochs,
             "batch_size": args.batch_size,
@@ -127,10 +144,12 @@ def main() -> None:
         },
     )
 
+    global_step = 0
+    n_batches = len(train_loader)
     for epoch in range(1, args.epochs + 1):
         model.train()
         train_loss = 0.0
-        for x, clean, mask in train_loader:
+        for step, (x, clean, mask) in enumerate(train_loader, 1):
             x, clean, mask = x.to(device), clean.to(device), mask.to(device)
             optimizer.zero_grad(set_to_none=True)
             with torch.autocast(device_type=device.type, enabled=use_amp):
@@ -142,6 +161,26 @@ def main() -> None:
             scaler.step(optimizer)
             scaler.update()
             train_loss += loss.item() * x.size(0)
+            global_step += 1
+            if step % 100 == 0 or step == n_batches:
+                log.info(
+                    "  [%d/%d] step %d/%d  loss=%.6f",
+                    epoch,
+                    args.epochs,
+                    step,
+                    n_batches,
+                    loss.item(),
+                )
+            if global_step % 500 == 0:
+                periodic_path = checkpoints_dir / f"unet_step_{global_step}.pth"
+                save_checkpoint(
+                    periodic_path,
+                    model,
+                    optimizer,
+                    epoch,
+                    train_loss / (step * args.batch_size),
+                )
+                log.info("  Periodic checkpoint saved: %s", periodic_path)
         train_loss /= len(train_ds)
 
         scheduler.step()
@@ -193,7 +232,7 @@ def main() -> None:
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             save_checkpoint(args.output, model, optimizer, epoch, val_loss)
-            log.info("Saved best checkpoint: %.6f", val_loss)
+            log.info("Saved best checkpoint: %s", args.output)
 
         if early_stop.step(val_loss):
             log.info("Early stopping at epoch %d", epoch)

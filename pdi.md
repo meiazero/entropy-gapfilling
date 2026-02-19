@@ -86,3 +86,86 @@ Uso de Sentinel-2, Landsat-8/9 e MODIS. Simulação de lacunas (máscaras de nuv
 - Kruskal-Wallis + Dunn post-hoc com Bonferroni, incluindo epsilon-squared e Cliff's delta.
 - Regressao robusta: metrica ~ entropia (multi-escala) + metodo + ruido. Coeficientes, p-values, IC95%, R-squared ajustado, VIF.
 - Moran's I global e LISA local para autocorrelacao espacial de mapas de erro.
+
+## Deep Learning — Treinamento e Avaliação
+
+### Pré-processamento
+
+Converte patches GeoTIFF para NPY. Gera `preprocessed/manifest.csv` com splits `train`, `val` e `test`. Resume-safe — se o manifest já estiver completo, pula automaticamente.
+
+```bash
+uv run python scripts/preprocess_dataset.py --resume
+```
+
+### Quick-start (via Make)
+
+Os targets do `make` usam defaults rápidos (2 epochs) para validação:
+
+```bash
+make dl-train-vae        # treina VAE com 2 epochs
+make dl-train-all        # treina todos os 6 modelos sequencialmente
+make dl-eval-all         # avalia todos no test split
+```
+
+Para alterar epochs via make: `make dl-train-ae AE_EPOCHS=50`.
+
+### Treinamento (produção)
+
+Comandos completos com hiperparâmetros de produção:
+
+```bash
+# AE — Autoencoder
+uv run python -m dl_models.ae.train \
+    --manifest preprocessed/manifest.csv --satellite sentinel2 \
+    --output dl_models/checkpoints/ae_best.pt \
+    --epochs 50 --batch-size 32 --lr 1e-3 --patience 10
+
+# VAE — Variational Autoencoder
+uv run python -m dl_models.vae.train \
+    --manifest preprocessed/manifest.csv --satellite sentinel2 \
+    --output dl_models/checkpoints/vae_best.pt \
+    --epochs 60 --batch-size 32 --lr 1e-3 --beta 0.001 --patience 10
+
+# GAN — UNet Generator + PatchGAN Discriminator
+uv run python -m dl_models.gan.train \
+    --manifest preprocessed/manifest.csv --satellite sentinel2 \
+    --output dl_models/checkpoints/gan_best.pt \
+    --epochs 100 --batch-size 16 --lr 2e-4 \
+    --lambda-l1 10.0 --lambda-adv 0.1 --patience 15
+
+# U-Net (PyTorch)
+uv run python -m dl_models.unet.train \
+    --manifest preprocessed/manifest.csv --satellite sentinel2 \
+    --output dl_models/checkpoints/unet_best.pt \
+    --epochs 60 --batch-size 32 --lr 1e-3 \
+    --weight-decay 1e-4 --patience 12
+
+# Transformer (MAE-style)
+uv run python -m dl_models.transformer.train \
+    --manifest preprocessed/manifest.csv --satellite sentinel2 \
+    --output dl_models/checkpoints/transformer_best.pt \
+    --epochs 100 --batch-size 32 --lr 1e-4 \
+    --weight-decay 0.05 --patience 15
+
+# U-Net JAX/Flax (experimental)
+uv run python -m dl_models.unet_jax.train \
+    --manifest preprocessed/manifest.csv --satellite sentinel2 \
+    --output dl_models/checkpoints/unet_jax_best.msgpack \
+    --epochs 60 --batch-size 32 --lr 1e-3 \
+    --weight-decay 1e-4 --patience 12
+```
+
+### Avaliação
+
+```bash
+# Exemplo: avaliar U-Net no test split
+uv run python -m dl_models.evaluate \
+    --model unet \
+    --checkpoint dl_models/checkpoints/unet_best.pt \
+    --manifest preprocessed/manifest.csv \
+    --satellite sentinel2 \
+    --output results/dl_eval
+
+# Modelos disponíveis: ae, vae, gan, unet, transformer, unet_jax
+# Para unet_jax usar checkpoint .msgpack
+```
