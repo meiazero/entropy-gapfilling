@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import argparse
 import logging
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -52,32 +54,90 @@ METHOD_INFO = {
         "Auto variogram",
         "O(N^3)",
     ),
-    "dct": ("Transform", "DCT", "iter=50, lam=0.05", "O(HW log HW)"),
+    "dct": (
+        "Transform",
+        "DCT",
+        "iter=50, lam=0.05",
+        "O(HW log HW)",
+    ),
     "wavelet": ("Transform", "Wavelet", "db4, iter=50", "O(HW)"),
     "tv": ("Transform", "Total Variation", "iter=100", "O(HW)"),
-    "cs_dct": ("Compressive", "L1-DCT (CS)", "iter=100", "O(HW log HW)"),
-    "cs_wavelet": ("Compressive", "L1-Wavelet (CS)", "iter=100", "O(HW)"),
+    "cs_dct": (
+        "Compressive",
+        "L1-DCT (CS)",
+        "iter=100",
+        "O(HW log HW)",
+    ),
+    "cs_wavelet": (
+        "Compressive",
+        "L1-Wavelet (CS)",
+        "iter=100",
+        "O(HW)",
+    ),
     "non_local": (
         "Patch-based",
         "Non-Local Means",
         "h=0.1, p=7, s=21",
         "O(HW P^2)",
     ),
-    "exemplar_based": ("Patch-based", "Exemplar-Based", "p=9", "O(HW P^2)"),
+    "exemplar_based": (
+        "Patch-based",
+        "Exemplar-Based",
+        "p=9",
+        "O(HW P^2)",
+    ),
 }
 
 
+# ------------------------------------------------------------------
+# LaTeX table boilerplate
+# ------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class LatexTableConfig:
+    """Specification for a LaTeX ``tabular`` environment."""
+
+    caption: str
+    label: str
+    col_spec: str
+    header: str
+    font_size: str = r"\footnotesize"
+
+
+def _render_latex_table(
+    config: LatexTableConfig,
+    body_lines: list[str],
+    extra_after_tabular: list[str] | None = None,
+) -> str:
+    """Render a complete LaTeX table from *config* and body rows."""
+    lines = [
+        r"\begin{table}[htbp]",
+        r"\centering",
+        rf"\caption{{{config.caption}}}",
+        rf"\label{{{config.label}}}",
+        config.font_size,
+        rf"\begin{{tabular}}{{{config.col_spec}}}",
+        r"\toprule",
+        config.header + r" \\",
+        r"\midrule",
+        *body_lines,
+        r"\bottomrule",
+        r"\end{tabular}",
+    ]
+    if extra_after_tabular:
+        lines.extend(extra_after_tabular)
+    lines.append(r"\end{table}")
+    return "\n".join(lines)
+
+
+# ------------------------------------------------------------------
+# Shared formatting helpers
+# ------------------------------------------------------------------
+
+
 def _format_ranked_cell(value: float, ci_half: float, rank: int) -> str:
-    """Format a metric cell with bold-best / underline-second styling.
-
-    Args:
-        value: Mean metric value.
-        ci_half: Half-width of the 95% CI.
-        rank: 1 = best, 2 = second-best, else plain.
-
-    Returns:
-        LaTeX-formatted string.
-    """
+    """Format a metric cell with bold-best / underline-second."""
     base = f"${value:.2f}_{{\\pm {ci_half:.2f}}}$"
     if rank == 1:
         return f"\\textbf{{{base}}}"
@@ -103,30 +163,98 @@ def _stars_for_p_value(p_value: float) -> str:
     return ""
 
 
-def _format_table4_cell(
-    method_df: pd.DataFrame,
+def _format_table8_metric(value: float, rank: int) -> str:
+    if rank == 1:
+        return f"\\textbf{{{value:.3f}}}"
+    if rank == 2:
+        return f"\\underline{{{value:.3f}}}"
+    return f"${value:.3f}$"
+
+
+# ------------------------------------------------------------------
+# Ranking + row generation (shared by tables 2, 3, 7)
+# ------------------------------------------------------------------
+
+
+def _compute_group_rankings(
+    summary: pd.DataFrame,
+    group_col: str,
+    groups: list[str],
+) -> dict[str, dict[str, int]]:
+    """Rank methods within each *group_col* value by descending mean."""
+    rankings: dict[str, dict[str, int]] = {}
+    for group_val in groups:
+        gdf = summary[summary[group_col] == group_val]
+        ranked = gdf.sort_values("mean", ascending=False)
+        for rank, rr in enumerate(ranked.itertuples(), 1):
+            rankings.setdefault(group_val, {})[rr.method] = rank
+    return rankings
+
+
+def _build_ranked_rows(
+    summary: pd.DataFrame,
+    group_col: str,
+    groups: list[str],
+    methods: list[str],
+    rankings: dict[str, dict[str, int]],
+) -> list[str]:
+    """Build LaTeX row strings for a ranked method x group table."""
+    rows: list[str] = []
+    for method in methods:
+        mdf = summary[summary["method"] == method]
+        cells: list[str] = [method]
+        for g in groups:
+            row = mdf[mdf[group_col] == g]
+            if row.empty:
+                cells.append("--")
+            else:
+                r = row.iloc[0]
+                ci_half = (r["ci95_hi"] - r["ci95_lo"]) / 2
+                rank = rankings.get(g, {}).get(method, 99)
+                cells.append(_format_ranked_cell(r["mean"], ci_half, rank))
+        rows.append(" & ".join(cells) + r" \\")
+    return rows
+
+
+# ------------------------------------------------------------------
+# O(1) correlation cell lookup (table 4)
+# ------------------------------------------------------------------
+
+
+def _build_correlation_lookup(
+    corr_df: pd.DataFrame,
+) -> dict[tuple[str, str, str], Any]:
+    """Index *corr_df* for O(1) cell access."""
+    lookup: dict[tuple[str, str, str], Any] = {}
+    for row in corr_df.itertuples():
+        key = (row.method, row.entropy_col, row.metric_col)
+        lookup[key] = row
+    return lookup
+
+
+def _format_correlation_cell(
+    lookup: dict[tuple[str, str, str], Any],
+    method: str,
     entropy_col: str,
     metric_col: str,
 ) -> str:
-    row = method_df[
-        (method_df["entropy_col"] == entropy_col)
-        & (method_df["metric_col"] == metric_col)
-    ]
-    if row.empty:
+    rr = lookup.get((method, entropy_col, metric_col))
+    if rr is None:
         return "--"
-
-    rr = row.iloc[0]
-    rho = float(rr["spearman_rho"])
-    p_col = (
-        "spearman_p_corrected"
-        if "spearman_p_corrected" in rr.index
-        else "spearman_p"
-    )
-    stars = _stars_for_p_value(float(rr[p_col]))
+    rho = float(rr.spearman_rho)
+    p_val = float(getattr(rr, "spearman_p_corrected", None) or rr.spearman_p)
+    stars = _stars_for_p_value(p_val)
     return f"${rho:.3f}${stars}"
 
 
-def _collect_dl_rows(dl_base: Path) -> list[dict[str, object]]:
+# ------------------------------------------------------------------
+# DL result collection (table 8)
+# ------------------------------------------------------------------
+
+
+def _collect_dl_rows(
+    dl_base: Path,
+) -> list[dict[str, object]]:
     dl_rows: list[dict[str, object]] = []
     if not dl_base.exists():
         return dl_rows
@@ -158,111 +286,69 @@ def _add_metric_rankings(df: pd.DataFrame, metrics: list[str]) -> None:
         )
 
 
-def _format_table8_metric(value: float, rank: int) -> str:
-    if rank == 1:
-        return f"\\textbf{{{value:.3f}}}"
-    if rank == 2:
-        return f"\\underline{{{value:.3f}}}"
-    return f"${value:.3f}$"
+# ------------------------------------------------------------------
+# Table generators
+# ------------------------------------------------------------------
 
 
-def table1_method_overview(output_dir: Path) -> None:
-    """Table 1: Method overview with category, parameters, complexity."""
-    lines = [
-        r"\begin{table}[htbp]",
-        r"\centering",
-        (
-            r"\caption{Overview of the 15 classical gap-filling methods "
-            r"evaluated.}"
-        ),
-        r"\label{tab:methods}",
-        r"\footnotesize",
-        r"\begin{tabular}{llllc}",
-        r"\toprule",
-        r"Category & Method & Parameters & Complexity \\",
-        r"\midrule",
-    ]
-
+def table1_method_overview(df: pd.DataFrame, output_dir: Path) -> None:
+    """Table 1: Method overview (no data needed)."""
+    body: list[str] = []
     prev_cat = ""
-    for _name, (cat, display, params, complexity) in METHOD_INFO.items():
+    for _name, (cat, display, params, cplx) in METHOD_INFO.items():
         cat_str = cat if cat != prev_cat else ""
         prev_cat = cat
-        lines.append(f"{cat_str} & {display} & {params} & {complexity} \\\\")
+        body.append(f"{cat_str} & {display} & {params} & {cplx} \\\\")
 
-    lines.extend([
-        r"\bottomrule",
-        r"\end{tabular}",
-        r"\end{table}",
-    ])
+    tex = _render_latex_table(
+        LatexTableConfig(
+            caption=(
+                "Overview of the 15 classical gap-filling methods evaluated."
+            ),
+            label="tab:methods",
+            col_spec="llllc",
+            header=(r"Category & Method & Parameters & Complexity"),
+        ),
+        body,
+    )
+    _write_tex(tex, output_dir / "table1_methods.tex")
 
-    _write_tex("\n".join(lines), output_dir / "table1_methods.tex")
 
-
-def table2_overall_results(results_dir: Path, output_dir: Path) -> None:
+def table2_overall_results(df: pd.DataFrame, output_dir: Path) -> None:
     """Table 2: Mean PSNR +/- CI95% per method x noise level."""
-    df = load_results(results_dir)
     noise_summary = summary_by_noise(df, metric="psnr")
 
     methods = sorted(noise_summary["method"].unique())
     noise_levels = ["inf", "40", "30", "20"]
-    present_levels = [
+    present = [
         n for n in noise_levels if n in noise_summary["noise_level"].values
     ]
 
-    ncols = len(present_levels)
-    col_spec = "l" + "c" * ncols
+    header = "Method & " + " & ".join(
+        f"{n} dB" if n != "inf" else "No noise" for n in present
+    )
+    rankings = _compute_group_rankings(noise_summary, "noise_level", present)
+    body = _build_ranked_rows(
+        noise_summary, "noise_level", present, methods, rankings
+    )
 
-    lines = [
-        r"\begin{table}[htbp]",
-        r"\centering",
-        r"\caption{Mean PSNR (dB) $\pm$ 95\% CI per method and noise level.}",
-        r"\label{tab:overall}",
-        r"\footnotesize",
-        f"\\begin{{tabular}}{{{col_spec}}}",
-        r"\toprule",
-        "Method & "
-        + " & ".join(
-            f"{n} dB" if n != "inf" else "No noise" for n in present_levels
-        )
-        + r" \\",
-        r"\midrule",
-    ]
-
-    # Compute rankings per noise level
-    rankings: dict[str, dict[str, int]] = {}
-    for noise in present_levels:
-        ndf = noise_summary[noise_summary["noise_level"] == noise]
-        ranked = ndf.sort_values("mean", ascending=False)
-        for rank, rr in enumerate(ranked.itertuples(), 1):
-            rankings.setdefault(noise, {})[rr.method] = rank
-
-    for method in methods:
-        mdf = noise_summary[noise_summary["method"] == method]
-        cells = [method]
-        for noise in present_levels:
-            row = mdf[mdf["noise_level"] == noise]
-            if row.empty:
-                cells.append("--")
-            else:
-                r = row.iloc[0]
-                ci_half = (r["ci95_hi"] - r["ci95_lo"]) / 2
-                rank = rankings.get(noise, {}).get(method, 99)
-                cells.append(_format_ranked_cell(r["mean"], ci_half, rank))
-        lines.append(" & ".join(cells) + r" \\")
-
-    lines.extend([
-        r"\bottomrule",
-        r"\end{tabular}",
-        r"\end{table}",
-    ])
-
-    _write_tex("\n".join(lines), output_dir / "table2_overall.tex")
+    tex = _render_latex_table(
+        LatexTableConfig(
+            caption=(
+                r"Mean PSNR (dB) $\pm$ 95\% CI per method "
+                "and noise level."
+            ),
+            label="tab:overall",
+            col_spec="l" + "c" * len(present),
+            header=header,
+        ),
+        body,
+    )
+    _write_tex(tex, output_dir / "table2_overall.tex")
 
 
-def table3_entropy_stratified(results_dir: Path, output_dir: Path) -> None:
-    """Table 3: Mean PSNR per method x entropy bin at all window scales."""
-    df = load_results(results_dir)
-
+def table3_entropy_stratified(df: pd.DataFrame, output_dir: Path) -> None:
+    """Table 3: Mean PSNR per method x entropy bin."""
     entropy_windows = [c for c in df.columns if c.startswith("entropy_")]
     if not entropy_windows:
         entropy_windows = ["entropy_7"]
@@ -280,63 +366,33 @@ def table3_entropy_stratified(results_dir: Path, output_dir: Path) -> None:
             continue
 
         methods = sorted(ent_summary["method"].unique())
-
-        lines = [
-            r"\begin{table}[htbp]",
-            r"\centering",
-            (
-                rf"\caption{{Mean PSNR (dB) $\pm$ 95\% CI stratified "
-                rf"by entropy tercile ({ws}$\times${ws} window).}}"
-            ),
-            rf"\label{{tab:entropy_stratified_{ws}}}",
-            r"\footnotesize",
-            r"\begin{tabular}{lccc}",
-            r"\toprule",
-            r"Method & Low Entropy & Medium Entropy & High Entropy \\",
-            r"\midrule",
-        ]
-
-        # Compute rankings per entropy bin
-        bin_rankings: dict[str, dict[str, int]] = {}
-        for b in bins:
-            bdf = ent_summary[ent_summary["entropy_bin"] == b]
-            ranked = bdf.sort_values("mean", ascending=False)
-            for rank, rr in enumerate(ranked.itertuples(), 1):
-                bin_rankings.setdefault(b, {})[rr.method] = rank
-
-        for method in methods:
-            mdf = ent_summary[ent_summary["method"] == method]
-            cells = [method]
-            for b in bins:
-                row = mdf[mdf["entropy_bin"] == b]
-                if row.empty:
-                    cells.append("--")
-                else:
-                    r = row.iloc[0]
-                    ci_half = (r["ci95_hi"] - r["ci95_lo"]) / 2
-                    rank = bin_rankings.get(b, {}).get(method, 99)
-                    cells.append(_format_ranked_cell(r["mean"], ci_half, rank))
-            lines.append(" & ".join(cells) + r" \\")
-
-        lines.extend([
-            r"\bottomrule",
-            r"\end{tabular}",
-            r"\end{table}",
-        ])
-
-        _write_tex(
-            "\n".join(lines),
-            output_dir / f"table3_entropy_{ws}.tex",
+        rankings = _compute_group_rankings(ent_summary, "entropy_bin", bins)
+        body = _build_ranked_rows(
+            ent_summary, "entropy_bin", bins, methods, rankings
         )
 
+        tex = _render_latex_table(
+            LatexTableConfig(
+                caption=(
+                    r"Mean PSNR (dB) $\pm$ 95\% CI stratified "
+                    rf"by entropy tercile "
+                    rf"({ws}$\times${ws} window)."
+                ),
+                label=f"tab:entropy_stratified_{ws}",
+                col_spec="lccc",
+                header=("Method & Low Entropy & Medium Entropy & High Entropy"),
+            ),
+            body,
+        )
+        _write_tex(tex, output_dir / f"table3_entropy_{ws}.tex")
 
-def table4_correlation(results_dir: Path, output_dir: Path) -> None:
-    """Table 4: Spearman rho for entropy x metric with significance stars."""
-    df = load_results(results_dir)
 
+def table4_correlation(df: pd.DataFrame, output_dir: Path) -> None:
+    """Table 4: Spearman rho for entropy x metric."""
     entropy_cols = [c for c in df.columns if c.startswith("entropy_")]
-    metric_cols = ["psnr", "ssim", "rmse", "sam"]
-    metric_cols = [c for c in metric_cols if c in df.columns]
+    metric_cols = [
+        c for c in ["psnr", "ssim", "rmse", "sam"] if c in df.columns
+    ]
 
     if not entropy_cols or not metric_cols:
         log.warning("Missing columns for table4")
@@ -347,68 +403,42 @@ def table4_correlation(results_dir: Path, output_dir: Path) -> None:
         return
 
     methods = sorted(corr_df["method"].unique())
+    lookup = _build_correlation_lookup(corr_df)
 
-    ncols = len(entropy_cols) * len(metric_cols)
-    col_spec = "l" + "c" * ncols
-
-    # Build compound header
     header_parts = ["Method"]
     for ecol in entropy_cols:
         ws = ecol.split("_")[-1]
         for mcol in metric_cols:
             header_parts.append(f"$\\rho_{{H_{{{ws}}}}}$({mcol.upper()})")
 
-    lines = [
-        r"\begin{table}[htbp]",
-        r"\centering",
-        r"\caption{Spearman correlation between entropy and quality metrics.}",
-        r"\label{tab:correlation}",
-        r"\footnotesize",
-        rf"\begin{{tabular}}{{{col_spec}}}",
-        r"\toprule",
-        " & ".join(header_parts) + r" \\",
-        r"\midrule",
-    ]
-
+    body: list[str] = []
     for method in methods:
-        mdf = corr_df[corr_df["method"] == method]
-        cells = [method]
+        cells: list[str] = [method]
         for ecol in entropy_cols:
             for mcol in metric_cols:
-                cells.append(_format_table4_cell(mdf, ecol, mcol))
-        lines.append(" & ".join(cells) + r" \\")
+                cells.append(
+                    _format_correlation_cell(lookup, method, ecol, mcol)
+                )
+        body.append(" & ".join(cells) + r" \\")
 
-    lines.extend([
-        r"\bottomrule",
-        r"\end{tabular}",
-        r"\end{table}",
-    ])
+    ncols = len(entropy_cols) * len(metric_cols)
+    tex = _render_latex_table(
+        LatexTableConfig(
+            caption=(
+                "Spearman correlation between entropy and quality metrics."
+            ),
+            label="tab:correlation",
+            col_spec="l" + "c" * ncols,
+            header=" & ".join(header_parts),
+        ),
+        body,
+    )
+    _write_tex(tex, output_dir / "table4_correlation.tex")
 
-    _write_tex("\n".join(lines), output_dir / "table4_correlation.tex")
 
-
-def table5_kruskal_wallis(results_dir: Path, output_dir: Path) -> None:
+def table5_kruskal_wallis(df: pd.DataFrame, output_dir: Path) -> None:
     """Table 5: Kruskal-Wallis + Dunn post-hoc summary."""
-    df = load_results(results_dir)
-
-    lines = [
-        r"\begin{table}[htbp]",
-        r"\centering",
-        (
-            r"\caption{Kruskal-Wallis test and significant pairwise "
-            r"differences (Dunn post-hoc, Bonferroni correction).}"
-        ),
-        r"\label{tab:kruskal}",
-        r"\footnotesize",
-        r"\begin{tabular}{lcccc}",
-        r"\toprule",
-        (
-            r"Metric & H statistic & $p$-value & $\epsilon^2$ "
-            r"& Significant pairs \\",
-        ),
-        r"\midrule",
-    ]
-
+    body: list[str] = []
     for metric in ["psnr", "ssim", "rmse", "sam"]:
         if metric not in df.columns:
             continue
@@ -421,24 +451,33 @@ def table5_kruskal_wallis(results_dir: Path, output_dir: Path) -> None:
             if result.p_value < 1e-10
             else f"${result.p_value:.2e}$"
         )
-        lines.append(
+        body.append(
             f"{metric.upper()} & ${result.statistic:.1f}$ & "
-            f"{p_str} & ${result.epsilon_squared:.4f}$ & {n_sig} \\\\"
+            f"{p_str} & ${result.epsilon_squared:.4f}$ "
+            f"& {n_sig} \\\\"
         )
 
-    lines.extend([
-        r"\bottomrule",
-        r"\end{tabular}",
-        r"\end{table}",
-    ])
+    tex = _render_latex_table(
+        LatexTableConfig(
+            caption=(
+                "Kruskal-Wallis test and significant pairwise "
+                "differences (Dunn post-hoc, "
+                "Bonferroni correction)."
+            ),
+            label="tab:kruskal",
+            col_spec="lcccc",
+            header=(
+                r"Metric & H statistic & $p$-value "
+                r"& $\epsilon^2$ & Significant pairs"
+            ),
+        ),
+        body,
+    )
+    _write_tex(tex, output_dir / "table5_kruskal.tex")
 
-    _write_tex("\n".join(lines), output_dir / "table5_kruskal.tex")
 
-
-def table6_regression(results_dir: Path, output_dir: Path) -> None:
-    """Table 6: Robust regression coefficients, p-values, R2-adj, VIF."""
-    df = load_results(results_dir)
-
+def table6_regression(df: pd.DataFrame, output_dir: Path) -> None:
+    """Table 6: Robust regression coefficients."""
     entropy_cols = sorted(c for c in df.columns if c.startswith("entropy_"))
     if not entropy_cols:
         log.warning("No entropy columns for table6")
@@ -455,22 +494,8 @@ def table6_regression(results_dir: Path, output_dir: Path) -> None:
             log.warning("Regression failed for %s", metric)
             continue
 
-        coef = result.coefficients
-
-        lines = [
-            r"\begin{table}[htbp]",
-            r"\centering",
-            rf"\caption{{Robust regression (RLM/HuberT) for {metric.upper()}. "
-            rf"$R^2_{{adj}} = {result.r_squared_adj:.4f}$, $n = {result.n}$.}}",
-            rf"\label{{tab:regression_{metric}}}",
-            r"\tiny",
-            r"\begin{tabular}{lrrrrr}",
-            r"\toprule",
-            r"Variable & $\beta$ & Std. Err. & $z$ & $p$ & 95\% CI \\",
-            r"\midrule",
-        ]
-
-        for row in coef.itertuples():
+        body: list[str] = []
+        for row in result.coefficients.itertuples():
             var = str(row.variable).replace("_", r"\_")
             p_str = (
                 "$< 10^{-10}$"
@@ -478,42 +503,53 @@ def table6_regression(results_dir: Path, output_dir: Path) -> None:
                 else f"${row.p_value:.2e}$"
             )
             ci_str = f"[{row.ci_lo:.4f}, {row.ci_hi:.4f}]"
-            lines.append(
+            body.append(
                 f"{var} & ${row.beta:.4f}$ & "
                 f"${row.std_err:.4f}$ & "
                 f"${row.z_value:.2f}$ & "
                 f"{p_str} & {ci_str} \\\\"
             )
 
-        lines.extend([
-            r"\bottomrule",
-            r"\end{tabular}",
-        ])
-
-        # VIF sub-table
+        extra: list[str] = []
         if not result.vif.empty:
-            lines.append(r"\vspace{0.5em}")
-            lines.append(r"\begin{tabular}{lr}")
-            lines.append(r"\toprule")
-            lines.append(r"Variable & VIF \\")
-            lines.append(r"\midrule")
+            extra.append(r"\vspace{0.5em}")
+            extra.append(r"\begin{tabular}{lr}")
+            extra.append(r"\toprule")
+            extra.append(r"Variable & VIF \\")
+            extra.append(r"\midrule")
             for vrow in result.vif.itertuples():
                 var = str(vrow.variable).replace("_", r"\_")
-                lines.append(f"{var} & ${vrow.vif:.2f}$ \\\\")
-            lines.append(r"\bottomrule")
-            lines.append(r"\end{tabular}")
+                extra.append(f"{var} & ${vrow.vif:.2f}$ \\\\")
+            extra.append(r"\bottomrule")
+            extra.append(r"\end{tabular}")
 
-        lines.append(r"\end{table}")
-
+        mu = metric.upper()
+        tex = _render_latex_table(
+            LatexTableConfig(
+                caption=(
+                    f"Robust regression (RLM/HuberT) for {mu}. "
+                    f"$R^2_{{adj}} = {result.r_squared_adj:.4f}$"
+                    f", $n = {result.n}$."
+                ),
+                label=f"tab:regression_{metric}",
+                col_spec="lrrrrr",
+                header=(
+                    r"Variable & $\beta$ & Std. Err. "
+                    r"& $z$ & $p$ & 95\% CI"
+                ),
+                font_size=r"\tiny",
+            ),
+            body,
+            extra_after_tabular=extra or None,
+        )
         _write_tex(
-            "\n".join(lines),
+            tex,
             output_dir / f"table6_regression_{metric}.tex",
         )
 
 
-def table7_satellite(results_dir: Path, output_dir: Path) -> None:
+def table7_satellite(df: pd.DataFrame, output_dir: Path) -> None:
     """Table 7: Mean PSNR per method x satellite."""
-    df = load_results(results_dir)
     sat_summary = summary_by_satellite(df, metric="psnr")
 
     if sat_summary.empty:
@@ -523,83 +559,49 @@ def table7_satellite(results_dir: Path, output_dir: Path) -> None:
     methods = sorted(sat_summary["method"].unique())
     satellites = sorted(sat_summary["satellite"].unique())
 
-    ncols = len(satellites)
-    col_spec = "l" + "c" * ncols
+    header = "Method & " + " & ".join(s.replace("_", r"\_") for s in satellites)
+    rankings = _compute_group_rankings(sat_summary, "satellite", satellites)
+    body = _build_ranked_rows(
+        sat_summary, "satellite", satellites, methods, rankings
+    )
 
-    lines = [
-        r"\begin{table}[htbp]",
-        r"\centering",
-        (
-            r"\caption{Mean PSNR (dB) $\pm$ 95\% CI per method "
-            r"and satellite sensor.}"
+    tex = _render_latex_table(
+        LatexTableConfig(
+            caption=(
+                r"Mean PSNR (dB) $\pm$ 95\% CI per method "
+                "and satellite sensor."
+            ),
+            label="tab:satellite",
+            col_spec="l" + "c" * len(satellites),
+            header=header,
         ),
-        r"\label{tab:satellite}",
-        r"\footnotesize",
-        f"\\begin{{tabular}}{{{col_spec}}}",
-        r"\toprule",
-        "Method & "
-        + " & ".join(s.replace("_", r"\_") for s in satellites)
-        + r" \\",
-        r"\midrule",
-    ]
-
-    # Rankings per satellite
-    sat_rankings: dict[str, dict[str, int]] = {}
-    for sat in satellites:
-        sdf = sat_summary[sat_summary["satellite"] == sat]
-        ranked = sdf.sort_values("mean", ascending=False)
-        for rank, rr in enumerate(ranked.itertuples(), 1):
-            sat_rankings.setdefault(sat, {})[rr.method] = rank
-
-    for method in methods:
-        mdf = sat_summary[sat_summary["method"] == method]
-        cells = [method]
-        for sat in satellites:
-            row = mdf[mdf["satellite"] == sat]
-            if row.empty:
-                cells.append("--")
-            else:
-                r = row.iloc[0]
-                ci_half = (r["ci95_hi"] - r["ci95_lo"]) / 2
-                rank = sat_rankings.get(sat, {}).get(method, 99)
-                cells.append(_format_ranked_cell(r["mean"], ci_half, rank))
-        lines.append(" & ".join(cells) + r" \\")
-
-    lines.extend([
-        r"\bottomrule",
-        r"\end{tabular}",
-        r"\end{table}",
-    ])
-
-    _write_tex("\n".join(lines), output_dir / "table7_satellite.tex")
+        body,
+    )
+    _write_tex(tex, output_dir / "table7_satellite.tex")
 
 
-def table8_dl_comparison(results_dir: Path, output_dir: Path) -> None:
-    """Table 8: Classical vs. DL method comparison.
-
-    Loads DL evaluation results from results_dir/../dl_eval/ and merges
-    with classical results for a side-by-side comparison.
-    """
-    import pandas as pd
-
-    df_classical = load_results(results_dir)
-
-    # Aggregate classical: mean per method
+def table8_dl_comparison(
+    df: pd.DataFrame,
+    output_dir: Path,
+    *,
+    results_dir: Path | None = None,
+) -> None:
+    """Table 8: Classical vs. DL method comparison."""
     classical_summary = (
-        df_classical.groupby("method")[["psnr", "ssim", "rmse"]]
-        .mean()
-        .reset_index()
+        df.groupby("method")[["psnr", "ssim", "rmse"]].mean().reset_index()
     )
     classical_summary["type"] = "Classical"
 
-    # Load DL results
-    dl_base = results_dir.parent / "dl_eval"
+    dl_base = (
+        results_dir.parent / "dl_eval" if results_dir is not None else Path(".")
+    )
     dl_rows = _collect_dl_rows(dl_base)
 
     if not dl_rows:
         log.warning(
             "No DL results found at %s. "
-            "Run DL evaluation first to include in comparison.",
+            "Run DL evaluation first to include "
+            "in comparison.",
             dl_base,
         )
 
@@ -607,63 +609,98 @@ def table8_dl_comparison(results_dir: Path, output_dir: Path) -> None:
     combined = pd.concat([classical_summary, dl_summary], ignore_index=True)
     combined = combined.sort_values("psnr", ascending=False)
 
-    metrics_display = ["psnr", "ssim", "rmse"]
-    present = [m for m in metrics_display if m in combined.columns]
+    present = [m for m in ["psnr", "ssim", "rmse"] if m in combined.columns]
 
-    lines = [
-        r"\begin{table}[htbp]",
-        r"\centering",
-        (
-            r"\caption{Performance comparison: classical interpolation "
-            r"vs.\ deep learning methods.}"
-        ),
-        r"\label{tab:dl_comparison}",
-        r"\footnotesize",
-        r"\begin{tabular}{ll" + "c" * len(present) + "}",
-        r"\toprule",
-        "Type & Method & " + " & ".join(m.upper() for m in present) + r" \\",
-        r"\midrule",
-    ]
-
-    # Rankings for bold/underline
     _add_metric_rankings(combined, present)
 
+    body: list[str] = []
     prev_type = ""
     for row in combined.itertuples():
         row_type = str(row.type)
         type_str = row_type if row_type != prev_type else ""
         prev_type = row_type
         method_str = str(row.method).replace("_", r"\_")
-        cells = [type_str, method_str]
+        cells: list[str] = [type_str, method_str]
         for m_col in present:
             val = float(getattr(row, m_col))
             rank = int(getattr(row, f"rank_{m_col}"))
             cells.append(_format_table8_metric(val, rank))
-        lines.append(" & ".join(cells) + r" \\")
+        body.append(" & ".join(cells) + r" \\")
 
-    lines.extend([
-        r"\bottomrule",
-        r"\end{tabular}",
-        r"\end{table}",
-    ])
-
-    _write_tex("\n".join(lines), output_dir / "table8_dl_comparison.tex")
-
-
-ALL_TABLES = {
-    1: lambda rd, od: table1_method_overview(od),
-    2: table2_overall_results,
-    3: table3_entropy_stratified,
-    4: table4_correlation,
-    5: table5_kruskal_wallis,
-    6: table6_regression,
-    7: table7_satellite,
-}
+    tex = _render_latex_table(
+        LatexTableConfig(
+            caption=(
+                "Performance comparison: classical "
+                r"interpolation vs.\ deep learning methods."
+            ),
+            label="tab:dl_comparison",
+            col_spec="ll" + "c" * len(present),
+            header=(
+                "Type & Method & " + " & ".join(m.upper() for m in present)
+            ),
+        ),
+        body,
+    )
+    _write_tex(tex, output_dir / "table8_dl_comparison.tex")
 
 
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+# ------------------------------------------------------------------
+# Dispatch table and CLI
+# ------------------------------------------------------------------
+
+
+def _make_table_dispatch(
+    df: pd.DataFrame,
+    results_dir: Path,
+    output_dir: Path,
+) -> dict[int, tuple[str, Any]]:
+    """Build dispatch table mapping number -> (name, callable).
+
+    Each callable takes no arguments (partial application).
+    """
+    return {
+        1: (
+            "method_overview",
+            lambda: table1_method_overview(df, output_dir),
+        ),
+        2: (
+            "overall_results",
+            lambda: table2_overall_results(df, output_dir),
+        ),
+        3: (
+            "entropy_stratified",
+            lambda: table3_entropy_stratified(df, output_dir),
+        ),
+        4: (
+            "correlation",
+            lambda: table4_correlation(df, output_dir),
+        ),
+        5: (
+            "kruskal_wallis",
+            lambda: table5_kruskal_wallis(df, output_dir),
+        ),
+        6: (
+            "regression",
+            lambda: table6_regression(df, output_dir),
+        ),
+        7: (
+            "satellite",
+            lambda: table7_satellite(df, output_dir),
+        ),
+        8: (
+            "dl_comparison",
+            lambda: table8_dl_comparison(
+                df, output_dir, results_dir=results_dir
+            ),
+        ),
+    }
+
+
+def parse_args(
+    argv: list[str] | None = None,
+) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate LaTeX tables from experiment results.",
+        description=("Generate LaTeX tables from experiment results."),
     )
     parser.add_argument(
         "--results",
@@ -675,13 +712,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--output",
         type=Path,
         default=None,
-        help="Output directory for tables. Default: results_dir/tables/",
+        help=("Output directory for tables. Default: results_dir/tables/"),
     )
     parser.add_argument(
         "--table",
         type=int,
         default=None,
-        help="Generate only this table number (1-7).",
+        help="Generate only this table number (1-8).",
     )
     return parser.parse_args(argv)
 
@@ -708,17 +745,21 @@ def main(argv: list[str] | None = None) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     _setup_file_logging(results_dir / "tables.log")
 
+    df = load_results(results_dir)
+    dispatch = _make_table_dispatch(df, results_dir, output_dir)
+
     if args.table is not None:
-        if args.table not in ALL_TABLES:
+        if args.table not in dispatch:
             log.error("Invalid table number: %d", args.table)
             return
-        ALL_TABLES[args.table](results_dir, output_dir)
+        _, fn = dispatch[args.table]
+        fn()
     else:
-        for num, func in ALL_TABLES.items():
+        for num, (name, fn) in dispatch.items():
             try:
-                func(results_dir, output_dir)
+                fn()
             except Exception:
-                log.exception("Error generating table %d", num)
+                log.exception("Error generating table %d (%s)", num, name)
 
     log.info("Tables saved to: %s", output_dir)
 

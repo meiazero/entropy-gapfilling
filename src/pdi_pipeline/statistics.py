@@ -90,6 +90,28 @@ def correlation_analysis(
     )
 
 
+def _apply_fdr_correction(
+    result_df: pd.DataFrame,
+    prefix: str,
+) -> None:
+    """Apply Benjamini-Hochberg FDR correction in-place.
+
+    Adds ``{prefix}_significant_fdr`` (bool) and
+    ``{prefix}_p_corrected`` (float) columns to *result_df*.
+    """
+    p_col = f"{prefix}_p"
+    p_vals = result_df[p_col].values
+    valid = ~np.isnan(p_vals)
+    sig = np.full(len(p_vals), False)
+    corrected = np.full(len(p_vals), float("nan"))
+    if np.any(valid):
+        reject, pvals_corr, _, _ = multipletests(p_vals[valid], method="fdr_bh")
+        sig[valid] = reject
+        corrected[valid] = pvals_corr
+    result_df[f"{prefix}_significant_fdr"] = sig
+    result_df[f"{prefix}_p_corrected"] = corrected
+
+
 def correlation_matrix(
     df: pd.DataFrame,
     entropy_cols: list[str],
@@ -136,33 +158,8 @@ def correlation_matrix(
     if result_df.empty:
         return result_df
 
-    # FDR correction -- Spearman
-    sp_vals = result_df["spearman_p"].values
-    sp_valid = ~np.isnan(sp_vals)
-    sp_sig = np.full(len(sp_vals), False)
-    sp_corrected_pvals = np.full(len(sp_vals), float("nan"))
-    if np.any(sp_valid):
-        sp_reject, sp_pvals_corr, _, _ = multipletests(
-            sp_vals[sp_valid], method="fdr_bh"
-        )
-        sp_sig[sp_valid] = sp_reject
-        sp_corrected_pvals[sp_valid] = sp_pvals_corr
-    result_df["spearman_significant_fdr"] = sp_sig
-    result_df["spearman_p_corrected"] = sp_corrected_pvals
-
-    # FDR correction -- Pearson
-    pp_vals = result_df["pearson_p"].values
-    pp_valid = ~np.isnan(pp_vals)
-    pp_sig = np.full(len(pp_vals), False)
-    pp_corrected_pvals = np.full(len(pp_vals), float("nan"))
-    if np.any(pp_valid):
-        pp_reject, pp_pvals_corr, _, _ = multipletests(
-            pp_vals[pp_valid], method="fdr_bh"
-        )
-        pp_sig[pp_valid] = pp_reject
-        pp_corrected_pvals[pp_valid] = pp_pvals_corr
-    result_df["pearson_significant_fdr"] = pp_sig
-    result_df["pearson_p_corrected"] = pp_corrected_pvals
+    _apply_fdr_correction(result_df, "spearman")
+    _apply_fdr_correction(result_df, "pearson")
 
     return result_df
 

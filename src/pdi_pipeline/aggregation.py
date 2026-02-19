@@ -38,7 +38,6 @@ def load_results(path: str | Path) -> pd.DataFrame:
     if path.is_dir():
         path = path / "raw_results.csv"
     df = pd.read_csv(path)
-    # Convert low-cardinality string columns to categoricals for memory savings
     for col in (
         "method",
         "method_category",
@@ -48,7 +47,6 @@ def load_results(path: str | Path) -> pd.DataFrame:
     ):
         if col in df.columns:
             df[col] = df[col].astype("category")
-    # Downcast float64 metric columns to float32 - halves memory for 77k rows
     float32_cols = [c for c in df.columns if c in _METRIC_COLS]
     if float32_cols:
         df[float32_cols] = df[float32_cols].astype(np.float32)
@@ -66,12 +64,92 @@ def _bootstrap_ci(
     values = values[~np.isnan(values)]
     if len(values) == 0:
         return (float("nan"), float("nan"))
-    # Vectorized: draw all bootstrap samples at once -> (n_boot, n)
     indices = rng.integers(0, len(values), size=(n_boot, len(values)))
     means = values[indices].mean(axis=1)
     alpha = (1.0 - ci) / 2.0
     lo, hi = np.quantile(means, [alpha, 1.0 - alpha])
     return float(lo), float(hi)
+
+
+def _summary_with_ci(
+    df: pd.DataFrame,
+    groupby_cols: list[str],
+    metric: str,
+    *,
+    include_spread: bool = False,
+    sort_cols: list[str] | None = None,
+) -> pd.DataFrame:
+    """Compute per-group mean with bootstrap 95% CI.
+
+    Args:
+        df: DataFrame to aggregate.
+        groupby_cols: Columns to group by.
+        metric: Metric column to summarize.
+        include_spread: If True, also compute median and std.
+        sort_cols: Columns to sort result by. Defaults to
+            sorting by ``groupby_cols``.
+
+    Returns:
+        DataFrame with group keys, n, mean, ci95_lo, ci95_hi
+        (and optionally median, std).
+    """
+    rows: list[dict[str, object]] = []
+    for keys, group in df.groupby(groupby_cols, observed=True):
+        vals = group[metric].dropna().values
+        ci_lo, ci_hi = _bootstrap_ci(vals)
+        n = len(vals)
+        has_vals = n > 0
+
+        row: dict[str, object] = {}
+        if isinstance(keys, tuple):
+            for col, val in zip(groupby_cols, keys, strict=True):
+                row[col] = val
+        else:
+            row[groupby_cols[0]] = keys
+
+        row["n"] = n
+        row["mean"] = float(np.mean(vals)) if has_vals else float("nan")
+        if include_spread:
+            row["median"] = float(np.median(vals)) if has_vals else float("nan")
+            row["std"] = float(np.std(vals)) if has_vals else float("nan")
+        row["ci95_lo"] = ci_lo
+        row["ci95_hi"] = ci_hi
+        rows.append(row)
+
+    result = pd.DataFrame(rows)
+    sort_by = sort_cols if sort_cols is not None else groupby_cols
+    if not result.empty:
+        result = result.sort_values(sort_by)
+    return result
+
+
+def _tercile_bin(
+    df: pd.DataFrame,
+    source_col: str,
+    bin_col: str,
+    labels: list[str],
+) -> pd.DataFrame:
+    """Add a tercile-based bin column to a copy of *df*.
+
+    Args:
+        df: Input DataFrame (not modified).
+        source_col: Numeric column to bin.
+        bin_col: Name of the new categorical column.
+        labels: Three labels for the bins.
+
+    Returns:
+        Copy of *df* with the new ``bin_col`` column.
+    """
+    t1 = float(df[source_col].quantile(1 / 3))
+    t2 = float(df[source_col].quantile(2 / 3))
+    out = df.copy()
+    out[bin_col] = pd.cut(
+        out[source_col],
+        bins=[-np.inf, t1, t2, np.inf],
+        labels=labels,
+        right=True,
+    )
+    return out
 
 
 def summary_by_method(
@@ -87,20 +165,13 @@ def summary_by_method(
     Returns:
         DataFrame indexed by method with aggregation columns.
     """
-    rows = []
-    for method, group in df.groupby("method", observed=True):
-        vals = group[metric].dropna().values
-        ci_lo, ci_hi = _bootstrap_ci(vals)
-        rows.append({
-            "method": method,
-            "n": len(vals),
-            "mean": float(np.mean(vals)) if len(vals) > 0 else float("nan"),
-            "median": float(np.median(vals)) if len(vals) > 0 else float("nan"),
-            "std": float(np.std(vals)) if len(vals) > 0 else float("nan"),
-            "ci95_lo": ci_lo,
-            "ci95_hi": ci_hi,
-        })
-    return pd.DataFrame(rows).sort_values("mean", ascending=False)
+    return _summary_with_ci(
+        df,
+        ["method"],
+        metric,
+        include_spread=True,
+        sort_cols=["mean"],
+    ).sort_values("mean", ascending=False)
 
 
 def summary_by_entropy_bin(
@@ -125,38 +196,17 @@ def summary_by_entropy_bin(
     if valid.empty:
         return pd.DataFrame()
 
-    t1 = float(valid[entropy_col].quantile(1 / 3))
-    t2 = float(valid[entropy_col].quantile(2 / 3))
-
-    valid = valid.copy()
-    valid["entropy_bin"] = pd.cut(
-        valid[entropy_col],
-        bins=[-np.inf, t1, t2, np.inf],
-        labels=["low", "medium", "high"],
-        right=True,
+    valid = _tercile_bin(
+        valid, entropy_col, "entropy_bin", ["low", "medium", "high"]
     )
 
-    rows = []
-    for (method, ebin), group in valid.groupby(
-        ["method", "entropy_bin"], observed=True
-    ):
-        vals = group[metric].values
-        ci_lo, ci_hi = _bootstrap_ci(vals)
-        rows.append({
-            "method": method,
-            "entropy_bin": ebin,
-            "n": len(vals),
-            "mean": float(np.mean(vals)),
-            "ci95_lo": ci_lo,
-            "ci95_hi": ci_hi,
-        })
-
-    result = pd.DataFrame(rows)
-    bin_order = pd.CategoricalDtype(
-        categories=["low", "medium", "high"], ordered=True
-    )
-    result["entropy_bin"] = result["entropy_bin"].astype(bin_order)
-    return result.sort_values(["method", "entropy_bin"])
+    result = _summary_with_ci(valid, ["method", "entropy_bin"], metric)
+    if not result.empty:
+        bin_order = pd.CategoricalDtype(
+            categories=["low", "medium", "high"], ordered=True
+        )
+        result["entropy_bin"] = result["entropy_bin"].astype(bin_order)
+    return result
 
 
 def summary_by_gap_fraction(
@@ -178,38 +228,17 @@ def summary_by_gap_fraction(
     if valid.empty:
         return pd.DataFrame()
 
-    t1 = float(valid["gap_fraction"].quantile(1 / 3))
-    t2 = float(valid["gap_fraction"].quantile(2 / 3))
-
-    valid = valid.copy()
-    valid["gap_bin"] = pd.cut(
-        valid["gap_fraction"],
-        bins=[-np.inf, t1, t2, np.inf],
-        labels=["small", "medium", "large"],
-        right=True,
+    valid = _tercile_bin(
+        valid, "gap_fraction", "gap_bin", ["small", "medium", "large"]
     )
 
-    rows = []
-    for (method, gbin), group in valid.groupby(
-        ["method", "gap_bin"], observed=True
-    ):
-        vals = group[metric].values
-        ci_lo, ci_hi = _bootstrap_ci(vals)
-        rows.append({
-            "method": method,
-            "gap_bin": gbin,
-            "n": len(vals),
-            "mean": float(np.mean(vals)),
-            "ci95_lo": ci_lo,
-            "ci95_hi": ci_hi,
-        })
-
-    result = pd.DataFrame(rows)
-    bin_order = pd.CategoricalDtype(
-        categories=["small", "medium", "large"], ordered=True
-    )
-    result["gap_bin"] = result["gap_bin"].astype(bin_order)
-    return result.sort_values(["method", "gap_bin"])
+    result = _summary_with_ci(valid, ["method", "gap_bin"], metric)
+    if not result.empty:
+        bin_order = pd.CategoricalDtype(
+            categories=["small", "medium", "large"], ordered=True
+        )
+        result["gap_bin"] = result["gap_bin"].astype(bin_order)
+    return result
 
 
 def summary_by_satellite(
@@ -225,25 +254,12 @@ def summary_by_satellite(
     Returns:
         DataFrame with method x satellite summary.
     """
-    rows = []
-    for (method, sat), group in df.groupby(
-        ["method", "satellite"], observed=True
-    ):
-        vals = group[metric].dropna().values
-        ci_lo, ci_hi = _bootstrap_ci(vals)
-        rows.append({
-            "method": method,
-            "satellite": sat,
-            "n": len(vals),
-            "mean": float(np.mean(vals)) if len(vals) > 0 else float("nan"),
-            "median": (
-                float(np.median(vals)) if len(vals) > 0 else float("nan")
-            ),
-            "std": float(np.std(vals)) if len(vals) > 0 else float("nan"),
-            "ci95_lo": ci_lo,
-            "ci95_hi": ci_hi,
-        })
-    return pd.DataFrame(rows).sort_values(["method", "satellite"])
+    return _summary_with_ci(
+        df,
+        ["method", "satellite"],
+        metric,
+        include_spread=True,
+    )
 
 
 def summary_by_noise(
@@ -259,18 +275,4 @@ def summary_by_noise(
     Returns:
         DataFrame with method x noise_level summary.
     """
-    rows = []
-    for (method, noise), group in df.groupby(
-        ["method", "noise_level"], observed=True
-    ):
-        vals = group[metric].dropna().values
-        ci_lo, ci_hi = _bootstrap_ci(vals)
-        rows.append({
-            "method": method,
-            "noise_level": noise,
-            "n": len(vals),
-            "mean": float(np.mean(vals)) if len(vals) > 0 else float("nan"),
-            "ci95_lo": ci_lo,
-            "ci95_hi": ci_hi,
-        })
-    return pd.DataFrame(rows).sort_values(["method", "noise_level"])
+    return _summary_with_ci(df, ["method", "noise_level"], metric)

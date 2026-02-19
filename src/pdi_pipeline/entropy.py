@@ -13,11 +13,13 @@ from skimage.morphology import footprint_rectangle
 
 from pdi_pipeline.exceptions import DimensionError, ValidationError
 
+_MIN_SPAN = 1e-10
+
 logger = logging.getLogger(__name__)
 
 # Module-level cache: reuse the same footprint array for repeated window sizes.
-# footprint_rectangle creates a uint8 array; caching avoids repeated allocations
-# when shannon_entropy is called thousands of times
+# footprint_rectangle creates an uint8 array; caching avoids repeated
+# allocations # when shannon_entropy is called thousands of times
 # (e.g. 77k patches x 3 windows).
 _FOOTPRINT_CACHE: dict[int, np.ndarray] = {}
 
@@ -70,7 +72,7 @@ def shannon_entropy(
 
     vmin, vmax = float(gray.min()), float(gray.max())
     span = vmax - vmin
-    if span < 1e-10:
+    if span < _MIN_SPAN:
         return np.zeros(gray.shape, dtype=np.float32)
 
     # Scale to [0, 255] using float32 (avoids float64 intermediate)

@@ -84,7 +84,7 @@ packages = ["src/pdi_pipeline", "dl_models"]
 [tool.mypy]
 python_version = "3.12"
 files = ["src", "dl_models"]
-exclude = ["outputs/", ".venv/"]
+exclude = ["outputs/", ".venv/", ".vscode"]
 strict = true
 show_error_codes = true
 warn_unreachable = true

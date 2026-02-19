@@ -17,6 +17,9 @@ from pdi_pipeline.exceptions import DimensionError
 
 logger = logging.getLogger(__name__)
 
+_PSNR_CAP = 100.0
+_MSE_FLOOR = 1e-12
+
 
 def _as_gap_mask(mask: np.ndarray) -> np.ndarray:
     """Convert a float mask to a boolean gap mask (True = gap pixel)."""
@@ -352,9 +355,6 @@ def local_psnr(
     mse = np.zeros_like(err_sum, dtype=np.float64)
     np.divide(err_sum, gap_count, out=mse, where=has_gap)
 
-    # PSNR: cap at 100 dB for near-zero MSE
-    _PSNR_CAP = 100.0
-    _MSE_FLOOR = 1e-12
     valid_mse = mse > _MSE_FLOOR
     result[has_gap & valid_mse] = (
         10.0 * np.log10(1.0 / mse[has_gap & valid_mse])

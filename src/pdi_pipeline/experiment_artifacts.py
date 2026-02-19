@@ -56,8 +56,8 @@ def compute_entropy_extremes(
         )
         return {}
 
-    usecols = ["patch_id", "satellite", "split", *entropy_cols]
-    manifest = pd.read_csv(manifest_path, usecols=usecols)
+    used_cols = ["patch_id", "satellite", "split", *entropy_cols]
+    manifest = pd.read_csv(manifest_path, usecols=used_cols)
     manifest = manifest[manifest["split"] == "test"]
     manifest = manifest[manifest["satellite"].isin(config.satellites)]
     manifest = manifest.sort_values("patch_id").reset_index(drop=True)
@@ -94,12 +94,14 @@ def compute_entropy_extremes(
             continue
 
         high = (
-            subset.nlargest(top_k, "entropy_score")["patch_id"]
+            subset
+            .nlargest(top_k, "entropy_score")["patch_id"]
             .astype(int)
             .tolist()
         )
         low = (
-            subset.nsmallest(top_k, "entropy_score")["patch_id"]
+            subset
+            .nsmallest(top_k, "entropy_score")["patch_id"]
             .astype(int)
             .tolist()
         )

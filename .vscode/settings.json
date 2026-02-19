@@ -1,7 +1,56 @@
 {
-  "python.testing.pytestArgs": [
-    "tests"
-  ],
+  // -- Python analysis (Pylance/Pyright) --
+  "python.analysis.diagnosticMode": "workspace",
+  "python.analysis.typeCheckingMode": "strict",
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.inlayHints.functionReturnTypes": true,
+  "python.analysis.inlayHints.variableTypes": true,
+  "python.analysis.inlayHints.callArgumentNames": "partial",
+
+  // -- Formatter: ruff reads line-length/rules from pyproject.toml --
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.formatOnPaste": false,
+    "editor.rulers": [80],
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "editor.wordWrapColumn": 80
+  },
+
+  // -- Code actions on save: auto-fix lint + organize imports --
+  "editor.codeActionsOnSave": {
+    "source.fixAll.ruff": "always",
+    "source.organizeImports.ruff": "always"
+  },
+
+  // -- Editor defaults for non-Python files --
+  "editor.formatOnSave": true,
+  "editor.renderWhitespace": "trailing",
+  "editor.trimAutoWhitespace": true,
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "files.trimFinalNewlines": true,
+
+  // -- Exclude heavy directories from search/watcher --
+  "files.watcherExclude": {
+    "**/.venv/**": true,
+    "**/outputs/**": true,
+    "**/__pycache__/**": true,
+    "**/.ruff_cache/**": true,
+    "**/.mypy_cache/**": true,
+    "**/.pytest_cache/**": true
+  },
+  "search.exclude": {
+    "**/.venv": true,
+    "**/outputs": true,
+    "**/__pycache__": true,
+    "**/uv.lock": true,
+    "**/.ruff_cache": true
+  },
+
+  // -- Testing: pytest (matches pyproject.toml [tool.pytest]) --
+  "python.testing.pytestArgs": ["tests", "-ra", "-q", "--strict-markers"],
   "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true
 }

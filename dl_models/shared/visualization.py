@@ -113,55 +113,65 @@ def plot_loss_curves(histories: list[dict[str, Any]], output_dir: Path) -> None:
     _save_fig(fig, output_dir, "loss_curves")
 
 
-def plot_psnr_curves(histories: list[dict[str, Any]], output_dir: Path) -> None:
-    """Val PSNR over epochs per model."""
+def _plot_metric_curves(
+    histories: list[dict[str, Any]],
+    output_dir: Path,
+    *,
+    metric_key: str,
+    ylabel: str,
+    title: str,
+    filename: str,
+) -> None:
+    """Plot a single validation metric over epochs for all models."""
     fig, ax = plt.subplots(figsize=(6, 4))
     for i, h in enumerate(histories):
         ax.plot(
             _get_epochs(h),
-            _get_values(h, "val_psnr"),
+            _get_values(h, metric_key),
             label=h["model_name"].upper(),
             color=COLORS[i % len(COLORS)],
         )
     ax.set_xlabel("Epoch")
-    ax.set_ylabel("PSNR (dB)")
-    ax.set_title("Validation PSNR")
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
     ax.legend()
-    _save_fig(fig, output_dir, "psnr_curves")
+    _save_fig(fig, output_dir, filename)
+
+
+def plot_psnr_curves(histories: list[dict[str, Any]], output_dir: Path) -> None:
+    """Val PSNR over epochs per model."""
+    _plot_metric_curves(
+        histories,
+        output_dir,
+        metric_key="val_psnr",
+        ylabel="PSNR (dB)",
+        title="Validation PSNR",
+        filename="psnr_curves",
+    )
 
 
 def plot_ssim_curves(histories: list[dict[str, Any]], output_dir: Path) -> None:
     """Val SSIM over epochs per model."""
-    fig, ax = plt.subplots(figsize=(6, 4))
-    for i, h in enumerate(histories):
-        ax.plot(
-            _get_epochs(h),
-            _get_values(h, "val_ssim"),
-            label=h["model_name"].upper(),
-            color=COLORS[i % len(COLORS)],
-        )
-    ax.set_xlabel("Epoch")
-    ax.set_ylabel("SSIM")
-    ax.set_title("Validation SSIM")
-    ax.legend()
-    _save_fig(fig, output_dir, "ssim_curves")
+    _plot_metric_curves(
+        histories,
+        output_dir,
+        metric_key="val_ssim",
+        ylabel="SSIM",
+        title="Validation SSIM",
+        filename="ssim_curves",
+    )
 
 
 def plot_rmse_curves(histories: list[dict[str, Any]], output_dir: Path) -> None:
     """Val RMSE over epochs per model."""
-    fig, ax = plt.subplots(figsize=(6, 4))
-    for i, h in enumerate(histories):
-        ax.plot(
-            _get_epochs(h),
-            _get_values(h, "val_rmse"),
-            label=h["model_name"].upper(),
-            color=COLORS[i % len(COLORS)],
-        )
-    ax.set_xlabel("Epoch")
-    ax.set_ylabel("RMSE")
-    ax.set_title("Validation RMSE")
-    ax.legend()
-    _save_fig(fig, output_dir, "rmse_curves")
+    _plot_metric_curves(
+        histories,
+        output_dir,
+        metric_key="val_rmse",
+        ylabel="RMSE",
+        title="Validation RMSE",
+        filename="rmse_curves",
+    )
 
 
 def plot_pixel_accuracy_f1(

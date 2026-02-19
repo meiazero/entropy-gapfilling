@@ -12,6 +12,31 @@ import numpy as np
 import torch
 from skimage.metrics import structural_similarity
 
+_MSE_FLOOR = 1e-12
+
+
+def _gap_diff(
+    clean: np.ndarray,
+    pred: np.ndarray,
+    gap: np.ndarray,
+) -> np.ndarray:
+    """Compute per-pixel difference on gap pixels only.
+
+    Args:
+        clean: Reference image, (H, W) or (H, W, C).
+        pred: Predicted image, same shape.
+        gap: Boolean mask, (H, W), True=gap.
+
+    Returns:
+        1-D array of ``clean - pred`` values at gap locations.
+    """
+    c = clean.astype(np.float64)
+    p = pred.astype(np.float64)
+    if c.ndim == 3:
+        gap_3d = np.broadcast_to(gap[:, :, np.newaxis], c.shape)
+        return c[gap_3d] - p[gap_3d]
+    return c[gap] - p[gap]
+
 
 def psnr(
     clean: np.ndarray,
@@ -35,17 +60,9 @@ def psnr(
     if not np.any(gap):
         return float("inf")
 
-    c = clean.astype(np.float64)
-    p = pred.astype(np.float64)
-
-    if c.ndim == 3:
-        gap_3d = np.broadcast_to(gap[:, :, np.newaxis], c.shape)
-        diff = c[gap_3d] - p[gap_3d]
-    else:
-        diff = c[gap] - p[gap]
-
+    diff = _gap_diff(clean, pred, gap)
     mse = float(np.mean(diff**2))
-    if mse < 1e-12:
+    if mse < _MSE_FLOOR:
         return float("inf")
     return float(10.0 * np.log10(1.0 / mse))
 
@@ -106,15 +123,7 @@ def rmse(
     if not np.any(gap):
         return 0.0
 
-    c = clean.astype(np.float64)
-    p = pred.astype(np.float64)
-
-    if c.ndim == 3:
-        gap_3d = np.broadcast_to(gap[:, :, np.newaxis], c.shape)
-        diff = c[gap_3d] - p[gap_3d]
-    else:
-        diff = c[gap] - p[gap]
-
+    diff = _gap_diff(clean, pred, gap)
     return float(np.sqrt(np.mean(diff**2)))
 
 

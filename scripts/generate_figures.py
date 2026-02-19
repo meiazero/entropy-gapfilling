@@ -53,7 +53,7 @@ STYLE_PARAMS = {
 }
 
 
-_PNG_ONLY: bool = False
+_SETTINGS: dict[str, bool] = {"png_only": False}
 
 
 def _collect_numeric_stems(base_dir: Path, pattern: str) -> set[int]:
@@ -301,7 +301,7 @@ def _load_recon_array(
 def _save_figure(fig: plt.Figure, output_dir: Path, name: str) -> None:
     """Save figure in configured formats (PNG always, PDF unless --png-only)."""
     fig.savefig(output_dir / f"{name}.png")
-    if not _PNG_ONLY:
+    if not _SETTINGS["png_only"]:
         fig.savefig(output_dir / f"{name}.pdf")
 
 
@@ -734,7 +734,8 @@ def fig7_correlation_heatmap(results_dir: Path, output_dir: Path) -> None:
             values="spearman_rho",
         )
         pivot = (
-            pivot.reindex(index=methods)
+            pivot
+            .reindex(index=methods)
             .dropna(how="all")
             .dropna(axis=1, how="all")
         )
@@ -820,7 +821,8 @@ def fig9_local_metric_maps(results_dir: Path, output_dir: Path) -> None:
     # Pick top 3 methods by PSNR for this patch
     patch_df = valid[valid["patch_id"] == patch_id]
     top_methods = (
-        patch_df.groupby("method")["psnr"]
+        patch_df
+        .groupby("method")["psnr"]
         .mean()
         .sort_values(ascending=False)
         .head(3)
@@ -940,9 +942,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> None:
-    global _PNG_ONLY
     args = parse_args(argv)
-    _PNG_ONLY = args.png_only
+    _SETTINGS["png_only"] = args.png_only
     _setup_style()
 
     results_dir = args.results
@@ -956,7 +957,6 @@ def main(argv: list[str] | None = None) -> None:
             return
         ALL_FIGURES[args.figure](results_dir, output_dir)
     else:
-        results_dir.parent / "dl_eval"
         for num, func in ALL_FIGURES.items():
             try:
                 func(results_dir, output_dir)

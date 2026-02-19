@@ -66,6 +66,24 @@ def _ensure_top_level_keys(raw: dict[str, Any]) -> None:
             raise ConfigError(msg)
 
 
+def _validate_list_of(
+    value: Any,
+    item_type: type,
+    field_name: str,
+) -> None:
+    """Ensure *value* is a list whose items are all *item_type*.
+
+    Raises:
+        ConfigError: If validation fails.
+    """
+    if not isinstance(value, list) or not all(
+        isinstance(v, item_type) for v in value
+    ):
+        type_name = item_type.__name__
+        msg = f"experiment.{field_name} must be a list of {type_name}s"
+        raise ConfigError(msg)
+
+
 def _validate_experiment_section(exp: Any) -> None:
     if not isinstance(exp, dict):
         msg = "Config 'experiment' must be a mapping"
@@ -87,29 +105,10 @@ def _validate_experiment_section(exp: Any) -> None:
         msg = "experiment.name must be a non-empty string"
         raise ConfigError(msg)
 
-    if not isinstance(exp["seeds"], list) or not all(
-        isinstance(seed, int) for seed in exp["seeds"]
-    ):
-        msg = "experiment.seeds must be a list of integers"
-        raise ConfigError(msg)
-
-    if not isinstance(exp["noise_levels"], list) or not all(
-        isinstance(noise, str) for noise in exp["noise_levels"]
-    ):
-        msg = "experiment.noise_levels must be a list of strings"
-        raise ConfigError(msg)
-
-    if not isinstance(exp["satellites"], list) or not all(
-        isinstance(satellite, str) for satellite in exp["satellites"]
-    ):
-        msg = "experiment.satellites must be a list of strings"
-        raise ConfigError(msg)
-
-    if not isinstance(exp["entropy_windows"], list) or not all(
-        isinstance(window, int) for window in exp["entropy_windows"]
-    ):
-        msg = "experiment.entropy_windows must be a list of integers"
-        raise ConfigError(msg)
+    _validate_list_of(exp["seeds"], int, "seeds")
+    _validate_list_of(exp["noise_levels"], str, "noise_levels")
+    _validate_list_of(exp["satellites"], str, "satellites")
+    _validate_list_of(exp["entropy_windows"], int, "entropy_windows")
 
 
 def _validate_methods_section(methods_raw: Any) -> None:

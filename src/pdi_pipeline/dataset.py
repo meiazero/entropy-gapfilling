@@ -39,8 +39,11 @@ _NOISE_COL = {
 }
 
 
+_MIN_SPAN = 1e-8
+
+
 def _normalize(arr: np.ndarray, vmin: float, vmax: float) -> np.ndarray:
-    span = max(vmax - vmin, 1e-8)
+    span = max(vmax - vmin, _MIN_SPAN)
     out = (arr - vmin) / span
     return np.clip(out, 0.0, 1.0).astype(np.float32)
 
@@ -136,7 +139,7 @@ class PatchDataset:
         # Normalize to [0, 1] using clean image range
         vmin = float(clean.min())
         vmax = float(clean.max())
-        if vmax - vmin < 1e-8:
+        if vmax - vmin < _MIN_SPAN:
             vmax = vmin + 1.0
 
         clean = _normalize(clean, vmin, vmax)
