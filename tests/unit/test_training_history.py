@@ -3,19 +3,16 @@
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
+import pytest
 import torch
 
-# Add dl-models root for shared imports
-_DL_ROOT = Path(__file__).resolve().parent.parent.parent / "src" / "dl-models"
-if str(_DL_ROOT) not in sys.path:
-    sys.path.insert(0, str(_DL_ROOT))
-
-from shared.utils import TrainingHistory, compute_validation_metrics
+from dl_models.shared.metrics import compute_validation_metrics
+from dl_models.shared.trainer import TrainingHistory
 
 
+@pytest.mark.unit
 class TestTrainingHistory:
     def test_save_load_roundtrip(self, tmp_path: Path) -> None:
         history = TrainingHistory(
@@ -66,6 +63,7 @@ class TestTrainingHistory:
         assert len(data2["epochs"]) == 2
 
 
+@pytest.mark.unit
 class TestComputeValidationMetrics:
     def _make_batch(
         self,
@@ -146,7 +144,6 @@ class TestComputeValidationMetrics:
         pred = pred.clamp(0, 1)
         mask = torch.ones(b, h, w)
 
-        # 5 batches of 16 = 80 samples, but ssim capped at 64
         batches = 5
         result = compute_validation_metrics(
             [pred] * batches,

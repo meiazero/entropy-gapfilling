@@ -1,29 +1,19 @@
-"""Contract tests for all 4 deep learning inpainting models.
+"""Contract tests for all DL inpainting models.
 
 Validates output shape, dtype, range [0, 1], and valid pixel
 preservation for each model without requiring trained checkpoints.
-
-These tests are isolated from the main pipeline test suite.
-The DL models are not part of the experiment battery.
 """
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import numpy as np
 import pytest
 
-# Add dl-models root to import path
-_DL_ROOT = Path(__file__).resolve().parent.parent.parent / "src" / "dl-models"
-if str(_DL_ROOT) not in sys.path:
-    sys.path.insert(0, str(_DL_ROOT))
-
-from ae.model import AEInpainting
-from gan.model import GANInpainting
-from transformer.model import TransformerInpainting
-from vae.model import VAEInpainting
+from dl_models.ae.model import AEInpainting
+from dl_models.gan.model import GANInpainting
+from dl_models.transformer.model import TransformerInpainting
+from dl_models.unet.model import UNetInpainting
+from dl_models.vae.model import VAEInpainting
 
 
 @pytest.fixture()
@@ -47,6 +37,7 @@ ALL_MODELS = [
     AEInpainting,
     VAEInpainting,
     GANInpainting,
+    UNetInpainting,
     TransformerInpainting,
 ]
 
@@ -54,6 +45,7 @@ MODEL_NAMES = [
     "ae_inpainting",
     "vae_inpainting",
     "gan_inpainting",
+    "unet_inpainting",
     "transformer_inpainting",
 ]
 

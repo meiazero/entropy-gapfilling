@@ -1,28 +1,19 @@
 """Shared training utilities for DL inpainting models.
 
 Provides GapPixelLoss, EarlyStopping, checkpoint save/load,
-TrainingHistory for metric persistence, and compute_validation_metrics
-for bridging torch tensors to pdi_pipeline quality metrics.
+TrainingHistory for metric persistence, and setup_file_logging.
+No imports from pdi_pipeline.
 """
 
 from __future__ import annotations
 
 import json
 import logging
-import sys
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import torch
 from torch import nn
-
-# Add src/ to path for pdi_pipeline imports
-_SRC_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(_SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(_SRC_ROOT))
-
-from pdi_pipeline.metrics import psnr, rmse, ssim
 
 _LOG_FORMAT = "%(asctime)s [%(levelname)s] %(message)s"
 _LOG_DATEFMT = "%Y-%m-%d %H:%M:%S"
@@ -79,13 +70,11 @@ class GapPixelLoss(nn.Module):
         Returns:
             Scalar loss value.
         """
-        # Expand mask to match channel dimension
         mask_expanded = mask.unsqueeze(1).expand_as(pred)
         diff = pred - target
 
         pixel_loss = diff**2 if self.mode == "mse" else torch.abs(diff)
 
-        # Mean over gap pixels only
         masked_loss = pixel_loss * mask_expanded
         n_gap = mask_expanded.sum().clamp(min=1.0)
         return masked_loss.sum() / n_gap
@@ -133,7 +122,7 @@ def save_checkpoint(
     """Save a training checkpoint.
 
     Args:
-        path: Output file path.
+        path: Output file path (.pth).
         model: Model to save.
         optimizer: Optimizer state.
         epoch: Current epoch number.
@@ -169,7 +158,9 @@ def load_checkpoint(
     Returns:
         Full checkpoint dict (includes epoch, loss, etc.).
     """
-    state = torch.load(path, map_location=device, weights_only=False)
+    state: dict[str, Any] = torch.load(
+        path, map_location=device, weights_only=False
+    )
     model.load_state_dict(state["model_state_dict"])
     if optimizer is not None and "optimizer_state_dict" in state:
         optimizer.load_state_dict(state["optimizer_state_dict"])
@@ -237,93 +228,3 @@ class TrainingHistory:
         )
         history.epochs = data.get("epochs", [])
         return history
-
-
-def compute_validation_metrics(
-    preds: list[torch.Tensor],
-    targets: list[torch.Tensor],
-    masks: list[torch.Tensor],
-    max_ssim_samples: int = 64,
-) -> dict[str, float]:
-    """Compute quality metrics bridging torch tensors to pdi_pipeline.
-
-    Converts (B, C, H, W) tensors to numpy (H, W, C) and calls
-    psnr/ssim/rmse per sample. Also computes pixel accuracy and F1
-    at multiple thresholds.
-
-    Args:
-        preds: List of prediction tensors, each (B, C, H, W).
-        targets: List of clean reference tensors, each (B, C, H, W).
-        masks: List of mask tensors, each (B, H, W) with 1=gap.
-        max_ssim_samples: Cap for SSIM computation (performance).
-
-    Returns:
-        Dict with val_psnr, val_ssim, val_rmse, and pixel accuracy /
-        F1 at thresholds 0.02, 0.05, 0.10.
-    """
-    psnr_vals: list[float] = []
-    ssim_vals: list[float] = []
-    rmse_vals: list[float] = []
-    # Per-threshold accumulators
-    thresholds = [0.02, 0.05, 0.10]
-    acc_counts = dict.fromkeys(thresholds, 0.0)
-    acc_totals = dict.fromkeys(thresholds, 0.0)
-
-    ssim_count = 0
-
-    for pred_batch, target_batch, mask_batch in zip(
-        preds, targets, masks, strict=False
-    ):
-        b = pred_batch.shape[0]
-        for i in range(b):
-            # (C, H, W) -> (H, W, C)
-            p = pred_batch[i].permute(1, 2, 0).numpy()
-            t = target_batch[i].permute(1, 2, 0).numpy()
-            m = mask_batch[i].numpy()
-
-            # Squeeze single-channel to (H, W)
-            if p.shape[2] == 1:
-                p = p[:, :, 0]
-                t = t[:, :, 0]
-
-            psnr_vals.append(psnr(t, p, m))
-            rmse_vals.append(rmse(t, p, m))
-
-            if ssim_count < max_ssim_samples:
-                ssim_vals.append(ssim(t, p, m))
-                ssim_count += 1
-
-            # Pixel accuracy at thresholds
-            gap = m > 0.5
-            if np.any(gap):
-                if p.ndim == 3:
-                    gap_3d = np.broadcast_to(gap[:, :, np.newaxis], p.shape)
-                    diff = np.abs(p[gap_3d] - t[gap_3d])
-                else:
-                    diff = np.abs(p[gap] - t[gap])
-                n_gap = float(diff.size)
-                for tau in thresholds:
-                    correct = float(np.sum(diff < tau))
-                    acc_counts[tau] += correct
-                    acc_totals[tau] += n_gap
-
-    result: dict[str, float] = {}
-
-    if psnr_vals:
-        # Filter out inf values for mean
-        finite_psnr = [v for v in psnr_vals if np.isfinite(v)]
-        result["val_psnr"] = float(np.mean(finite_psnr)) if finite_psnr else 0.0
-    else:
-        result["val_psnr"] = 0.0
-
-    result["val_ssim"] = float(np.mean(ssim_vals)) if ssim_vals else 0.0
-    result["val_rmse"] = float(np.mean(rmse_vals)) if rmse_vals else 0.0
-
-    for tau in thresholds:
-        tau_key = str(tau).replace(".", "")
-        pa = acc_counts[tau] / acc_totals[tau] if acc_totals[tau] > 0 else 0.0
-        f1 = 2 * pa / (1 + pa) if (1 + pa) > 0 else 0.0
-        result[f"val_pixel_acc_{tau_key}"] = pa
-        result[f"val_f1_{tau_key}"] = f1
-
-    return result

@@ -12,8 +12,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import torch
-from shared.base import BaseDLMethod
 from torch import nn
+
+from dl_models.shared.base import BaseDLMethod
 
 
 class _TransformerBlock(nn.Module):
@@ -73,42 +74,34 @@ class _MAEInpaintingNet(nn.Module):
         self.enc_dim = enc_dim
         self.dec_dim = dec_dim
 
-        # Patch embedding
         self.patch_embed = nn.Conv2d(
             in_channels, enc_dim, patch_size, stride=patch_size
         )
 
-        # Positional encoding
         self.pos_embed = nn.Parameter(
             torch.randn(1, self.n_patches, enc_dim) * 0.02
         )
 
-        # Encoder
         self.encoder = nn.Sequential(*[
             _TransformerBlock(enc_dim, enc_heads, mlp_ratio=4.0)
             for _ in range(enc_depth)
         ])
         self.encoder_norm = nn.LayerNorm(enc_dim)
 
-        # Encoder -> decoder projection
         self.enc_to_dec = nn.Linear(enc_dim, dec_dim)
 
-        # Mask token (learnable)
         self.mask_token = nn.Parameter(torch.randn(1, 1, dec_dim) * 0.02)
 
-        # Decoder positional encoding
         self.dec_pos_embed = nn.Parameter(
             torch.randn(1, self.n_patches, dec_dim) * 0.02
         )
 
-        # Decoder
         self.decoder = nn.Sequential(*[
             _TransformerBlock(dec_dim, dec_heads, mlp_ratio=4.0)
             for _ in range(dec_depth)
         ])
         self.decoder_norm = nn.LayerNorm(dec_dim)
 
-        # Unpatchify
         self.head = nn.Linear(dec_dim, patch_size * patch_size * out_channels)
 
     def _patchify_mask(self, mask_channel: torch.Tensor) -> torch.Tensor:
@@ -120,51 +113,42 @@ class _MAEInpaintingNet(nn.Module):
         Returns:
             (B, n_patches) bool tensor, True = masked patch.
         """
-        # Average pool to patch grid
         ps = self.patch_size
         mask_patches = nn.functional.avg_pool2d(
             mask_channel, kernel_size=ps, stride=ps
         )
-        # (B, 1, grid_h, grid_w) -> (B, n_patches)
         return mask_patches.flatten(1) > 0.5
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         b = x.size(0)
-        mask_channel = x[:, -1:, :, :]  # (B, 1, H, W)
-        patch_mask = self._patchify_mask(mask_channel)  # (B, n_patches)
+        mask_channel = x[:, -1:, :, :]
+        patch_mask = self._patchify_mask(mask_channel)
 
-        # Patch embed
-        tokens = self.patch_embed(x)  # (B, enc_dim, grid_h, grid_w)
-        tokens = tokens.flatten(2).transpose(1, 2)  # (B, n_patches, enc_dim)
+        tokens = self.patch_embed(x)
+        tokens = tokens.flatten(2).transpose(1, 2)
         tokens = tokens + self.pos_embed
 
-        # Encode
         tokens = self.encoder(tokens)
         tokens = self.encoder_norm(tokens)
 
-        # Project to decoder dim
-        tokens = self.enc_to_dec(tokens)  # (B, n_patches, dec_dim)
+        tokens = self.enc_to_dec(tokens)
 
-        # Insert mask tokens for masked patches
         mask_tokens = self.mask_token.expand(b, self.n_patches, -1)
-        # Replace masked patch tokens with mask tokens
         patch_mask_expanded = patch_mask.unsqueeze(-1).expand_as(tokens)
         tokens = torch.where(patch_mask_expanded, mask_tokens, tokens)
 
         tokens = tokens + self.dec_pos_embed
 
-        # Decode
         tokens = self.decoder(tokens)
         tokens = self.decoder_norm(tokens)
 
-        # Unpatchify
-        pixels = self.head(tokens)  # (B, n_patches, ps*ps*C)
+        pixels = self.head(tokens)
         ps = self.patch_size
         c = self.out_channels
         grid = self.img_size // ps
 
         pixels = pixels.view(b, grid, grid, ps, ps, c)
-        pixels = pixels.permute(0, 5, 1, 3, 2, 4)  # (B, C, grid, ps, grid, ps)
+        pixels = pixels.permute(0, 5, 1, 3, 2, 4)
         pixels = pixels.reshape(b, c, self.img_size, self.img_size)
 
         return torch.sigmoid(pixels)

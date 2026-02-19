@@ -1,12 +1,13 @@
 """Base class for deep learning inpainting methods.
 
-Extends BaseMethod with shared DL infrastructure: device selection,
+Fully isolated from pdi_pipeline. Provides device selection,
 checkpoint loading, numpy-to-tensor conversion, and blending.
+No inheritance from pdi_pipeline.methods.base.BaseMethod.
 """
 
 from __future__ import annotations
 
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
@@ -14,16 +15,16 @@ import numpy as np
 import torch
 from torch import nn
 
-from pdi_pipeline.methods.base import BaseMethod
 
-
-class BaseDLMethod(BaseMethod):
+class BaseDLMethod(ABC):
     """Base class for all deep learning gap-filling methods.
 
     Subclasses must implement ``_build_model()`` and ``_forward()``.
     The ``apply()`` method handles conversion between numpy arrays
     and tensors, model loading, inference, and blending.
     """
+
+    name: str = ""
 
     def __init__(
         self,
@@ -55,6 +56,45 @@ class BaseDLMethod(BaseMethod):
         Returns:
             Reconstructed tensor of shape (1, C, H, W).
         """
+
+    @staticmethod
+    def _normalize_mask(mask: np.ndarray) -> np.ndarray:
+        """Convert any mask format to a 2D boolean array (True=gap).
+
+        Accepts float (threshold > 0.5), integer, or boolean masks.
+        For 3D masks, collapses channels via logical OR.
+
+        Args:
+            mask: Mask array of any numeric dtype.
+
+        Returns:
+            2D boolean array where True marks gap pixels.
+        """
+        mask_bool = np.asarray(mask, dtype=bool)
+        if mask_bool.ndim == 2:
+            return mask_bool
+        if mask_bool.ndim == 3:
+            return np.any(mask_bool, axis=2)
+        msg = (
+            f"Mask must be 2D or 3D, got ndim={mask_bool.ndim}, "
+            f"shape={mask_bool.shape}"
+        )
+        raise ValueError(msg)
+
+    @staticmethod
+    def _finalize(reconstructed: np.ndarray) -> np.ndarray:
+        """Clip to [0, 1], replace NaN/Inf, ensure float32.
+
+        Args:
+            reconstructed: Raw output from the model.
+
+        Returns:
+            Clean float32 array in [0, 1] with no NaN or Inf.
+        """
+        out = np.asarray(reconstructed, dtype=np.float32)
+        out = np.clip(out, 0.0, 1.0)
+        out = np.nan_to_num(out, nan=0.0, posinf=1.0, neginf=0.0)
+        return out
 
     def _ensure_model(self) -> nn.Module:
         """Build and optionally load checkpoint weights."""
@@ -94,14 +134,11 @@ class BaseDLMethod(BaseMethod):
             degraded = degraded[:, :, np.newaxis]
 
         mask_2d = self._normalize_mask(mask).astype(np.float32)
-        # Zero out gap pixels
         masked = degraded * (1.0 - mask_2d[:, :, np.newaxis])
 
-        # (H, W, C) -> (C, H, W)
         img_t = torch.from_numpy(masked).permute(2, 0, 1).float()
         mask_t = torch.from_numpy(mask_2d).unsqueeze(0).float()
 
-        # Concatenate: (C+1, H, W)
         x = torch.cat([img_t, mask_t], dim=0)
         return x.unsqueeze(0).to(self._device)
 
@@ -129,14 +166,11 @@ class BaseDLMethod(BaseMethod):
         with torch.no_grad():
             out = self._forward(x)
 
-        # (1, C, H, W) -> (H, W, C)
         result = out.squeeze(0).permute(1, 2, 0).cpu().numpy()
 
-        # If input was 2D, squeeze back
         if degraded.ndim == 2:
             result = result.squeeze(-1)
 
-        # Blend: keep original valid pixels, use model output for gaps
         if degraded.ndim == 2:
             blended = degraded.copy()
             blended[mask_bool] = result[mask_bool]

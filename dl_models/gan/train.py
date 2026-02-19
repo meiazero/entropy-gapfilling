@@ -1,34 +1,31 @@
 """Training script for the GAN inpainting model.
 
 Usage:
-    uv run python src/dl-models/gan/train.py \
+    uv run python -m dl_models.gan.train \
         --manifest preprocessed/manifest.csv \
-        --output src/dl-models/checkpoints/gan_best.pt
+        --output dl_models/checkpoints/gan_best.pth
 """
 
 from __future__ import annotations
 
 import argparse
 import logging
-import sys
+import os
 from pathlib import Path
 
-_DL_ROOT = Path(__file__).resolve().parent.parent
-if str(_DL_ROOT) not in sys.path:
-    sys.path.insert(0, str(_DL_ROOT))
-
 import torch
-from gan.model import _PatchDiscriminator, _UNetGenerator
-from shared.dataset import InpaintingDataset
-from shared.utils import (
+from torch.utils.data import DataLoader
+
+from dl_models.gan.model import _PatchDiscriminator, _UNetGenerator
+from dl_models.shared.dataset import InpaintingDataset
+from dl_models.shared.metrics import compute_validation_metrics
+from dl_models.shared.trainer import (
     EarlyStopping,
     GapPixelLoss,
     TrainingHistory,
-    compute_validation_metrics,
     save_checkpoint,
     setup_file_logging,
 )
-from torch.utils.data import DataLoader
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,7 +41,7 @@ def main() -> None:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("src/dl-models/checkpoints/gan_best.pt"),
+        default=Path("dl_models/checkpoints/gan_best.pth"),
     )
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--batch-size", type=int, default=16)
@@ -53,6 +50,8 @@ def main() -> None:
     parser.add_argument("--patience", type=int, default=15)
     parser.add_argument("--lambda-l1", type=float, default=10.0)
     parser.add_argument("--lambda-adv", type=float, default=0.1)
+    parser.add_argument("--satellite", type=str, default="sentinel2")
+    parser.add_argument("--num-workers", type=int, default=None)
     args = parser.parse_args()
 
     setup_file_logging(args.output.parent / "gan_train.log")
@@ -64,14 +63,31 @@ def main() -> None:
     )
     log.info("Device: %s", device)
 
-    train_ds = InpaintingDataset(args.manifest, split="train")
-    val_ds = InpaintingDataset(args.manifest, split="val")
+    num_workers = args.num_workers or min(os.cpu_count() or 4, 8)
+    pin = device.type == "cuda"
+
+    train_ds = InpaintingDataset(
+        args.manifest, split="train", satellite=args.satellite
+    )
+    val_ds = InpaintingDataset(
+        args.manifest, split="val", satellite=args.satellite
+    )
 
     train_loader = DataLoader(
-        train_ds, batch_size=args.batch_size, shuffle=True, num_workers=2
+        train_ds,
+        batch_size=args.batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=pin,
+        persistent_workers=num_workers > 0,
     )
     val_loader = DataLoader(
-        val_ds, batch_size=args.batch_size, shuffle=False, num_workers=2
+        val_ds,
+        batch_size=args.batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=pin,
+        persistent_workers=num_workers > 0,
     )
 
     log.info("Train: %d, Val: %d", len(train_ds), len(val_ds))
@@ -85,6 +101,11 @@ def main() -> None:
     bce = torch.nn.BCELoss()
     gap_l1 = GapPixelLoss(mode="l1")
     early_stop = EarlyStopping(patience=args.patience)
+
+    use_amp = device.type == "cuda"
+    scaler_g = torch.cuda.amp.GradScaler(enabled=use_amp)
+    scaler_d = torch.cuda.amp.GradScaler(enabled=use_amp)
+
     best_val_loss = float("inf")
 
     history = TrainingHistory(
@@ -97,6 +118,7 @@ def main() -> None:
             "lambda_l1": args.lambda_l1,
             "lambda_adv": args.lambda_adv,
             "patience": args.patience,
+            "satellite": args.satellite,
             "train_size": len(train_ds),
             "val_size": len(val_ds),
             "device": str(device),
@@ -116,42 +138,46 @@ def main() -> None:
             b = x.size(0)
 
             # --- Discriminator ---
-            fake = gen(x).detach()
-            real_pred = disc(clean)
-            fake_pred = disc(fake)
-
-            real_label = torch.ones_like(real_pred)
-            fake_label = torch.zeros_like(fake_pred)
-
-            d_loss = (
-                bce(real_pred, real_label) + bce(fake_pred, fake_label)
-            ) / 2
-            opt_d.zero_grad()
-            d_loss.backward()
-            opt_d.step()
+            with torch.autocast(device_type=device.type, enabled=use_amp):
+                fake = gen(x).detach()
+                real_pred = disc(clean)
+                fake_pred = disc(fake)
+                real_label = torch.ones_like(real_pred)
+                fake_label = torch.zeros_like(fake_pred)
+                d_loss = (
+                    bce(real_pred, real_label) + bce(fake_pred, fake_label)
+                ) / 2
+            opt_d.zero_grad(set_to_none=True)
+            scaler_d.scale(d_loss).backward()
+            scaler_d.unscale_(opt_d)
+            torch.nn.utils.clip_grad_norm_(disc.parameters(), 1.0)
+            scaler_d.step(opt_d)
+            scaler_d.update()
             d_loss_sum += d_loss.item() * b
 
             # --- Generator ---
-            fake = gen(x)
-            fake_pred = disc(fake)
-
-            g_adv = bce(fake_pred, torch.ones_like(fake_pred))
-            g_recon = gap_l1(fake, clean, mask)
-            g_loss = args.lambda_l1 * g_recon + args.lambda_adv * g_adv
-
-            opt_g.zero_grad()
-            g_loss.backward()
-            opt_g.step()
+            with torch.autocast(device_type=device.type, enabled=use_amp):
+                fake = gen(x)
+                fake_pred = disc(fake)
+                g_adv = bce(fake_pred, torch.ones_like(fake_pred))
+                g_recon = gap_l1(fake, clean, mask)
+                g_loss = args.lambda_l1 * g_recon + args.lambda_adv * g_adv
+            opt_g.zero_grad(set_to_none=True)
+            scaler_g.scale(g_loss).backward()
+            scaler_g.unscale_(opt_g)
+            torch.nn.utils.clip_grad_norm_(gen.parameters(), 1.0)
+            scaler_g.step(opt_g)
+            scaler_g.update()
             g_loss_sum += g_loss.item() * b
             g_adv_sum += g_adv.item() * b
             g_recon_sum += g_recon.item() * b
 
-        g_loss_avg = g_loss_sum / len(train_ds)
-        d_loss_avg = d_loss_sum / len(train_ds)
-        g_adv_avg = g_adv_sum / len(train_ds)
-        g_recon_avg = g_recon_sum / len(train_ds)
+        n = len(train_ds)
+        g_loss_avg = g_loss_sum / n
+        d_loss_avg = d_loss_sum / n
+        g_adv_avg = g_adv_sum / n
+        g_recon_avg = g_recon_sum / n
 
-        # Validate (generator only, L1 gap loss)
         gen.eval()
         val_loss = 0.0
         val_preds: list[torch.Tensor] = []
@@ -164,8 +190,9 @@ def main() -> None:
                     clean.to(device),
                     mask.to(device),
                 )
-                fake = gen(x)
-                loss = gap_l1(fake, clean, mask)
+                with torch.autocast(device_type=device.type, enabled=use_amp):
+                    fake = gen(x)
+                    loss = gap_l1(fake, clean, mask)
                 val_loss += loss.item() * x.size(0)
                 val_preds.append(fake.cpu())
                 val_targets.append(clean.cpu())

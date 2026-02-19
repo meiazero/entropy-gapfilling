@@ -1,32 +1,20 @@
-"""Standalone plotting script for DL training curves.
+"""Training curve visualization functions.
 
-Generates publication-quality plots from training history JSON files
-produced by the DL training scripts.
-
-Usage:
-    uv run python src/dl-models/plot_training.py \
-        --history src/dl-models/checkpoints/ae_history.json \
-                  src/dl-models/checkpoints/vae_history.json \
-        --output results/dl_plots/
+All plot_* functions extracted from plot_training.py.
+No sys.path hacks, no pdi_pipeline imports.
 """
 
 from __future__ import annotations
 
-import argparse
-import sys
 from pathlib import Path
 from typing import Any
-
-_DL_ROOT = Path(__file__).resolve().parent
-if str(_DL_ROOT) not in sys.path:
-    sys.path.insert(0, str(_DL_ROOT))
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
-from shared.utils import TrainingHistory
 
-# Publication-quality style
+from dl_models.shared.trainer import TrainingHistory
+
 COLORS = ["#0072B2", "#D55E00", "#009E73", "#CC79A7"]  # colorblind-safe
 plt.rcParams.update({
     "font.family": "serif",
@@ -55,8 +43,28 @@ def _get_values(hist: dict[str, Any], key: str) -> list[float]:
     return [e.get(key, float("nan")) for e in hist["epochs"]]
 
 
+def load_histories(paths: list[Path]) -> list[dict[str, Any]]:
+    """Load TrainingHistory JSON files into plain dicts.
+
+    Args:
+        paths: List of paths to *_history.json files.
+
+    Returns:
+        List of dicts with 'model_name', 'metadata', 'epochs'.
+    """
+    histories: list[dict[str, Any]] = []
+    for p in paths:
+        h = TrainingHistory.load(p)
+        histories.append({
+            "model_name": h.model_name,
+            "metadata": h.metadata,
+            "epochs": h.epochs,
+        })
+    return histories
+
+
 def plot_loss_curves(histories: list[dict[str, Any]], output_dir: Path) -> None:
-    """Train vs val loss. Single model: 2 lines. Multiple: 2x2 grid."""
+    """Train vs val loss. Single model: 2 lines. Multiple: grid."""
     n = len(histories)
     if n == 1:
         fig, ax = plt.subplots(figsize=(6, 4))
@@ -65,16 +73,10 @@ def plot_loss_curves(histories: list[dict[str, Any]], output_dir: Path) -> None:
         name = h["model_name"]
         train_key = "train_g_loss" if name == "gan" else "train_loss"
         ax.plot(
-            epochs,
-            _get_values(h, train_key),
-            label="Train",
-            color=COLORS[0],
+            epochs, _get_values(h, train_key), label="Train", color=COLORS[0]
         )
         ax.plot(
-            epochs,
-            _get_values(h, "val_loss"),
-            label="Val",
-            color=COLORS[1],
+            epochs, _get_values(h, "val_loss"), label="Val", color=COLORS[1]
         )
         ax.set_xlabel("Epoch")
         ax.set_ylabel("Loss")
@@ -97,10 +99,7 @@ def plot_loss_curves(histories: list[dict[str, Any]], output_dir: Path) -> None:
                 color=COLORS[0],
             )
             ax.plot(
-                epochs,
-                _get_values(h, "val_loss"),
-                label="Val",
-                color=COLORS[1],
+                epochs, _get_values(h, "val_loss"), label="Val", color=COLORS[1]
             )
             ax.set_xlabel("Epoch")
             ax.set_ylabel("Loss")
@@ -204,18 +203,11 @@ def plot_gan_balance(histories: list[dict[str, Any]], output_dir: Path) -> None:
     epochs = _get_epochs(h)
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
-
     ax1.plot(
-        epochs,
-        _get_values(h, "train_g_loss"),
-        label="G Loss",
-        color=COLORS[0],
+        epochs, _get_values(h, "train_g_loss"), label="G Loss", color=COLORS[0]
     )
     ax1.plot(
-        epochs,
-        _get_values(h, "train_d_loss"),
-        label="D Loss",
-        color=COLORS[1],
+        epochs, _get_values(h, "train_d_loss"), label="D Loss", color=COLORS[1]
     )
     ax1.set_xlabel("Epoch")
     ax1.set_ylabel("Loss")
@@ -256,7 +248,6 @@ def plot_vae_decomposition(
     epochs = _get_epochs(h)
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
-
     ax1.plot(
         epochs,
         _get_values(h, "train_recon_loss"),
@@ -281,10 +272,7 @@ def plot_vae_decomposition(
         color=COLORS[2],
     )
     ax2.plot(
-        epochs,
-        _get_values(h, "val_kl_loss"),
-        label="Val KL",
-        color=COLORS[3],
+        epochs, _get_values(h, "val_kl_loss"), label="Val KL", color=COLORS[3]
     )
     ax2.set_xlabel("Epoch")
     ax2.set_ylabel("KL Divergence")
@@ -309,10 +297,7 @@ def plot_lr_schedule(histories: list[dict[str, Any]], output_dir: Path) -> None:
     ax2 = ax1.twinx()
 
     ax1.plot(
-        epochs,
-        _get_values(h, "lr"),
-        label="Learning Rate",
-        color=COLORS[0],
+        epochs, _get_values(h, "lr"), label="Learning Rate", color=COLORS[0]
     )
     ax1.set_xlabel("Epoch")
     ax1.set_ylabel("Learning Rate", color=COLORS[0])
@@ -379,48 +364,3 @@ def plot_model_comparison(
     fig.suptitle("Model Comparison", y=1.02)
     fig.tight_layout()
     _save_fig(fig, output_dir, "model_comparison")
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Plot training curves from history JSON files."
-    )
-    parser.add_argument(
-        "--history",
-        type=Path,
-        nargs="+",
-        required=True,
-        help="Path(s) to *_history.json file(s).",
-    )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=Path("results/dl_plots"),
-        help="Directory for output plots.",
-    )
-    args = parser.parse_args()
-
-    histories: list[dict[str, Any]] = []
-    for p in args.history:
-        h = TrainingHistory.load(p)
-        histories.append({
-            "model_name": h.model_name,
-            "metadata": h.metadata,
-            "epochs": h.epochs,
-        })
-
-    plot_loss_curves(histories, args.output)
-    plot_psnr_curves(histories, args.output)
-    plot_ssim_curves(histories, args.output)
-    plot_rmse_curves(histories, args.output)
-    plot_pixel_accuracy_f1(histories, args.output)
-    plot_gan_balance(histories, args.output)
-    plot_vae_decomposition(histories, args.output)
-    plot_lr_schedule(histories, args.output)
-    plot_model_comparison(histories, args.output)
-
-    print(f"Plots saved to {args.output}")
-
-
-if __name__ == "__main__":
-    main()

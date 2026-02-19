@@ -10,8 +10,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import torch
-from shared.base import BaseDLMethod
 from torch import nn
+
+from dl_models.shared.base import BaseDLMethod
 
 
 class _UNetGenerator(nn.Module):
@@ -19,7 +20,6 @@ class _UNetGenerator(nn.Module):
 
     def __init__(self, in_channels: int = 5, out_channels: int = 4) -> None:
         super().__init__()
-        # Encoder blocks
         self.enc1 = nn.Sequential(
             nn.Conv2d(in_channels, 64, 4, stride=2, padding=1),
             nn.BatchNorm2d(64),

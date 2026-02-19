@@ -10,8 +10,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import torch
-from shared.base import BaseDLMethod
 from torch import nn
+
+from dl_models.shared.base import BaseDLMethod
 
 
 class _AENet(nn.Module):

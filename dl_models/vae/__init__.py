@@ -1,5 +1,5 @@
 """Variational Autoencoder for image inpainting."""
 
-from vae.model import VAEInpainting
+from dl_models.vae.model import VAEInpainting
 
 __all__ = ["VAEInpainting"]

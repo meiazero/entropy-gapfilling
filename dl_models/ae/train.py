@@ -1,35 +1,31 @@
 """Training script for the Convolutional Autoencoder.
 
 Usage:
-    uv run python src/dl-models/ae/train.py \
+    uv run python -m dl_models.ae.train \
         --manifest preprocessed/manifest.csv \
-        --output src/dl-models/checkpoints/ae_best.pt
+        --output dl_models/checkpoints/ae_best.pth
 """
 
 from __future__ import annotations
 
 import argparse
 import logging
-import sys
+import os
 from pathlib import Path
 
-# Ensure dl-models root is importable
-_DL_ROOT = Path(__file__).resolve().parent.parent
-if str(_DL_ROOT) not in sys.path:
-    sys.path.insert(0, str(_DL_ROOT))
-
 import torch
-from ae.model import _AENet
-from shared.dataset import InpaintingDataset
-from shared.utils import (
+from torch.utils.data import DataLoader
+
+from dl_models.ae.model import _AENet
+from dl_models.shared.dataset import InpaintingDataset
+from dl_models.shared.metrics import compute_validation_metrics
+from dl_models.shared.trainer import (
     EarlyStopping,
     GapPixelLoss,
     TrainingHistory,
-    compute_validation_metrics,
     save_checkpoint,
     setup_file_logging,
 )
-from torch.utils.data import DataLoader
 
 logging.basicConfig(
     level=logging.INFO,
@@ -45,13 +41,20 @@ def main() -> None:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("src/dl-models/checkpoints/ae_best.pt"),
+        default=Path("dl_models/checkpoints/ae_best.pth"),
     )
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--patience", type=int, default=10)
+    parser.add_argument("--satellite", type=str, default="sentinel2")
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=None,
+        help="DataLoader workers. Defaults to min(cpu_count, 8).",
+    )
     args = parser.parse_args()
 
     setup_file_logging(args.output.parent / "ae_train.log")
@@ -63,15 +66,31 @@ def main() -> None:
     )
     log.info("Device: %s", device)
 
-    # Datasets
-    train_ds = InpaintingDataset(args.manifest, split="train")
-    val_ds = InpaintingDataset(args.manifest, split="val")
+    num_workers = args.num_workers or min(os.cpu_count() or 4, 8)
+    pin = device.type == "cuda"
+
+    train_ds = InpaintingDataset(
+        args.manifest, split="train", satellite=args.satellite
+    )
+    val_ds = InpaintingDataset(
+        args.manifest, split="val", satellite=args.satellite
+    )
 
     train_loader = DataLoader(
-        train_ds, batch_size=args.batch_size, shuffle=True, num_workers=2
+        train_ds,
+        batch_size=args.batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=pin,
+        persistent_workers=num_workers > 0,
     )
     val_loader = DataLoader(
-        val_ds, batch_size=args.batch_size, shuffle=False, num_workers=2
+        val_ds,
+        batch_size=args.batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=pin,
+        persistent_workers=num_workers > 0,
     )
 
     log.info("Train: %d, Val: %d", len(train_ds), len(val_ds))
@@ -80,6 +99,10 @@ def main() -> None:
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     criterion = GapPixelLoss(mode="mse")
     early_stop = EarlyStopping(patience=args.patience)
+
+    # Mixed precision
+    use_amp = device.type == "cuda"
+    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
 
     best_val_loss = float("inf")
 
@@ -91,6 +114,7 @@ def main() -> None:
             "batch_size": args.batch_size,
             "lr": args.lr,
             "patience": args.patience,
+            "satellite": args.satellite,
             "train_size": len(train_ds),
             "val_size": len(val_ds),
             "device": str(device),
@@ -98,20 +122,22 @@ def main() -> None:
     )
 
     for epoch in range(1, args.epochs + 1):
-        # Train
         model.train()
         train_loss = 0.0
         for x, clean, mask in train_loader:
             x, clean, mask = x.to(device), clean.to(device), mask.to(device)
-            optimizer.zero_grad()
-            pred = model(x)
-            loss = criterion(pred, clean, mask)
-            loss.backward()
-            optimizer.step()
+            optimizer.zero_grad(set_to_none=True)
+            with torch.autocast(device_type=device.type, enabled=use_amp):
+                pred = model(x)
+                loss = criterion(pred, clean, mask)
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            scaler.step(optimizer)
+            scaler.update()
             train_loss += loss.item() * x.size(0)
         train_loss /= len(train_ds)
 
-        # Validate
         model.eval()
         val_loss = 0.0
         val_preds: list[torch.Tensor] = []
@@ -124,8 +150,9 @@ def main() -> None:
                     clean.to(device),
                     mask.to(device),
                 )
-                pred = model(x)
-                loss = criterion(pred, clean, mask)
+                with torch.autocast(device_type=device.type, enabled=use_amp):
+                    pred = model(x)
+                    loss = criterion(pred, clean, mask)
                 val_loss += loss.item() * x.size(0)
                 val_preds.append(pred.cpu())
                 val_targets.append(clean.cpu())

@@ -1,34 +1,31 @@
 """Training script for the Variational Autoencoder.
 
 Usage:
-    uv run python src/dl-models/vae/train.py \
+    uv run python -m dl_models.vae.train \
         --manifest preprocessed/manifest.csv \
-        --output src/dl-models/checkpoints/vae_best.pt
+        --output dl_models/checkpoints/vae_best.pth
 """
 
 from __future__ import annotations
 
 import argparse
 import logging
-import sys
+import os
 from pathlib import Path
 
-_DL_ROOT = Path(__file__).resolve().parent.parent
-if str(_DL_ROOT) not in sys.path:
-    sys.path.insert(0, str(_DL_ROOT))
-
 import torch
-from shared.dataset import InpaintingDataset
-from shared.utils import (
+from torch.utils.data import DataLoader
+
+from dl_models.shared.dataset import InpaintingDataset
+from dl_models.shared.metrics import compute_validation_metrics
+from dl_models.shared.trainer import (
     EarlyStopping,
     GapPixelLoss,
     TrainingHistory,
-    compute_validation_metrics,
     save_checkpoint,
     setup_file_logging,
 )
-from torch.utils.data import DataLoader
-from vae.model import _VAENet
+from dl_models.vae.model import _VAENet
 
 logging.basicConfig(
     level=logging.INFO,
@@ -64,7 +61,7 @@ def main() -> None:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("src/dl-models/checkpoints/vae_best.pt"),
+        default=Path("dl_models/checkpoints/vae_best.pth"),
     )
     parser.add_argument("--epochs", type=int, default=80)
     parser.add_argument("--batch-size", type=int, default=32)
@@ -72,6 +69,8 @@ def main() -> None:
     parser.add_argument("--beta", type=float, default=0.001)
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--patience", type=int, default=10)
+    parser.add_argument("--satellite", type=str, default="sentinel2")
+    parser.add_argument("--num-workers", type=int, default=None)
     args = parser.parse_args()
 
     setup_file_logging(args.output.parent / "vae_train.log")
@@ -83,14 +82,31 @@ def main() -> None:
     )
     log.info("Device: %s", device)
 
-    train_ds = InpaintingDataset(args.manifest, split="train")
-    val_ds = InpaintingDataset(args.manifest, split="val")
+    num_workers = args.num_workers or min(os.cpu_count() or 4, 8)
+    pin = device.type == "cuda"
+
+    train_ds = InpaintingDataset(
+        args.manifest, split="train", satellite=args.satellite
+    )
+    val_ds = InpaintingDataset(
+        args.manifest, split="val", satellite=args.satellite
+    )
 
     train_loader = DataLoader(
-        train_ds, batch_size=args.batch_size, shuffle=True, num_workers=2
+        train_ds,
+        batch_size=args.batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=pin,
+        persistent_workers=num_workers > 0,
     )
     val_loader = DataLoader(
-        val_ds, batch_size=args.batch_size, shuffle=False, num_workers=2
+        val_ds,
+        batch_size=args.batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=pin,
+        persistent_workers=num_workers > 0,
     )
 
     log.info("Train: %d, Val: %d", len(train_ds), len(val_ds))
@@ -98,6 +114,9 @@ def main() -> None:
     model = _VAENet().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     early_stop = EarlyStopping(patience=args.patience)
+
+    use_amp = device.type == "cuda"
+    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
 
     best_val_loss = float("inf")
 
@@ -110,6 +129,7 @@ def main() -> None:
             "lr": args.lr,
             "beta": args.beta,
             "patience": args.patience,
+            "satellite": args.satellite,
             "train_size": len(train_ds),
             "val_size": len(val_ds),
             "device": str(device),
@@ -123,13 +143,17 @@ def main() -> None:
         train_kl_sum = 0.0
         for x, clean, mask in train_loader:
             x, clean, mask = x.to(device), clean.to(device), mask.to(device)
-            optimizer.zero_grad()
-            pred, mu, logvar = model(x)
-            loss, recon, kl = vae_loss(
-                pred, clean, mask, mu, logvar, beta=args.beta
-            )
-            loss.backward()
-            optimizer.step()
+            optimizer.zero_grad(set_to_none=True)
+            with torch.autocast(device_type=device.type, enabled=use_amp):
+                pred, mu, logvar = model(x)
+                loss, recon, kl = vae_loss(
+                    pred, clean, mask, mu, logvar, beta=args.beta
+                )
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            scaler.step(optimizer)
+            scaler.update()
             b = x.size(0)
             train_loss += loss.item() * b
             train_recon_sum += recon.item() * b
@@ -152,10 +176,11 @@ def main() -> None:
                     clean.to(device),
                     mask.to(device),
                 )
-                pred, mu, logvar = model(x)
-                loss, recon, kl = vae_loss(
-                    pred, clean, mask, mu, logvar, beta=args.beta
-                )
+                with torch.autocast(device_type=device.type, enabled=use_amp):
+                    pred, mu, logvar = model(x)
+                    loss, recon, kl = vae_loss(
+                        pred, clean, mask, mu, logvar, beta=args.beta
+                    )
                 b = x.size(0)
                 val_loss += loss.item() * b
                 val_recon_sum += recon.item() * b
