@@ -1,4 +1,7 @@
-"""Integration tests for NonLocalMeans and ExemplarBased using synthetic data."""
+"""Integration tests for NonLocalMeans and ExemplarBased.
+
+Uses synthetic data.
+"""
 
 from __future__ import annotations
 

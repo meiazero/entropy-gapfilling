@@ -55,7 +55,7 @@ class TestToDisplayRgb:
         assert float(np.max(result)) <= 1.0
 
     def test_3d_rgb_preserves_relative_order(self) -> None:
-        """Pixels that were brighter in the input stay brighter after normalization."""
+        """Brighter input pixels stay brighter after normalization."""
         rng = np.random.default_rng(5)
         arr = rng.random((16, 16, 3))
         result = to_display_rgb(arr)

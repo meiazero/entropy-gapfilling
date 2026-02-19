@@ -21,7 +21,8 @@ class TestPDIError:
 
     def test_can_be_raised_and_caught(self) -> None:
         with pytest.raises(PDIError):
-            raise PDIError("base error")
+            exc = PDIError("base error")
+            raise exc
 
 
 class TestDimensionError:
@@ -33,11 +34,13 @@ class TestDimensionError:
 
     def test_caught_by_value_error(self) -> None:
         with pytest.raises(ValueError):
-            raise DimensionError("bad shape")
+            exc = DimensionError("bad shape")
+            raise exc
 
     def test_caught_by_pdi_error(self) -> None:
         with pytest.raises(PDIError):
-            raise DimensionError("bad shape")
+            exc = DimensionError("bad shape")
+            raise exc
 
 
 class TestConvergenceError:
@@ -49,7 +52,8 @@ class TestConvergenceError:
 
     def test_caught_by_runtime_error(self) -> None:
         with pytest.raises(RuntimeError):
-            raise ConvergenceError("did not converge")
+            exc = ConvergenceError("did not converge")
+            raise exc
 
 
 class TestValidationError:
@@ -61,7 +65,8 @@ class TestValidationError:
 
     def test_caught_by_value_error(self) -> None:
         with pytest.raises(ValueError):
-            raise ValidationError("invalid input")
+            exc = ValidationError("invalid input")
+            raise exc
 
 
 class TestConfigError:
@@ -73,7 +78,8 @@ class TestConfigError:
 
     def test_caught_by_value_error(self) -> None:
         with pytest.raises(ValueError):
-            raise ConfigError("bad config")
+            exc = ConfigError("bad config")
+            raise exc
 
 
 class TestInterpolationError:
@@ -85,7 +91,8 @@ class TestInterpolationError:
 
     def test_caught_by_runtime_error(self) -> None:
         with pytest.raises(RuntimeError):
-            raise InterpolationError("interp failed")
+            exc = InterpolationError("interp failed")
+            raise exc
 
 
 class TestInsufficientDataError:
@@ -100,7 +107,8 @@ class TestInsufficientDataError:
 
     def test_caught_by_interpolation_error(self) -> None:
         with pytest.raises(InterpolationError):
-            raise InsufficientDataError("not enough points")
+            exc = InsufficientDataError("not enough points")
+            raise exc
 
 
 class TestMessagePreservation:

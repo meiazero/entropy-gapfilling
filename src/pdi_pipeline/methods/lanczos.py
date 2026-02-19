@@ -15,6 +15,10 @@ from pdi_pipeline.methods.base import BaseMethod
 logger = logging.getLogger(__name__)
 
 
+def _invalid_lanczos_parameter_error() -> ValidationError:
+    return ValidationError("Lanczos parameter 'a' must be >= 1")
+
+
 class LanczosInterpolator(BaseMethod):
     """Lanczos spectral gap-filling via Papoulis-Gerchberg iteration.
 
@@ -44,7 +48,7 @@ class LanczosInterpolator(BaseMethod):
             ValidationError: If ``a`` is less than 1.
         """
         if a < 1:
-            raise ValidationError("Lanczos parameter 'a' must be >= 1")
+            raise _invalid_lanczos_parameter_error()
         self.a = a
         self.max_iterations = max_iterations
         self.tolerance = tolerance

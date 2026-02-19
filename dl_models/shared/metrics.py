@@ -173,7 +173,7 @@ def compute_validation_metrics(
     ssim_count = 0
 
     for pred_batch, target_batch, mask_batch in zip(
-        preds, targets, masks, strict=False
+        preds, targets, masks, strict=True
     ):
         pred_np = pred_batch.detach().cpu().permute(0, 2, 3, 1).numpy()
         target_np = target_batch.detach().cpu().permute(0, 2, 3, 1).numpy()

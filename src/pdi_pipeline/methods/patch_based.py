@@ -16,6 +16,12 @@ from pdi_pipeline.methods.base import BaseMethod
 logger = logging.getLogger(__name__)
 
 
+def _missing_valid_pixels_error() -> InsufficientDataError:
+    return InsufficientDataError(
+        "Non-local means: no valid pixels to guide fill"
+    )
+
+
 class NonLocalMeansInterpolator(BaseMethod):
     """Non-local means gap-filling using patch-similarity weights.
 
@@ -77,9 +83,7 @@ class NonLocalMeansInterpolator(BaseMethod):
         filled = degraded.copy()
         valid = ~mask_2d
         if not np.any(valid):
-            raise InsufficientDataError(
-                "Non-local means: no valid pixels to guide fill"
-            )
+            raise _missing_valid_pixels_error()
 
         logger.debug(
             "Non-local means: filling %d gap pixels (patch_size=%d, "
@@ -152,7 +156,9 @@ class ExemplarBasedInterpolator(BaseMethod):
         *,
         meta: dict[str, object] | None = None,
     ) -> np.ndarray:
-        """Apply exemplar-based (biharmonic) inpainting to recover missing pixels.
+        """Apply exemplar-based (biharmonic) inpainting.
+
+        Recover missing pixels from the degraded image.
 
         Args:
             degraded: Array with missing data, shape ``(H, W)`` or

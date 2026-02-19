@@ -407,13 +407,13 @@ class TestSummaryBySatellite:
         df = _make_results_df(methods=["A", "B"], n_per_method=40)
         result = summary_by_satellite(df, metric="psnr")
         # Each (method, satellite) pair should appear at most once.
-        pairs = list(zip(result["method"], result["satellite"]))
+        pairs = list(zip(result["method"], result["satellite"], strict=True))
         assert len(pairs) == len(set(pairs))
 
     def test_sorted_by_method_then_satellite(self) -> None:
         df = _make_results_df(methods=["B", "A"], n_per_method=30)
         result = summary_by_satellite(df, metric="psnr")
-        keys = list(zip(result["method"], result["satellite"]))
+        keys = list(zip(result["method"], result["satellite"], strict=True))
         assert keys == sorted(keys)
 
     def test_nan_metric_excluded(self) -> None:
@@ -458,13 +458,13 @@ class TestSummaryByNoise:
     def test_groups_by_method_and_noise_level(self) -> None:
         df = _make_results_df(methods=["A", "B"], n_per_method=40)
         result = summary_by_noise(df, metric="psnr")
-        pairs = list(zip(result["method"], result["noise_level"]))
+        pairs = list(zip(result["method"], result["noise_level"], strict=True))
         assert len(pairs) == len(set(pairs))
 
     def test_sorted_by_method_then_noise(self) -> None:
         df = _make_results_df(methods=["B", "A"], n_per_method=30)
         result = summary_by_noise(df, metric="psnr")
-        keys = list(zip(result["method"], result["noise_level"]))
+        keys = list(zip(result["method"], result["noise_level"], strict=True))
         assert keys == sorted(keys)
 
     def test_nan_metric_excluded(self) -> None:

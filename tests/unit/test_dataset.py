@@ -26,7 +26,10 @@ def _make_patch_npy(
     satellite: str,
     patch_id: int,
 ) -> dict[str, str]:
-    """Create synthetic NPY files for one patch and return manifest row paths."""
+    """Create synthetic NPY files for one patch.
+
+    Return manifest row paths.
+    """
     sat_dir = base_dir / split / satellite
     sat_dir.mkdir(parents=True, exist_ok=True)
 
@@ -88,7 +91,10 @@ def _create_dataset_dir(
     split: str = "test",
     satellite: str = "sentinel2",
 ) -> Path:
-    """Create a complete synthetic dataset directory and return manifest path."""
+    """Create a complete synthetic dataset directory.
+
+    Return manifest path.
+    """
     manifest_rows = []
     for pid in range(1, n_patches + 1):
         npy_paths = _make_patch_npy(base_dir, split, satellite, pid)

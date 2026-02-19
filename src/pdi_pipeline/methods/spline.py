@@ -24,7 +24,8 @@ class SplineInterpolator(BaseMethod):
 
     Equivalent to RBF with phi(r) = r^2 log(r).
 
-    Citation: Wikipedia contributors. "Thin plate spline." Wikipedia, The Free Encyclopedia.
+    Citation: Wikipedia contributors. "Thin plate spline." Wikipedia,
+    The Free Encyclopedia.
     https://en.wikipedia.org/wiki/Thin_plate_spline
     """
 
@@ -39,7 +40,8 @@ class SplineInterpolator(BaseMethod):
         """Initialize Spline interpolator.
 
         Args:
-            smoothing: Smoothing factor (0 = exact interpolation, >0 = smoother fit).
+            smoothing: Smoothing factor
+                (0 = exact interpolation, >0 = smoother fit).
             max_training_points: Maximum number of training points to use.
             kernel_size: Search window size. If None, uses entire image.
         """
@@ -121,7 +123,10 @@ class SplineInterpolator(BaseMethod):
 
         if len(valid_y) < _MIN_VALID_POINTS:
             logger.warning(
-                "Insufficient valid pixels (%d < %d); returning input unchanged",
+                (
+                    "Insufficient valid pixels (%d < %d); "
+                    "returning input unchanged"
+                ),
                 len(valid_y),
                 _MIN_VALID_POINTS,
             )

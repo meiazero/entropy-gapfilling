@@ -12,8 +12,10 @@ experiment runner can use them directly.
 
 Usage:
     uv run python scripts/preprocess_dataset.py
-    uv run python scripts/preprocess_dataset.py --config config/paper_results.yaml --resume
-    uv run python scripts/preprocess_dataset.py --config config/quick_validation.yaml --resume
+    uv run python scripts/preprocess_dataset.py \
+        --config config/paper_results.yaml --resume
+    uv run python scripts/preprocess_dataset.py \
+        --config config/quick_validation.yaml --resume
 """
 
 from __future__ import annotations
@@ -171,6 +173,87 @@ def read_tiff(path: Path) -> np.ndarray:
         return src.read(out_dtype=np.float32, masked=False)
 
 
+def _resume_manifest_row(
+    row: tuple,
+    row_fields: dict[str, int],
+    out_paths: dict[str, Path],
+    output_dir: Path,
+) -> tuple[dict, bool]:
+    mask_arr = np.load(out_paths["mask"])
+    clean_arr = np.load(out_paths["clean"])
+    manifest_row = _manifest_row(
+        row,
+        row_fields,
+        out_paths,
+        output_dir,
+        mask_arr=mask_arr,
+        clean_arr=clean_arr,
+    )
+    return manifest_row, True
+
+
+def _load_and_validate_sources(
+    patch_id: int,
+    src_paths: dict[str, Path],
+) -> dict[str, np.ndarray] | None:
+    for source_path in src_paths.values():
+        if not source_path.exists():
+            log.warning(
+                "patch %d: missing source file %s", patch_id, source_path
+            )
+            return None
+
+    try:
+        arrays = {
+            variant: read_tiff(path) for variant, path in src_paths.items()
+        }
+    except (rasterio.errors.RasterioError, OSError) as exc:
+        log.warning("patch %d: read error - %s", patch_id, exc)
+        return None
+
+    try:
+        for variant in VARIANTS:
+            if variant == "mask":
+                validate_mask(arrays[variant], src_paths[variant])
+            else:
+                validate_image(arrays[variant], src_paths[variant])
+        validate_clean(arrays["clean"], src_paths["clean"])
+    except ValueError as exc:
+        log.warning("patch %d: validation failed - %s", patch_id, exc)
+        return None
+
+    return arrays
+
+
+def _transform_arrays(arrays: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
+    processed: dict[str, np.ndarray] = {}
+    for variant in VARIANTS:
+        arr = arrays[variant]
+        if variant == "mask":
+            processed[variant] = 1.0 - arr.squeeze(0)
+        else:
+            processed[variant] = np.transpose(arr, (1, 2, 0))
+    return processed
+
+
+def _save_processed_arrays(
+    patch_id: int,
+    out_paths: dict[str, Path],
+    processed: dict[str, np.ndarray],
+) -> bool:
+    saved_paths: list[Path] = []
+    try:
+        for variant in VARIANTS:
+            out_paths[variant].parent.mkdir(parents=True, exist_ok=True)
+            np.save(out_paths[variant], processed[variant])
+            saved_paths.append(out_paths[variant])
+    except OSError as exc:
+        log.warning("patch %d: write error - %s", patch_id, exc)
+        _cleanup(saved_paths)
+        return False
+    return True
+
+
 def process_patch(
     row: tuple,
     row_fields: dict[str, int],
@@ -200,66 +283,19 @@ def process_patch(
     }
 
     if resume and all(p.exists() for p in out_paths.values()):
-        # On resume, load arrays only if needed for manifest metadata
-        mask_arr = np.load(out_paths["mask"])
-        clean_arr = np.load(out_paths["clean"])
-        mrow = _manifest_row(
-            row,
-            row_fields,
-            out_paths,
-            output_dir,
-            mask_arr=mask_arr,
-            clean_arr=clean_arr,
-        )
-        return mrow, True
+        return _resume_manifest_row(row, row_fields, out_paths, output_dir)
 
     src_paths = {
         v: data_root / str(row[row_fields[VARIANT_COL_MAP[v]]])
         for v in VARIANTS
     }
 
-    for _v, sp in src_paths.items():
-        if not sp.exists():
-            log.warning("patch %d: missing source file %s", patch_id, sp)
-            return None
-
-    try:
-        arrays = {v: read_tiff(sp) for v, sp in src_paths.items()}
-    except (rasterio.errors.RasterioError, OSError) as exc:
-        log.warning("patch %d: read error - %s", patch_id, exc)
+    arrays = _load_and_validate_sources(patch_id, src_paths)
+    if arrays is None:
         return None
 
-    try:
-        for v in VARIANTS:
-            if v == "mask":
-                validate_mask(arrays[v], src_paths[v])
-            else:
-                validate_image(arrays[v], src_paths[v])
-        validate_clean(arrays["clean"], src_paths["clean"])
-    except ValueError as exc:
-        log.warning("patch %d: validation failed - %s", patch_id, exc)
-        return None
-
-    # Transform arrays to pipeline convention
-    processed: dict[str, np.ndarray] = {}
-    for v in VARIANTS:
-        arr = arrays[v]
-        if v == "mask":
-            # (1, H, W) -> (H, W), invert: source 1=valid -> 1=gap
-            processed[v] = 1.0 - arr.squeeze(0)
-        else:
-            # (C, H, W) -> (H, W, C)
-            processed[v] = np.transpose(arr, (1, 2, 0))
-
-    saved_paths: list[Path] = []
-    try:
-        for v in VARIANTS:
-            out_paths[v].parent.mkdir(parents=True, exist_ok=True)
-            np.save(out_paths[v], processed[v])
-            saved_paths.append(out_paths[v])
-    except OSError as exc:
-        log.warning("patch %d: write error - %s", patch_id, exc)
-        _cleanup(saved_paths)
+    processed = _transform_arrays(arrays)
+    if not _save_processed_arrays(patch_id, out_paths, processed):
         return None
 
     mrow = _manifest_row(
@@ -378,7 +414,8 @@ def _split_ratios_ok(
 
 
 def _raise_split_ratio_mismatch() -> None:
-    raise ValueError("split ratios mismatch")
+    exc = ValueError("split ratios mismatch")
+    raise exc
 
 
 def _simulate_selection(
@@ -432,6 +469,151 @@ def _save_patch_selections(
     log.info("Patch selections saved to: %s", path)
 
 
+def _try_resume_fast_path(
+    args: argparse.Namespace,
+    output_dir: Path,
+    df: pd.DataFrame,
+) -> bool:
+    manifest_path = output_dir / MANIFEST_NAME
+    if not args.resume or not manifest_path.exists():
+        return False
+
+    try:
+        existing = pd.read_csv(manifest_path, usecols=["split"], dtype=str)
+        existing_splits = set(existing["split"].unique())
+        expected_splits = {"train", "val", "test"}
+        if not expected_splits.issubset(existing_splits):
+            return False
+
+        if not _split_ratios_ok(existing["split"], SPLIT_RATIOS):
+            log.info(
+                "Manifest split ratios differ from expected %s; reprocessing.",
+                SPLIT_RATIOS,
+            )
+            _raise_split_ratio_mismatch()
+
+        n_existing = len(existing)
+        n_expected = len(df) if args.config is None else None
+        if n_expected is not None and n_existing < n_expected:
+            return False
+
+        log.info(
+            "Manifest already complete (%d rows, splits=%s). "
+            "Skipping preprocessing.",
+            n_existing,
+            sorted(existing_splits),
+        )
+    except Exception:
+        log.debug("Could not read existing manifest, will re-process")
+        return False
+    else:
+        return True
+
+
+def _apply_config_selection(
+    args: argparse.Namespace,
+    df: pd.DataFrame,
+    output_dir: Path,
+) -> pd.DataFrame:
+    if args.config is None:
+        return df
+
+    from pdi_pipeline.config import load_config
+
+    cfg = load_config(args.config)
+    log.info(
+        "Config: %s (satellites=%s, seeds=%d, max_patches=%s)",
+        cfg.name,
+        cfg.satellites,
+        len(cfg.seeds),
+        cfg.max_patches,
+    )
+
+    before = len(df)
+    filtered = df[df["satellite"].isin(cfg.satellites)].reset_index(drop=True)
+    log.info(
+        "Filtered satellites %s: %d -> %d patches",
+        cfg.satellites,
+        before,
+        len(filtered),
+    )
+
+    if cfg.max_patches is None:
+        return filtered
+
+    selections = _simulate_selection(
+        filtered,
+        cfg.satellites,
+        cfg.seeds,
+        cfg.max_patches,
+    )
+    union_ids: set[int] = set()
+    for sat_sel in selections.values():
+        for patch_ids in sat_sel.values():
+            union_ids.update(patch_ids)
+
+    before = len(filtered)
+    filtered = filtered[filtered["patch_id"].isin(union_ids)].reset_index(
+        drop=True
+    )
+    log.info(
+        "Patch selection: %d unique patches across %d seeds"
+        " (from %d candidates)",
+        len(union_ids),
+        len(cfg.seeds),
+        before,
+    )
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    _save_patch_selections(selections, output_dir)
+    return filtered
+
+
+def _parallel_process_rows(
+    rows_list: list[tuple],
+    row_fields: dict[str, int],
+    data_root: Path,
+    output_dir: Path,
+    *,
+    resume: bool,
+    workers: int,
+) -> tuple[list[dict], list[int], int, int]:
+    manifest_rows: list[dict] = []
+    failed_ids: list[int] = []
+    n_skipped = 0
+    n_processed = 0
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {
+            pool.submit(
+                process_patch,
+                row,
+                row_fields,
+                data_root,
+                output_dir,
+                resume=resume,
+            ): row
+            for row in rows_list
+        }
+        for future in tqdm(
+            as_completed(futures), total=len(futures), desc="Preprocessing"
+        ):
+            row = futures[future]
+            result = future.result()
+            if result is None:
+                failed_ids.append(int(row[row_fields["patch_id"]]))
+                continue
+
+            manifest_row, was_skipped = result
+            manifest_rows.append(manifest_row)
+            if was_skipped:
+                n_skipped += 1
+            else:
+                n_processed += 1
+
+    return manifest_rows, failed_ids, n_skipped, n_processed
+
+
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
     data_root = resolve_data_root(args.data_root)
@@ -470,96 +652,12 @@ def main(argv: list[str] | None = None) -> None:
         SPLIT_SEED,
     )
 
-    # Fast path: if manifest already exists with train/val/test splits and
-    # has the expected number of rows, skip the entire preprocessing step.
-    manifest_path = output_dir / MANIFEST_NAME
-    if args.resume and manifest_path.exists():
-        try:
-            existing = pd.read_csv(manifest_path, usecols=["split"], dtype=str)
-            existing_splits = set(existing["split"].unique())
-            expected_splits = {"train", "val", "test"}
-            if expected_splits.issubset(existing_splits):
-                if not _split_ratios_ok(existing["split"], SPLIT_RATIOS):
-                    log.info(
-                        "Manifest split ratios differ from expected %s; "
-                        "reprocessing.",
-                        SPLIT_RATIOS,
-                    )
-                    _raise_split_ratio_mismatch()
-                n_existing = len(existing)
-                # When using --config the parquet is filtered, so we can't
-                # compare counts directly. Without --config the expected
-                # count is the full parquet.
-                n_expected = len(df) if args.config is None else None
-                if n_expected is None or n_existing >= n_expected:
-                    log.info(
-                        "Manifest already complete (%d rows, splits=%s). "
-                        "Skipping preprocessing.",
-                        n_existing,
-                        sorted(existing_splits),
-                    )
-                    return
-        except Exception:
-            log.debug("Could not read existing manifest, will re-process")
+    if _try_resume_fast_path(args, output_dir, df):
+        return
 
-    if args.config is not None:
-        from pdi_pipeline.config import load_config
-
-        cfg = load_config(args.config)
-        log.info(
-            "Config: %s (satellites=%s, seeds=%d, max_patches=%s)",
-            cfg.name,
-            cfg.satellites,
-            len(cfg.seeds),
-            cfg.max_patches,
-        )
-
-        # Filter to configured satellites
-        before = len(df)
-        df = df[df["satellite"].isin(cfg.satellites)].reset_index(drop=True)
-        log.info(
-            "Filtered satellites %s: %d -> %d patches",
-            cfg.satellites,
-            before,
-            len(df),
-        )
-
-        if cfg.max_patches is not None:
-            # Simulate PatchDataset's selection across all seeds to
-            # determine the exact set of patches needed.
-            selections = _simulate_selection(
-                df,
-                cfg.satellites,
-                cfg.seeds,
-                cfg.max_patches,
-            )
-
-            # Compute union of selected patch IDs across all seeds
-            union_ids: set[int] = set()
-            for sat_sel in selections.values():
-                for patch_ids in sat_sel.values():
-                    union_ids.update(patch_ids)
-
-            before = len(df)
-            df = df[df["patch_id"].isin(union_ids)].reset_index(drop=True)
-            log.info(
-                "Patch selection: %d unique patches across %d seeds "
-                "(from %d candidates)",
-                len(union_ids),
-                len(cfg.seeds),
-                before,
-            )
-
-            # Save selections for the experiment runner
-            output_dir.mkdir(parents=True, exist_ok=True)
-            _save_patch_selections(selections, output_dir)
+    df = _apply_config_selection(args, df, output_dir)
 
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    manifest_rows: list[dict] = []
-    failed_ids: list[int] = []
-    n_skipped = 0
-    n_processed = 0
 
     t0 = time.monotonic()
 
@@ -575,32 +673,14 @@ def main(argv: list[str] | None = None) -> None:
     log.info("Using %d worker threads for parallel TIFF I/O", n_workers)
 
     rows_list = list(df.itertuples())
-    with ThreadPoolExecutor(max_workers=n_workers) as pool:
-        futures = {
-            pool.submit(
-                process_patch,
-                row,
-                row_fields,
-                data_root,
-                output_dir,
-                resume=args.resume,
-            ): row
-            for row in rows_list
-        }
-        for future in tqdm(
-            as_completed(futures), total=len(futures), desc="Preprocessing"
-        ):
-            row = futures[future]
-            result = future.result()
-            if result is None:
-                failed_ids.append(int(row[row_fields["patch_id"]]))
-            else:
-                manifest_row, was_skipped = result
-                manifest_rows.append(manifest_row)
-                if was_skipped:
-                    n_skipped += 1
-                else:
-                    n_processed += 1
+    manifest_rows, failed_ids, n_skipped, n_processed = _parallel_process_rows(
+        rows_list,
+        row_fields,
+        data_root,
+        output_dir,
+        resume=args.resume,
+        workers=n_workers,
+    )
 
     elapsed = time.monotonic() - t0
 

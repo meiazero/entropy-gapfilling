@@ -32,11 +32,14 @@ def _get_kernel_literal(kernel: str) -> Any:
 
 
 class RBFInterpolator(BaseMethod):
-    """Radial Basis Function interpolation via ``scipy.interpolate.RBFInterpolator``.
+    """Radial Basis Function interpolation.
+
+    Uses ``scipy.interpolate.RBFInterpolator``.
 
     Solves s(x) = sum_k w_k phi(||x - x_k||) for gap pixels.
 
-    Citation: Wikipedia contributors. "Radial basis function interpolation." Wikipedia, The Free Encyclopedia.
+    Citation: Wikipedia contributors. "Radial basis function interpolation."
+    Wikipedia, The Free Encyclopedia.
     https://en.wikipedia.org/wiki/Radial_basis_function_interpolation
     """
 

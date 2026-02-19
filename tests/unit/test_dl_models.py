@@ -138,7 +138,7 @@ class TestDLModelContracts:
 
     @pytest.mark.parametrize(
         "model_cls,expected_name",
-        list(zip(ALL_MODELS, MODEL_NAMES)),
+        list(zip(ALL_MODELS, MODEL_NAMES, strict=True)),
         ids=MODEL_NAMES,
     )
     def test_model_name(self, model_cls: type, expected_name: str) -> None:

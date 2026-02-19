@@ -544,7 +544,10 @@ class TestRobustRegression:
         assert expected.issubset(set(result.coefficients.columns))
 
     def test_entropy_coefficient_is_negative(self) -> None:
-        """psnr = 30 - 2*entropy_7 + noise, so entropy_7 beta should be negative."""
+        """psnr = 30 - 2*entropy_7 + noise.
+
+        Therefore, entropy_7 beta should be negative.
+        """
         df = _make_regression_df(n=500)
         result = robust_regression(
             df,

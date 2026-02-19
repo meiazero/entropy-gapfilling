@@ -5,7 +5,8 @@ matplotlib + seaborn with consistent styling.
 
 Usage:
     uv run python scripts/generate_figures.py --results results/paper_results
-    uv run python scripts/generate_figures.py --results results/paper_results --figure 2
+    uv run python scripts/generate_figures.py \
+        --results results/paper_results --figure 2
 """
 
 from __future__ import annotations
@@ -55,34 +56,219 @@ STYLE_PARAMS = {
 _PNG_ONLY: bool = False
 
 
+def _collect_numeric_stems(base_dir: Path, pattern: str) -> set[int]:
+    ids: set[int] = set()
+    if not base_dir.exists():
+        return ids
+
+    for method_dir in base_dir.iterdir():
+        if not method_dir.is_dir() or method_dir.name.startswith("_"):
+            continue
+        for path in method_dir.glob(pattern):
+            try:
+                ids.add(int(path.stem))
+            except ValueError:
+                continue
+    return ids
+
+
 def _available_recon_patch_ids(
     recon_dir: Path,
     noise_level: str = "inf",
 ) -> set[int]:
     """Return patch IDs that have reconstruction arrays or PNGs."""
-    ids: set[int] = set()
     npy_base = recon_dir.parent / "reconstruction_arrays" / noise_level
     if npy_base.exists():
-        for method_dir in npy_base.iterdir():
-            if not method_dir.is_dir() or method_dir.name.startswith("_"):
-                continue
-            for npy in method_dir.glob("*.npy"):
-                try:
-                    ids.add(int(npy.stem))
-                except ValueError:
-                    continue
-        return ids
-    if not recon_dir.exists():
-        return ids
-    for method_dir in recon_dir.iterdir():
-        if not method_dir.is_dir() or method_dir.name.startswith("_"):
+        return _collect_numeric_stems(npy_base, "*.npy")
+    return _collect_numeric_stems(recon_dir, "*.png")
+
+
+def _pick_entropy_representatives(
+    df: pd.DataFrame,
+    percentiles: dict[str, float],
+    extra_col: str,
+) -> list[tuple[str, int, str]]:
+    reps: list[tuple[str, int, str]] = []
+    for label, q in percentiles.items():
+        target = float(df["entropy_7"].quantile(q))
+        closest = df.iloc[(df["entropy_7"] - target).abs().argsort()[:1]].iloc[
+            0
+        ]
+        reps.append((label, int(closest["patch_id"]), str(closest[extra_col])))
+    return reps
+
+
+def _load_clean_and_mask(
+    preprocessed: Path,
+    satellite: str,
+    patch_id: int,
+) -> tuple[np.ndarray, np.ndarray] | None:
+    clean_path = preprocessed / "test" / satellite / f"{patch_id:07d}_clean.npy"
+    mask_path = preprocessed / "test" / satellite / f"{patch_id:07d}_mask.npy"
+    if not clean_path.exists() or not mask_path.exists():
+        return None
+
+    clean = np.load(clean_path)
+    mask = np.load(mask_path)
+    if mask.ndim == 3:
+        mask = mask[:, :, 0]
+    return clean, mask
+
+
+def _compute_error_map(clean: np.ndarray, recon: np.ndarray) -> np.ndarray:
+    recon_matched = recon
+    clean_matched = clean
+    if clean.ndim == 3 and recon.ndim == 3:
+        common_channels = min(clean.shape[2], recon.shape[2])
+        clean_matched = clean[:, :, :common_channels]
+        recon_matched = recon[:, :, :common_channels]
+
+    return np.mean(
+        (clean_matched.astype(np.float32) - recon_matched.astype(np.float32))
+        ** 2,
+        axis=2 if clean_matched.ndim == 3 else None,
+    )
+
+
+def _choose_fig5_methods(valid: pd.DataFrame) -> list[str] | None:
+    method_means = (
+        valid.groupby("method")["psnr"].mean().sort_values(ascending=False)
+    )
+    if len(method_means) < 2:
+        return None
+
+    best_method = str(method_means.index[0])
+    mid_method = str(method_means.index[len(method_means) // 2])
+    return [best_method, mid_method]
+
+
+def _render_fig5_row(
+    axes: np.ndarray,
+    row_idx: int,
+    ncols: int,
+    results_dir: Path,
+    preprocessed: Path,
+    patch_id: int,
+    satellite: str,
+    label: str,
+    selected_methods: list[str],
+    cmap: matplotlib.colors.Colormap,
+) -> None:
+    from pdi_pipeline.statistics import spatial_autocorrelation
+
+    loaded = _load_clean_and_mask(preprocessed, satellite, patch_id)
+    if loaded is None:
+        log.warning("Patch files not found for patch_id=%d", patch_id)
+        for c in range(ncols):
+            axes[row_idx, c].set_visible(False)
+        return
+
+    clean, mask = loaded
+    for col_idx, method in enumerate(selected_methods):
+        ax = axes[row_idx, col_idx]
+        recon = _load_recon_array(results_dir, method, patch_id)
+        if recon is None:
+            ax.set_visible(False)
             continue
-        for png in method_dir.glob("*.png"):
-            try:
-                ids.add(int(png.stem))
-            except ValueError:
-                continue
-    return ids
+
+        error_map = _compute_error_map(clean, recon)
+        if col_idx == 0:
+            ax.imshow(error_map, cmap="hot")
+            ax.set_title(f"{method}\n(MSE)", fontsize=FONT_SIZE - 1)
+            ax.set_ylabel(f"{label}\npatch {patch_id}", fontsize=FONT_SIZE)
+            ax.axis("off")
+            continue
+
+        ax.set_title(f"{method}\n(LISA)", fontsize=FONT_SIZE - 1)
+        try:
+            result = spatial_autocorrelation(error_map, mask)
+            ax.imshow(result.lisa_labels, cmap=cmap, vmin=0, vmax=4)
+        except Exception:
+            log.warning("LISA failed for patch=%d method=%s", patch_id, method)
+            ax.text(
+                0.5,
+                0.5,
+                "LISA failed",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+                fontsize=FONT_SIZE,
+            )
+        ax.axis("off")
+
+
+def _render_fig6_row(
+    axes: np.ndarray,
+    row_idx: int,
+    ncols: int,
+    preprocessed: Path,
+    sat: str,
+    patch_id: int,
+    noise_level: str,
+    results_dir: Path,
+    top_methods: list[str],
+    patch_metrics: pd.DataFrame,
+    label: str,
+) -> None:
+    clean_path = preprocessed / "test" / sat / f"{patch_id:07d}_clean.npy"
+    degraded_path = (
+        preprocessed
+        / "test"
+        / sat
+        / f"{patch_id:07d}_degraded_{noise_level}.npy"
+    )
+    mask_path = preprocessed / "test" / sat / f"{patch_id:07d}_mask.npy"
+
+    if not clean_path.exists() or not degraded_path.exists():
+        log.warning("Patch files not found for patch_id=%d", patch_id)
+        for c in range(ncols):
+            axes[row_idx, c].set_visible(False)
+        return
+
+    clean = np.load(clean_path)
+    degraded = np.load(degraded_path)
+    mask = np.load(mask_path) if mask_path.exists() else None
+    if mask is not None and mask.ndim == 3:
+        mask = mask[:, :, 0]
+
+    axes[row_idx, 0].imshow(to_display_rgb(clean))
+    axes[row_idx, 0].set_title("Clean", fontsize=FONT_SIZE)
+    axes[row_idx, 0].axis("off")
+    axes[row_idx, 0].set_ylabel(label, fontsize=FONT_SIZE)
+
+    axes[row_idx, 1].imshow(to_display_rgb(degraded))
+    axes[row_idx, 1].set_title("Degraded", fontsize=FONT_SIZE)
+    axes[row_idx, 1].axis("off")
+
+    if mask is not None:
+        axes[row_idx, 2].imshow(mask, cmap="gray", vmin=0, vmax=1)
+    else:
+        axes[row_idx, 2].text(
+            0.5,
+            0.5,
+            "N/A",
+            ha="center",
+            va="center",
+            transform=axes[row_idx, 2].transAxes,
+        )
+    axes[row_idx, 2].set_title("Mask", fontsize=FONT_SIZE)
+    axes[row_idx, 2].axis("off")
+
+    for offset, method in enumerate(top_methods):
+        col = 3 + offset
+        recon = _load_recon_array(results_dir, method, patch_id, noise_level)
+        if recon is not None:
+            axes[row_idx, col].imshow(to_display_rgb(recon))
+            method_row = patch_metrics[patch_metrics["method"] == method]
+            if not method_row.empty:
+                psnr_val = float(method_row.iloc[0]["psnr"])
+                title = f"{method}\n{psnr_val:.1f} dB"
+            else:
+                title = method
+            axes[row_idx, col].set_title(title, fontsize=FONT_SIZE - 1)
+        else:
+            axes[row_idx, col].set_title(method, fontsize=FONT_SIZE - 1)
+        axes[row_idx, col].axis("off")
 
 
 def _load_recon_array(
@@ -333,8 +519,6 @@ def fig5_lisa_clusters(results_dir: Path, output_dir: Path) -> None:
     from matplotlib.colors import ListedColormap
     from matplotlib.patches import Patch
 
-    from pdi_pipeline.statistics import spatial_autocorrelation
-
     log.info("Figure 5: LISA clusters (on-the-fly computation)")
 
     df = load_results(results_dir)
@@ -359,32 +543,17 @@ def fig5_lisa_clusters(results_dir: Path, output_dir: Path) -> None:
         log.info("No patches with reconstruction data for fig5")
         return
 
-    # Select 3 representative patches at P10, P50, P90 entropy
     percentiles = {"P10": 0.10, "P50": 0.50, "P90": 0.90}
-    representatives: list[tuple[str, int, str]] = []
-    for label, q in percentiles.items():
-        target = float(valid["entropy_7"].quantile(q))
-        closest = valid.iloc[
-            (valid["entropy_7"] - target).abs().argsort()[:1]
-        ].iloc[0]
-        representatives.append((
-            label,
-            int(closest["patch_id"]),
-            closest["satellite"],
-        ))
-
-    # Select 2 methods: best (highest mean PSNR) and mid-range
-    method_means = (
-        valid.groupby("method")["psnr"].mean().sort_values(ascending=False)
+    representatives = _pick_entropy_representatives(
+        valid,
+        percentiles,
+        extra_col="satellite",
     )
-    if len(method_means) < 2:
+
+    selected_methods = _choose_fig5_methods(valid)
+    if selected_methods is None:
         log.warning("Need at least 2 methods for fig5")
         return
-
-    best_method = method_means.index[0]
-    mid_idx = len(method_means) // 2
-    mid_method = method_means.index[mid_idx]
-    selected_methods = [best_method, mid_method]
 
     # LISA label names: 0=NS, 1=HH, 2=LH, 3=LL, 4=HL
     lisa_names = ["NS", "HH", "LH", "LL", "HL"]
@@ -398,83 +567,23 @@ def fig5_lisa_clusters(results_dir: Path, output_dir: Path) -> None:
     )
 
     for row_idx, (label, patch_id, satellite) in enumerate(representatives):
-        clean_path = (
-            preprocessed / "test" / satellite / f"{patch_id:07d}_clean.npy"
+        _render_fig5_row(
+            axes,
+            row_idx,
+            ncols,
+            results_dir,
+            preprocessed,
+            patch_id,
+            satellite,
+            label,
+            selected_methods,
+            cmap,
         )
-        mask_path = (
-            preprocessed / "test" / satellite / f"{patch_id:07d}_mask.npy"
-        )
-
-        if not clean_path.exists() or not mask_path.exists():
-            log.warning("Patch files not found for patch_id=%d", patch_id)
-            for c in range(ncols):
-                axes[row_idx, c].set_visible(False)
-            continue
-
-        clean = np.load(clean_path)
-        mask = np.load(mask_path)
-        if mask.ndim == 3:
-            mask = mask[:, :, 0]
-
-        for col_idx, method in enumerate(selected_methods):
-            ax = axes[row_idx, col_idx]
-
-            recon = _load_recon_array(results_dir, method, patch_id)
-            if recon is None:
-                ax.set_visible(False)
-                continue
-
-            # Compute error map from raw arrays (not normalized PNGs)
-            recon_matched = recon
-            if clean.ndim == 3 and recon.ndim == 3:
-                # Ensure same number of bands
-                c_bands = min(clean.shape[2], recon.shape[2])
-                recon_matched = recon[:, :, :c_bands]
-                clean_crop = clean[:, :, :c_bands]
-            elif clean.ndim == 2 and recon.ndim == 2:
-                clean_crop = clean
-            else:
-                clean_crop = clean
-            error_map = np.mean(
-                (
-                    clean_crop.astype(np.float32)
-                    - recon_matched.astype(np.float32)
-                )
-                ** 2,
-                axis=2 if clean_crop.ndim == 3 else None,
-            )
-
-            if col_idx == 0:
-                # First column: error map for context
-                ax.imshow(error_map, cmap="hot")
-                ax.set_title(f"{method}\n(MSE)", fontsize=FONT_SIZE - 1)
-                ax.set_ylabel(f"{label}\npatch {patch_id}", fontsize=FONT_SIZE)
-                ax.axis("off")
-                continue
-
-            # Remaining columns: LISA cluster maps
-            ax.set_title(f"{method}\n(LISA)", fontsize=FONT_SIZE - 1)
-            try:
-                result = spatial_autocorrelation(error_map, mask)
-                ax.imshow(result.lisa_labels, cmap=cmap, vmin=0, vmax=4)
-            except Exception:
-                log.warning(
-                    "LISA failed for patch=%d method=%s", patch_id, method
-                )
-                ax.text(
-                    0.5,
-                    0.5,
-                    "LISA failed",
-                    ha="center",
-                    va="center",
-                    transform=ax.transAxes,
-                    fontsize=FONT_SIZE,
-                )
-            ax.axis("off")
 
     # Legend
     legend_patches = [
-        Patch(facecolor=c, label=n) for n, c in zip(lisa_names, lisa_colors)
+        Patch(facecolor=c, label=n)
+        for n, c in zip(lisa_names, lisa_colors, strict=True)
     ]
     fig.legend(
         handles=legend_patches,
@@ -541,24 +650,16 @@ def fig6_visual_examples(results_dir: Path, output_dir: Path) -> None:
             )
             continue
 
-        # 3 representatives at P10, P50, P90
         percentiles = {
             "P10 (low)": 0.10,
             "P50 (median)": 0.50,
             "P90 (high)": 0.90,
         }
-        representatives: list[tuple[str, int, str]] = []
-        for label, q in percentiles.items():
-            target = float(sat_df["entropy_7"].quantile(q))
-            closest = sat_df.iloc[
-                (sat_df["entropy_7"] - target).abs().argsort()[:1]
-            ].iloc[0]
-            noise_level = closest.get("noise_level", "inf")
-            representatives.append((
-                label,
-                int(closest["patch_id"]),
-                str(noise_level),
-            ))
+        representatives = _pick_entropy_representatives(
+            sat_df,
+            percentiles,
+            extra_col="noise_level",
+        )
 
         # Columns: Clean | Degraded | Mask | Method1..MethodN
         ncols = 3 + n_show
@@ -575,86 +676,24 @@ def fig6_visual_examples(results_dir: Path, output_dir: Path) -> None:
         for row_idx, (label, patch_id, noise_level) in enumerate(
             representatives
         ):
-            clean_path = (
-                preprocessed / "test" / sat / f"{patch_id:07d}_clean.npy"
-            )
-            degraded_path = (
-                preprocessed
-                / "test"
-                / sat
-                / f"{patch_id:07d}_degraded_{noise_level}.npy"
-            )
-            mask_path = preprocessed / "test" / sat / f"{patch_id:07d}_mask.npy"
-
-            if not clean_path.exists() or not degraded_path.exists():
-                log.warning("Patch files not found for patch_id=%d", patch_id)
-                for c in range(ncols):
-                    axes[row_idx, c].set_visible(False)
-                continue
-
-            clean = np.load(clean_path)
-            degraded = np.load(degraded_path)
-            mask = np.load(mask_path) if mask_path.exists() else None
-            if mask is not None and mask.ndim == 3:
-                mask = mask[:, :, 0]
-
-            # Col 0: Clean
-            axes[row_idx, 0].imshow(to_display_rgb(clean))
-            axes[row_idx, 0].set_title("Clean", fontsize=FONT_SIZE)
-            axes[row_idx, 0].axis("off")
-            axes[row_idx, 0].set_ylabel(label, fontsize=FONT_SIZE)
-
-            # Col 1: Degraded
-            axes[row_idx, 1].imshow(to_display_rgb(degraded))
-            axes[row_idx, 1].set_title("Degraded", fontsize=FONT_SIZE)
-            axes[row_idx, 1].axis("off")
-
-            # Col 2: Mask
-            if mask is not None:
-                axes[row_idx, 2].imshow(mask, cmap="gray", vmin=0, vmax=1)
-            else:
-                axes[row_idx, 2].text(
-                    0.5,
-                    0.5,
-                    "N/A",
-                    ha="center",
-                    va="center",
-                    transform=axes[row_idx, 2].transAxes,
-                )
-            axes[row_idx, 2].set_title("Mask", fontsize=FONT_SIZE)
-            axes[row_idx, 2].axis("off")
-
-            # Cols 3+: Top methods
-            # Look up per-patch PSNR for annotation
             patch_metrics = valid[
                 (valid["patch_id"] == patch_id)
                 & (valid["noise_level"] == noise_level)
             ]
 
-            for k, method in enumerate(top_methods):
-                col = 3 + k
-                recon = _load_recon_array(
-                    results_dir, method, patch_id, noise_level
-                )
-
-                if recon is not None:
-                    axes[row_idx, col].imshow(to_display_rgb(recon))
-
-                    # PSNR annotation
-                    method_row = patch_metrics[
-                        patch_metrics["method"] == method
-                    ]
-                    if not method_row.empty:
-                        psnr_val = float(method_row.iloc[0]["psnr"])
-                        title = f"{method}\n{psnr_val:.1f} dB"
-                    else:
-                        title = method
-                    axes[row_idx, col].set_title(title, fontsize=FONT_SIZE - 1)
-
-                else:
-                    axes[row_idx, col].set_title(method, fontsize=FONT_SIZE - 1)
-
-                axes[row_idx, col].axis("off")
+            _render_fig6_row(
+                axes,
+                row_idx,
+                ncols,
+                preprocessed,
+                sat,
+                patch_id,
+                noise_level,
+                results_dir,
+                top_methods,
+                patch_metrics,
+                label,
+            )
 
         _save_figure(fig, output_dir, f"fig6_visual_examples_{sat}")
         plt.close(fig)
@@ -822,7 +861,10 @@ def fig9_local_metric_maps(results_dir: Path, output_dir: Path) -> None:
 
         if clean_eval.shape != recon_eval.shape:
             log.warning(
-                "Skipping fig9 method=%s patch=%d due shape mismatch: clean=%s recon=%s",
+                (
+                    "Skipping fig9 method=%s patch=%d due shape mismatch: "
+                    "clean=%s recon=%s"
+                ),
                 method,
                 patch_id,
                 clean_eval.shape,

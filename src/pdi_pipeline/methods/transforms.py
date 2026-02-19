@@ -24,7 +24,8 @@ _TV_CONVERGENCE_TOL = 1e-4
 
 class DCTInpainting(BaseMethod):
     """DCT inpainting via iterative soft-thresholding in the frequency domain.
-    Citation: Wikipedia contributors. "Discrete cosine transform." Wikipedia, The Free Encyclopedia.
+    Citation: Wikipedia contributors. "Discrete cosine transform."
+    Wikipedia, The Free Encyclopedia.
     https://en.wikipedia.org/wiki/Discrete_cosine_transform
     """
 
@@ -139,8 +140,11 @@ class DCTInpainting(BaseMethod):
 
 
 class WaveletInpainting(BaseMethod):
-    """Wavelet inpainting via iterative soft-thresholding of detail coefficients.
-    Citation: Wikipedia contributors. "Wavelet transform." Wikipedia, The Free Encyclopedia.
+    """Wavelet inpainting via iterative soft-thresholding.
+
+    Operates on detail coefficients.
+    Citation: Wikipedia contributors. "Wavelet transform." Wikipedia,
+    The Free Encyclopedia.
     https://en.wikipedia.org/wiki/Wavelet_transform
     """
 
@@ -286,7 +290,8 @@ class TVInpainting(BaseMethod):
     """Total Variation inpainting via primal-dual (Chambolle-Pock) algorithm.
 
         Minimizes TV(u) + (lambda/2) * data-fidelity on known pixels.
-    Citation: Wikipedia contributors. "Total variation denoising." Wikipedia, The Free Encyclopedia.
+    Citation: Wikipedia contributors. "Total variation denoising."
+    Wikipedia, The Free Encyclopedia.
     https://en.wikipedia.org/wiki/Total_variation_denoising
     """
 

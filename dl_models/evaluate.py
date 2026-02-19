@@ -73,7 +73,7 @@ def _load_model(
     return cls(**kwargs)
 
 
-def main() -> None:
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Evaluate a DL inpainting model on the test set.",
     )
@@ -112,14 +112,76 @@ def main() -> None:
         metavar="N",
         help="Save first N reconstructed arrays.",
     )
-    args = parser.parse_args()
+    return parser
 
+
+def _save_reconstruction(
+    output_dir: Path,
+    patch_id: int,
+    result: np.ndarray,
+) -> None:
+    recon_dir = output_dir / "reconstructions"
+    recon_dir.mkdir(parents=True, exist_ok=True)
+    np.save(recon_dir / f"{patch_id:07d}.npy", result)
+
+
+def _evaluate_single_patch(
+    model: Any,
+    clean_np: np.ndarray,
+    degraded_np: np.ndarray,
+    mask_np: np.ndarray,
+    patch_id: int,
+    output_dir: Path,
+    save_reconstruction: bool,
+) -> tuple[dict[str, float], str, str, bool]:
+    try:
+        result = model.apply(degraded_np, mask_np)
+        scores = m.compute_all(clean_np, result, mask_np)
+        if save_reconstruction:
+            _save_reconstruction(output_dir, patch_id, result)
+    except Exception as exc:
+        log.exception("Error on patch %d", patch_id)
+        scores = {
+            "psnr": float("nan"),
+            "ssim": float("nan"),
+            "rmse": float("nan"),
+        }
+        return scores, "error", str(exc), False
+    else:
+        return scores, "ok", "", save_reconstruction
+
+
+def _log_summary(df: pd.DataFrame, model_name: str) -> None:
+    ok_df = df[df["status"] == "ok"]
+    if not ok_df.empty:
+        log.info("--- Results for %s ---", model_name)
+        for metric in ["psnr", "ssim", "rmse"]:
+            if metric in ok_df.columns:
+                log.info(
+                    "  %s: %.4f +/- %.4f",
+                    metric.upper(),
+                    ok_df[metric].mean(),
+                    ok_df[metric].std(),
+                )
+        if "elapsed_s" in ok_df.columns:
+            log.info(
+                "  TIME: %.4fs +/- %.4fs",
+                ok_df["elapsed_s"].mean(),
+                ok_df["elapsed_s"].std(),
+            )
+
+    n_errors = len(df[df["status"] == "error"])
+    if n_errors > 0:
+        log.warning("Errors: %d / %d", n_errors, len(df))
+
+
+def main() -> None:
+    args = _build_parser().parse_args()
     if not args.checkpoint.exists():
         log.error("Checkpoint not found: %s", args.checkpoint)
         return
 
-    output_dir = args.output / args.model
-    setup_file_logging(output_dir / "evaluate.log")
+    setup_file_logging((args.output / args.model) / "evaluate.log")
 
     log.info("Loading model: %s", args.model)
     model = _load_model(args.model, args.checkpoint, args.device)
@@ -142,42 +204,28 @@ def main() -> None:
 
     for idx in range(len(test_ds)):
         x, clean_t, mask_t = test_ds[idx]
-
-        # Reconstruct numpy arrays for apply()
-        # clean_t: (C, H, W), mask_t: (H, W)
         clean_np = clean_t.permute(1, 2, 0).numpy()
         mask_np = mask_t.numpy()
-        # Input has C+1 channels; first C are degraded*~mask
-        c = clean_t.shape[0]
-        degraded_np = x[:c].permute(1, 2, 0).numpy()
-
+        channels = clean_t.shape[0]
+        degraded_np = x[:channels].permute(1, 2, 0).numpy()
         patch_id = int(test_ds.patch_ids[idx])
 
         t_start = time.perf_counter()
-        try:
-            result = model.apply(degraded_np, mask_np)
-            scores = m.compute_all(clean_np, result, mask_np)
-            status = "ok"
-            error_msg = ""
-
-            if (
-                args.save_reconstructions > 0
-                and n_saved < args.save_reconstructions
-            ):
-                recon_dir = output_dir / "reconstructions"
-                recon_dir.mkdir(parents=True, exist_ok=True)
-                np.save(recon_dir / f"{patch_id:07d}.npy", result)
-                n_saved += 1
-
-        except Exception as exc:
-            log.exception("Error on patch %d", patch_id)
-            scores = {
-                "psnr": float("nan"),
-                "ssim": float("nan"),
-                "rmse": float("nan"),
-            }
-            status = "error"
-            error_msg = str(exc)
+        should_save = (
+            args.save_reconstructions > 0
+            and n_saved < args.save_reconstructions
+        )
+        scores, status, error_msg, saved = _evaluate_single_patch(
+            model,
+            clean_np,
+            degraded_np,
+            mask_np,
+            patch_id,
+            output_dir,
+            should_save,
+        )
+        if saved:
+            n_saved += 1
         elapsed_s = time.perf_counter() - t_start
 
         row: dict[str, Any] = {
@@ -198,28 +246,7 @@ def main() -> None:
     csv_path = output_dir / "results.csv"
     df.to_csv(csv_path, index=False)
 
-    ok_df = df[df["status"] == "ok"]
-    if not ok_df.empty:
-        log.info("--- Results for %s ---", model.name)
-        for metric in ["psnr", "ssim", "rmse"]:
-            if metric in ok_df.columns:
-                log.info(
-                    "  %s: %.4f +/- %.4f",
-                    metric.upper(),
-                    ok_df[metric].mean(),
-                    ok_df[metric].std(),
-                )
-        if "elapsed_s" in ok_df.columns:
-            log.info(
-                "  TIME: %.4fs +/- %.4fs",
-                ok_df["elapsed_s"].mean(),
-                ok_df["elapsed_s"].std(),
-            )
-
-    n_errors = len(df[df["status"] == "error"])
-    if n_errors > 0:
-        log.warning("Errors: %d / %d", n_errors, len(df))
-
+    _log_summary(df, model.name)
     log.info("Elapsed: %.1fs", elapsed)
     log.info("Results saved to: %s", csv_path)
 

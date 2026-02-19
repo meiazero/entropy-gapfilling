@@ -94,6 +94,7 @@ def _load_completed(output_path: Path) -> set[tuple[int, str, str, int]]:
             df["noise_level"].astype(str),
             df["method"],
             df["patch_id"].astype(int),
+            strict=True,
         )
     )
 
@@ -163,6 +164,271 @@ def _load_patch_selections(
     }
 
 
+def _dataset_for_combo(
+    manifest_path: Path,
+    config: ExperimentConfig,
+    selections: dict[str, dict[int, list[int]]] | None,
+    *,
+    seed: int,
+    noise_level: str,
+    satellite: str,
+) -> PatchDataset:
+    selected_ids = (
+        selections.get(satellite, {}).get(seed) if selections else None
+    )
+    return PatchDataset(
+        manifest_path,
+        split="test",
+        satellite=satellite,
+        noise_level=noise_level,
+        max_patches=config.max_patches,
+        seed=seed,
+        selected_ids=selected_ids,
+    )
+
+
+def _compute_total_work(
+    manifest_path: Path,
+    config: ExperimentConfig,
+    selections: dict[str, dict[int, list[int]]] | None,
+) -> int:
+    total = 0
+    for seed in config.seeds:
+        for noise_level in config.noise_levels:
+            for satellite in config.satellites:
+                dataset = _dataset_for_combo(
+                    manifest_path,
+                    config,
+                    selections,
+                    seed=seed,
+                    noise_level=noise_level,
+                    satellite=satellite,
+                )
+                total += len(dataset) * len(config.methods)
+    return total
+
+
+def _build_method_instances(
+    methods: list,
+) -> dict[str, object]:
+    instances: dict[str, object] = {}
+    for method_cfg in methods:
+        instances[method_cfg.name] = get_interpolator(
+            method_cfg.name,
+            **method_cfg.params,
+        )
+        log.info("Loaded method: %s", method_cfg.name)
+    return instances
+
+
+def _entropy_for_patch(
+    patch: Any,
+    entropy_keys: set[str],
+    config: ExperimentConfig,
+    preprocessed_dir: Path,
+) -> dict[str, float]:
+    if patch.mean_entropy is not None:
+        entropy = {
+            key: value
+            for key, value in patch.mean_entropy.items()
+            if key in entropy_keys
+        }
+        missing = [
+            ws
+            for ws in config.entropy_windows
+            if f"entropy_{ws}" not in entropy
+        ]
+        if missing:
+            entropy.update(
+                _load_entropy(
+                    preprocessed_dir,
+                    patch.split,
+                    patch.satellite,
+                    patch.patch_id,
+                    missing,
+                    clean=patch.clean,
+                )
+            )
+        return entropy
+
+    return _load_entropy(
+        preprocessed_dir,
+        patch.split,
+        patch.satellite,
+        patch.patch_id,
+        config.entropy_windows,
+        clean=patch.clean,
+    )
+
+
+def _evaluate_patch(
+    method: object,
+    patch: Any,
+    *,
+    seed: int,
+    noise_level: str,
+    method_name: str,
+    method_category: str,
+    metrics_module: object,
+    recon_manager: ReconstructionManager,
+    preprocessed_dir: Path,
+    config: ExperimentConfig,
+    entropy_keys: set[str],
+) -> dict[str, Any]:
+    t_start = time.perf_counter()
+    try:
+        result = method.apply(patch.degraded, patch.mask)
+        scores = metrics_module.compute_all(patch.clean, result, patch.mask)
+        status = "ok"
+        error_msg = ""
+
+        recon_manager.maybe_save_entropy_extreme(
+            noise_level,
+            method_name,
+            patch.patch_id,
+            result,
+            patch.clean,
+            patch.degraded,
+            patch.mask,
+        )
+        recon_manager.maybe_save_first(
+            seed,
+            noise_level,
+            method_name,
+            patch.patch_id,
+            result,
+        )
+    except Exception as exc:
+        log.exception(
+            "Error: seed=%d noise=%s method=%s patch=%d",
+            seed,
+            noise_level,
+            method_name,
+            patch.patch_id,
+        )
+        scores = {
+            "psnr": float("nan"),
+            "ssim": float("nan"),
+            "rmse": float("nan"),
+            "sam": float("nan"),
+        }
+        status = "error"
+        error_msg = str(exc)
+
+    elapsed_s = time.perf_counter() - t_start
+    entropy = _entropy_for_patch(patch, entropy_keys, config, preprocessed_dir)
+
+    row: dict[str, Any] = {
+        "seed": seed,
+        "noise_level": noise_level,
+        "method": method_name,
+        "method_category": method_category,
+        "patch_id": patch.patch_id,
+        "satellite": patch.satellite,
+        "gap_fraction": patch.gap_fraction,
+        "status": status,
+        "error_msg": error_msg,
+        "elapsed_s": elapsed_s,
+    }
+    row.update(entropy)
+    row.update(scores)
+    return row
+
+
+def _run_evaluation_loop(
+    *,
+    config: ExperimentConfig,
+    manifest_path: Path,
+    selections: dict[str, Any] | None,
+    methods: list[Any],
+    method_instances: dict[str, Any],
+    completed: set[tuple[Any, ...]],
+    metrics_module: Any,
+    recon_manager: ReconstructionManager,
+    preprocessed_dir: Path,
+    entropy_keys: set[str],
+    output_path: Path,
+    total_work: int,
+    checkpoint_interval: int = 500,
+) -> tuple[int, int]:
+    """Run the inner evaluation loop. Returns (n_done, n_skipped)."""
+    buffer: list[dict[str, Any]] = []
+    n_done = 0
+    n_skipped = 0
+
+    with tqdm(total=total_work, desc="Experiment") as pbar:
+        for seed in config.seeds:
+            for noise_level in config.noise_levels:
+                for sat in config.satellites:
+                    ds = _dataset_for_combo(
+                        manifest_path,
+                        config,
+                        selections,
+                        seed=seed,
+                        noise_level=noise_level,
+                        satellite=sat,
+                    )
+
+                    for mc in methods:
+                        method = method_instances[mc.name]
+
+                        for patch in ds:
+                            key = (
+                                seed,
+                                noise_level,
+                                mc.name,
+                                patch.patch_id,
+                            )
+                            if key in completed:
+                                n_skipped += 1
+                                pbar.update(1)
+                                continue
+                            row = _evaluate_patch(
+                                method,
+                                patch,
+                                seed=seed,
+                                noise_level=noise_level,
+                                method_name=mc.name,
+                                method_category=mc.category,
+                                metrics_module=metrics_module,
+                                recon_manager=recon_manager,
+                                preprocessed_dir=preprocessed_dir,
+                                config=config,
+                                entropy_keys=entropy_keys,
+                            )
+
+                            buffer.append(row)
+                            n_done += 1
+                            pbar.update(1)
+
+                            if len(buffer) >= checkpoint_interval:
+                                _save_checkpoint(buffer, output_path)
+                                buffer.clear()
+
+    _save_checkpoint(buffer, output_path)
+    buffer.clear()
+    return n_done, n_skipped
+
+
+def _log_failure_summary(output_path: Path) -> None:
+    """Log a summary of failed evaluations."""
+    csv_path = output_path / "raw_results.csv"
+    if not csv_path.exists():
+        return
+
+    all_df = pd.read_csv(csv_path)
+    if "status" not in all_df.columns:
+        return
+
+    errors = all_df[all_df["status"] == "error"]
+    if errors.empty:
+        return
+
+    log.warning("--- Failure Summary: %d errors ---", len(errors))
+    for method, group in errors.groupby("method"):
+        log.warning("  %s: %d failures", method, len(group))
+
+
 def run_experiment(
     config: ExperimentConfig,
     dry_run: bool = False,
@@ -191,23 +457,7 @@ def run_experiment(
     _ensure_entropy_precomputed(preprocessed_dir, config.entropy_windows)
 
     methods = config.methods
-
-    # Count total work across all seeds (each seed may select different patches)
-    total_work = 0
-    for seed in config.seeds:
-        for noise_level in config.noise_levels:
-            for sat in config.satellites:
-                sel = selections.get(sat, {}).get(seed) if selections else None
-                ds = PatchDataset(
-                    manifest_path,
-                    split="test",
-                    satellite=sat,
-                    noise_level=noise_level,
-                    max_patches=config.max_patches,
-                    seed=seed,
-                    selected_ids=sel,
-                )
-                total_work += len(ds) * len(methods)
+    total_work = _compute_total_work(manifest_path, config, selections)
 
     log.info("Experiment: %s", config.name)
     log.info("Seeds: %d", len(config.seeds))
@@ -225,11 +475,7 @@ def run_experiment(
     if completed:
         log.info("Resuming: %d evaluations already completed", len(completed))
 
-    # Instantiate all methods
-    method_instances = {}
-    for mc in methods:
-        method_instances[mc.name] = get_interpolator(mc.name, **mc.params)
-        log.info("Loaded method: %s", mc.name)
+    method_instances = _build_method_instances(methods)
 
     entropy_extremes = compute_entropy_extremes(
         manifest_path,
@@ -246,169 +492,25 @@ def run_experiment(
         first_seed=config.seeds[0] if config.seeds else None,
     )
 
-    checkpoint_interval = 500
-    buffer: list[dict[str, Any]] = []
-    n_done = 0
-    n_skipped = 0
     t0 = time.monotonic()
     entropy_keys = {f"entropy_{ws}" for ws in config.entropy_windows}
 
-    with tqdm(total=total_work, desc="Experiment") as pbar:
-        for seed in config.seeds:
-            rng = np.random.default_rng(seed)
-            _ = rng  # seed reserved for future stochastic methods
+    n_done, n_skipped = _run_evaluation_loop(
+        config=config,
+        manifest_path=manifest_path,
+        selections=selections,
+        methods=methods,
+        method_instances=method_instances,
+        completed=completed,
+        metrics_module=m,
+        recon_manager=recon_manager,
+        preprocessed_dir=preprocessed_dir,
+        entropy_keys=entropy_keys,
+        output_path=output_path,
+        total_work=total_work,
+    )
 
-            for noise_level in config.noise_levels:
-                for sat in config.satellites:
-                    sel = (
-                        selections.get(sat, {}).get(seed)
-                        if selections
-                        else None
-                    )
-                    ds = PatchDataset(
-                        manifest_path,
-                        split="test",
-                        satellite=sat,
-                        noise_level=noise_level,
-                        max_patches=config.max_patches,
-                        seed=seed,
-                        selected_ids=sel,
-                    )
-
-                    for mc in methods:
-                        method = method_instances[mc.name]
-
-                        for patch in ds:
-                            key = (
-                                seed,
-                                noise_level,
-                                mc.name,
-                                patch.patch_id,
-                            )
-                            if key in completed:
-                                n_skipped += 1
-                                pbar.update(1)
-                                continue
-
-                            t_start = time.perf_counter()
-                            try:
-                                result = method.apply(
-                                    patch.degraded, patch.mask
-                                )
-                                scores = m.compute_all(
-                                    patch.clean, result, patch.mask
-                                )
-                                status = "ok"
-                                error_msg = ""
-
-                                recon_manager.maybe_save_entropy_extreme(
-                                    noise_level,
-                                    mc.name,
-                                    patch.patch_id,
-                                    result,
-                                    patch.clean,
-                                    patch.degraded,
-                                    patch.mask,
-                                )
-                                recon_manager.maybe_save_first(
-                                    seed,
-                                    noise_level,
-                                    mc.name,
-                                    patch.patch_id,
-                                    result,
-                                )
-
-                            except Exception as exc:
-                                log.exception(
-                                    "Error: seed=%d noise=%s method=%s "
-                                    "patch=%d",
-                                    seed,
-                                    noise_level,
-                                    mc.name,
-                                    patch.patch_id,
-                                )
-                                scores = {
-                                    "psnr": float("nan"),
-                                    "ssim": float("nan"),
-                                    "rmse": float("nan"),
-                                    "sam": float("nan"),
-                                }
-                                status = "error"
-                                error_msg = str(exc)
-                            elapsed_s = time.perf_counter() - t_start
-
-                            # Use precomputed mean entropy from manifest
-                            # (avoids per-patch file I/O); fall back to
-                            # loading entropy maps only when missing.
-                            if patch.mean_entropy is not None:
-                                entropy = {
-                                    k: v
-                                    for k, v in patch.mean_entropy.items()
-                                    if k in entropy_keys
-                                }
-                                # Fill any missing windows
-                                missing = [
-                                    ws
-                                    for ws in config.entropy_windows
-                                    if f"entropy_{ws}" not in entropy
-                                ]
-                                if missing:
-                                    extra = _load_entropy(
-                                        preprocessed_dir,
-                                        patch.split,
-                                        patch.satellite,
-                                        patch.patch_id,
-                                        missing,
-                                        clean=patch.clean,
-                                    )
-                                    entropy.update(extra)
-                            else:
-                                entropy = _load_entropy(
-                                    preprocessed_dir,
-                                    patch.split,
-                                    patch.satellite,
-                                    patch.patch_id,
-                                    config.entropy_windows,
-                                    clean=patch.clean,
-                                )
-
-                            row: dict[str, Any] = {
-                                "seed": seed,
-                                "noise_level": noise_level,
-                                "method": mc.name,
-                                "method_category": mc.category,
-                                "patch_id": patch.patch_id,
-                                "satellite": patch.satellite,
-                                "gap_fraction": patch.gap_fraction,
-                                "status": status,
-                                "error_msg": error_msg,
-                                "elapsed_s": elapsed_s,
-                            }
-                            row.update(entropy)
-                            row.update(scores)
-
-                            buffer.append(row)
-                            n_done += 1
-                            pbar.update(1)
-
-                            if len(buffer) >= checkpoint_interval:
-                                _save_checkpoint(buffer, output_path)
-                                buffer.clear()
-
-    # Final flush
-    _save_checkpoint(buffer, output_path)
-    buffer.clear()
-
-    # Log failure summary
-    csv_path = output_path / "raw_results.csv"
-    if csv_path.exists():
-        all_df = pd.read_csv(csv_path)
-        if "status" in all_df.columns:
-            errors = all_df[all_df["status"] == "error"]
-            if not errors.empty:
-                log.warning("--- Failure Summary: %d errors ---", len(errors))
-                for method, group in errors.groupby("method"):
-                    log.warning("  %s: %d failures", method, len(group))
+    _log_failure_summary(output_path)
 
     elapsed = time.monotonic() - t0
     log.info("--- Experiment Complete ---")
@@ -443,7 +545,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=int,
         default=0,
         metavar="N",
-        help="Save first N reconstruction arrays per method per noise level (first seed).",
+        help=(
+            "Save first N reconstruction arrays per method "
+            "per noise level (first seed)."
+        ),
     )
     parser.add_argument(
         "--save-entropy-top-k",

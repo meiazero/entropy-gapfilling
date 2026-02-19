@@ -25,7 +25,8 @@ class IDWInterpolator(BaseMethod):
 
     Shepard's method (p=2 default). Vectorized when kernel_size is None.
 
-    Citation: Wikipedia contributors. "Inverse distance weighting." Wikipedia, The Free Encyclopedia.
+    Citation: Wikipedia contributors. "Inverse distance weighting."
+    Wikipedia, The Free Encyclopedia.
     https://en.wikipedia.org/wiki/Inverse_distance_weighting
     """
 
@@ -126,7 +127,7 @@ class IDWInterpolator(BaseMethod):
                 result[gap_y, gap_x] = weighted / weight_sums
         else:
             # Windowed per-pixel fallback for local kernel sizes
-            for y, x in zip(gap_y, gap_x):
+            for y, x in zip(gap_y, gap_x, strict=True):
                 y_min = max(0, int(y) - radius)
                 y_max = min(h, int(y) + radius + 1)
                 x_min = max(0, int(x) - radius)

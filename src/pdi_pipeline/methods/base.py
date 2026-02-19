@@ -130,7 +130,10 @@ class BaseMethod(ABC):
             return mask_bool
         if mask_bool.ndim == 3:
             return np.any(mask_bool, axis=2)
-        msg = f"Mask must be 2D or 3D, got ndim={mask_bool.ndim}, shape={mask_bool.shape}"
+        msg = (
+            "Mask must be 2D or 3D, got "
+            f"ndim={mask_bool.ndim}, shape={mask_bool.shape}"
+        )
         raise DimensionError(msg)
 
     @staticmethod

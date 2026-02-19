@@ -5,7 +5,8 @@ standalone .tex file that can be included via \\input{}.
 
 Usage:
     uv run python scripts/generate_tables.py --results results/paper_results
-    uv run python scripts/generate_tables.py --results results/paper_results --table 2
+    uv run python scripts/generate_tables.py \
+        --results results/paper_results --table 2
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ import logging
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 
 from pdi_pipeline.aggregation import (
     load_results,
@@ -89,12 +91,90 @@ def _write_tex(content: str, path: Path) -> None:
     log.info("Saved %s", path)
 
 
+def _stars_for_p_value(p_value: float) -> str:
+    if np.isnan(p_value):
+        return ""
+    if p_value < 0.001:
+        return "***"
+    if p_value < 0.01:
+        return "**"
+    if p_value < 0.05:
+        return "*"
+    return ""
+
+
+def _format_table4_cell(
+    method_df: pd.DataFrame,
+    entropy_col: str,
+    metric_col: str,
+) -> str:
+    row = method_df[
+        (method_df["entropy_col"] == entropy_col)
+        & (method_df["metric_col"] == metric_col)
+    ]
+    if row.empty:
+        return "--"
+
+    rr = row.iloc[0]
+    rho = float(rr["spearman_rho"])
+    p_col = (
+        "spearman_p_corrected"
+        if "spearman_p_corrected" in rr.index
+        else "spearman_p"
+    )
+    stars = _stars_for_p_value(float(rr[p_col]))
+    return f"${rho:.3f}${stars}"
+
+
+def _collect_dl_rows(dl_base: Path) -> list[dict[str, object]]:
+    dl_rows: list[dict[str, object]] = []
+    if not dl_base.exists():
+        return dl_rows
+
+    for model_dir in sorted(dl_base.iterdir()):
+        csv_path = model_dir / "results.csv"
+        if not csv_path.exists():
+            continue
+
+        dl_df = pd.read_csv(csv_path)
+        ok = dl_df[dl_df["status"] == "ok"]
+        if ok.empty:
+            continue
+
+        dl_rows.append({
+            "method": model_dir.name,
+            "psnr": ok["psnr"].mean(),
+            "ssim": ok["ssim"].mean(),
+            "rmse": ok["rmse"].mean(),
+            "type": "Deep Learning",
+        })
+    return dl_rows
+
+
+def _add_metric_rankings(df: pd.DataFrame, metrics: list[str]) -> None:
+    for metric_col in metrics:
+        df[f"rank_{metric_col}"] = df[metric_col].rank(
+            ascending=(metric_col == "rmse"), method="min"
+        )
+
+
+def _format_table8_metric(value: float, rank: int) -> str:
+    if rank == 1:
+        return f"\\textbf{{{value:.3f}}}"
+    if rank == 2:
+        return f"\\underline{{{value:.3f}}}"
+    return f"${value:.3f}$"
+
+
 def table1_method_overview(output_dir: Path) -> None:
     """Table 1: Method overview with category, parameters, complexity."""
     lines = [
         r"\begin{table}[htbp]",
         r"\centering",
-        r"\caption{Overview of the 15 classical gap-filling methods evaluated.}",
+        (
+            r"\caption{Overview of the 15 classical gap-filling methods "
+            r"evaluated.}"
+        ),
         r"\label{tab:methods}",
         r"\footnotesize",
         r"\begin{tabular}{llllc}",
@@ -204,7 +284,10 @@ def table3_entropy_stratified(results_dir: Path, output_dir: Path) -> None:
         lines = [
             r"\begin{table}[htbp]",
             r"\centering",
-            rf"\caption{{Mean PSNR (dB) $\pm$ 95\% CI stratified by entropy tercile ({ws}$\times${ws} window).}}",
+            (
+                rf"\caption{{Mean PSNR (dB) $\pm$ 95\% CI stratified "
+                rf"by entropy tercile ({ws}$\times${ws} window).}}"
+            ),
             rf"\label{{tab:entropy_stratified_{ws}}}",
             r"\footnotesize",
             r"\begin{tabular}{lccc}",
@@ -278,10 +361,10 @@ def table4_correlation(results_dir: Path, output_dir: Path) -> None:
     lines = [
         r"\begin{table}[htbp]",
         r"\centering",
-        r"\caption{Spearman correlation between local entropy and metrics. Significance: * $p < 0.05$, ** $p < 0.01$, *** $p < 0.001$ (FDR-corrected).}",
+        r"\caption{Spearman correlation between entropy and quality metrics.}",
         r"\label{tab:correlation}",
-        r"\tiny",
-        f"\\begin{{tabular}}{{{col_spec}}}",
+        r"\footnotesize",
+        rf"\begin{{tabular}}{{{col_spec}}}",
         r"\toprule",
         " & ".join(header_parts) + r" \\",
         r"\midrule",
@@ -292,30 +375,7 @@ def table4_correlation(results_dir: Path, output_dir: Path) -> None:
         cells = [method]
         for ecol in entropy_cols:
             for mcol in metric_cols:
-                row = mdf[
-                    (mdf["entropy_col"] == ecol) & (mdf["metric_col"] == mcol)
-                ]
-                if row.empty:
-                    cells.append("--")
-                else:
-                    r = row.iloc[0]
-                    rho = r["spearman_rho"]
-                    # Use FDR-corrected p-value when available
-                    p_col = (
-                        "spearman_p_corrected"
-                        if "spearman_p_corrected" in r.index
-                        else "spearman_p"
-                    )
-                    p = r[p_col]
-                    stars = ""
-                    if not np.isnan(p):
-                        if p < 0.001:
-                            stars = "***"
-                        elif p < 0.01:
-                            stars = "**"
-                        elif p < 0.05:
-                            stars = "*"
-                    cells.append(f"${rho:.3f}${stars}")
+                cells.append(_format_table4_cell(mdf, ecol, mcol))
         lines.append(" & ".join(cells) + r" \\")
 
     lines.extend([
@@ -334,12 +394,18 @@ def table5_kruskal_wallis(results_dir: Path, output_dir: Path) -> None:
     lines = [
         r"\begin{table}[htbp]",
         r"\centering",
-        r"\caption{Kruskal-Wallis test and significant pairwise differences (Dunn post-hoc, Bonferroni correction).}",
+        (
+            r"\caption{Kruskal-Wallis test and significant pairwise "
+            r"differences (Dunn post-hoc, Bonferroni correction).}"
+        ),
         r"\label{tab:kruskal}",
         r"\footnotesize",
         r"\begin{tabular}{lcccc}",
         r"\toprule",
-        r"Metric & H statistic & $p$-value & $\epsilon^2$ & Significant pairs \\",
+        (
+            r"Metric & H statistic & $p$-value & $\epsilon^2$ "
+            r"& Significant pairs \\",
+        ),
         r"\midrule",
     ]
 
@@ -463,7 +529,10 @@ def table7_satellite(results_dir: Path, output_dir: Path) -> None:
     lines = [
         r"\begin{table}[htbp]",
         r"\centering",
-        r"\caption{Mean PSNR (dB) $\pm$ 95\% CI per method and satellite sensor.}",
+        (
+            r"\caption{Mean PSNR (dB) $\pm$ 95\% CI per method "
+            r"and satellite sensor.}"
+        ),
         r"\label{tab:satellite}",
         r"\footnotesize",
         f"\\begin{{tabular}}{{{col_spec}}}",
@@ -525,21 +594,7 @@ def table8_dl_comparison(results_dir: Path, output_dir: Path) -> None:
 
     # Load DL results
     dl_base = results_dir.parent / "dl_eval"
-    dl_rows = []
-    if dl_base.exists():
-        for model_dir in sorted(dl_base.iterdir()):
-            csv = model_dir / "results.csv"
-            if csv.exists():
-                dl_df = pd.read_csv(csv)
-                ok = dl_df[dl_df["status"] == "ok"]
-                if not ok.empty:
-                    dl_rows.append({
-                        "method": model_dir.name,
-                        "psnr": ok["psnr"].mean(),
-                        "ssim": ok["ssim"].mean(),
-                        "rmse": ok["rmse"].mean(),
-                        "type": "Deep Learning",
-                    })
+    dl_rows = _collect_dl_rows(dl_base)
 
     if not dl_rows:
         log.warning(
@@ -558,7 +613,10 @@ def table8_dl_comparison(results_dir: Path, output_dir: Path) -> None:
     lines = [
         r"\begin{table}[htbp]",
         r"\centering",
-        r"\caption{Performance comparison: classical interpolation vs.\ deep learning methods.}",
+        (
+            r"\caption{Performance comparison: classical interpolation "
+            r"vs.\ deep learning methods.}"
+        ),
         r"\label{tab:dl_comparison}",
         r"\footnotesize",
         r"\begin{tabular}{ll" + "c" * len(present) + "}",
@@ -568,10 +626,7 @@ def table8_dl_comparison(results_dir: Path, output_dir: Path) -> None:
     ]
 
     # Rankings for bold/underline
-    for m_col in present:
-        combined[f"rank_{m_col}"] = combined[m_col].rank(
-            ascending=(m_col == "rmse"), method="min"
-        )
+    _add_metric_rankings(combined, present)
 
     prev_type = ""
     for row in combined.itertuples():
@@ -581,14 +636,9 @@ def table8_dl_comparison(results_dir: Path, output_dir: Path) -> None:
         method_str = str(row.method).replace("_", r"\_")
         cells = [type_str, method_str]
         for m_col in present:
-            val = getattr(row, m_col)
+            val = float(getattr(row, m_col))
             rank = int(getattr(row, f"rank_{m_col}"))
-            if rank == 1:
-                cells.append(f"\\textbf{{{val:.3f}}}")
-            elif rank == 2:
-                cells.append(f"\\underline{{{val:.3f}}}")
-            else:
-                cells.append(f"${val:.3f}$")
+            cells.append(_format_table8_metric(val, rank))
         lines.append(" & ".join(cells) + r" \\")
 
     lines.extend([

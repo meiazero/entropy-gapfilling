@@ -14,7 +14,8 @@ logger = logging.getLogger(__name__)
 
 class NearestInterpolator(BaseMethod):
     """Piecewise-constant fill using the closest known pixel (Euclidean).
-    Citation: Wikipedia contributors. "Nearest-neighbor interpolation." Wikipedia, The Free Encyclopedia.
+    Citation: Wikipedia contributors. "Nearest-neighbor interpolation."
+    Wikipedia, The Free Encyclopedia.
     https://en.wikipedia.org/wiki/Nearest-neighbor_interpolation
     """
 

@@ -49,7 +49,10 @@ class TestPSNR:
             psnr(np.zeros((4, 4)), np.zeros((4, 5)), np.ones((4, 4)))
 
     def test_nan_input_gives_finite_result(self) -> None:
-        """NaN in reconstructed pixels should produce a finite (non-inf) PSNR."""
+        """NaN in reconstructed pixels should produce a finite PSNR.
+
+        Specifically, it should be non-infinite.
+        """
         clean = np.ones((4, 4), dtype=np.float32)
         recon = np.ones((4, 4), dtype=np.float32)
         recon[0, 0] = np.nan

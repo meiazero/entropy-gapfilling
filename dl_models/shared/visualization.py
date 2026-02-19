@@ -176,7 +176,7 @@ def plot_pixel_accuracy_f1(
     for i, h in enumerate(histories):
         ax = axes[0, i]
         epochs = _get_epochs(h)
-        for j, (tk, tl) in enumerate(zip(thresholds, tau_labels)):
+        for j, (tk, tl) in enumerate(zip(thresholds, tau_labels, strict=True)):
             pa = _get_values(h, f"val_pixel_acc_{tk}")
             f1 = _get_values(h, f"val_f1_{tk}")
             c = COLORS[j % len(COLORS)]

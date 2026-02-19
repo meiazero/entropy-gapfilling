@@ -59,19 +59,14 @@ VALID_CATEGORIES = frozenset({
 })
 
 
-def _validate_raw(raw: dict[str, Any]) -> None:
-    """Validate the raw YAML structure before dataclass construction.
-
-    Raises:
-        ConfigError: If required keys are missing or types are wrong.
-    """
-    # Top-level keys
+def _ensure_top_level_keys(raw: dict[str, Any]) -> None:
     for key in ("experiment", "methods"):
         if key not in raw:
             msg = f"Config missing required top-level key: {key!r}"
             raise ConfigError(msg)
 
-    exp = raw["experiment"]
+
+def _validate_experiment_section(exp: Any) -> None:
     if not isinstance(exp, dict):
         msg = "Config 'experiment' must be a mapping"
         raise ConfigError(msg)
@@ -88,37 +83,36 @@ def _validate_raw(raw: dict[str, Any]) -> None:
             msg = f"Config 'experiment' missing required key: {key!r}"
             raise ConfigError(msg)
 
-    # Type checks
     if not isinstance(exp["name"], str) or not exp["name"]:
         msg = "experiment.name must be a non-empty string"
         raise ConfigError(msg)
 
     if not isinstance(exp["seeds"], list) or not all(
-        isinstance(s, int) for s in exp["seeds"]
+        isinstance(seed, int) for seed in exp["seeds"]
     ):
         msg = "experiment.seeds must be a list of integers"
         raise ConfigError(msg)
 
     if not isinstance(exp["noise_levels"], list) or not all(
-        isinstance(n, str) for n in exp["noise_levels"]
+        isinstance(noise, str) for noise in exp["noise_levels"]
     ):
         msg = "experiment.noise_levels must be a list of strings"
         raise ConfigError(msg)
 
     if not isinstance(exp["satellites"], list) or not all(
-        isinstance(s, str) for s in exp["satellites"]
+        isinstance(satellite, str) for satellite in exp["satellites"]
     ):
         msg = "experiment.satellites must be a list of strings"
         raise ConfigError(msg)
 
     if not isinstance(exp["entropy_windows"], list) or not all(
-        isinstance(w, int) for w in exp["entropy_windows"]
+        isinstance(window, int) for window in exp["entropy_windows"]
     ):
         msg = "experiment.entropy_windows must be a list of integers"
         raise ConfigError(msg)
 
-    # Methods validation
-    methods_raw = raw["methods"]
+
+def _validate_methods_section(methods_raw: Any) -> None:
     if not isinstance(methods_raw, dict):
         msg = "Config 'methods' must be a mapping of category -> method list"
         raise ConfigError(msg)
@@ -148,6 +142,17 @@ def _validate_raw(raw: dict[str, Any]) -> None:
             if not isinstance(item["name"], str) or not item["name"]:
                 msg = f"Method name in {category!r} must be a non-empty string"
                 raise ConfigError(msg)
+
+
+def _validate_raw(raw: dict[str, Any]) -> None:
+    """Validate the raw YAML structure before dataclass construction.
+
+    Raises:
+        ConfigError: If required keys are missing or types are wrong.
+    """
+    _ensure_top_level_keys(raw)
+    _validate_experiment_section(raw["experiment"])
+    _validate_methods_section(raw["methods"])
 
 
 def _parse_methods(raw: dict[str, list[dict]]) -> list[MethodConfig]:

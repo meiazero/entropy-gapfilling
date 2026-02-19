@@ -1,4 +1,7 @@
-"""Integration tests for DCT, Wavelet, and TV inpainting using synthetic data."""
+"""Integration tests for DCT, Wavelet, and TV inpainting.
+
+Uses synthetic data.
+"""
 
 from __future__ import annotations
 

@@ -1,4 +1,7 @@
-"""Integration tests for L1 Wavelet and L1 DCT compressive sensing using synthetic data."""
+"""Integration tests for L1 Wavelet and L1 DCT compressive sensing.
+
+Uses synthetic data.
+"""
 
 from __future__ import annotations
 

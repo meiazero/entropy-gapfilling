@@ -30,7 +30,8 @@ class KrigingInterpolator(BaseMethod):
 
     Uses ``pykrige.ok.OrdinaryKriging`` with configurable variogram model.
 
-    Citation: Wikipedia contributors. "Kriging." Wikipedia, The Free Encyclopedia.
+    Citation: Wikipedia contributors. "Kriging." Wikipedia,
+    The Free Encyclopedia.
     https://en.wikipedia.org/wiki/Kriging
     """
 
@@ -84,7 +85,10 @@ class KrigingInterpolator(BaseMethod):
         finite_mask = np.isfinite(train_values)
         if int(np.sum(finite_mask)) < _MIN_TRAINING_POINTS:
             logger.warning(
-                "Insufficient finite training values (%d < %d); skipping channel",
+                (
+                    "Insufficient finite training values (%d < %d); "
+                    "skipping channel"
+                ),
                 int(np.sum(finite_mask)),
                 _MIN_TRAINING_POINTS,
             )
@@ -103,7 +107,10 @@ class KrigingInterpolator(BaseMethod):
 
         if x_points.size < _MIN_TRAINING_POINTS:
             logger.warning(
-                "Insufficient unique training points (%d < %d); skipping channel",
+                (
+                    "Insufficient unique training points (%d < %d); "
+                    "skipping channel"
+                ),
                 x_points.size,
                 _MIN_TRAINING_POINTS,
             )
@@ -176,14 +183,20 @@ class KrigingInterpolator(BaseMethod):
 
         if len(valid_y) < _MIN_TRAINING_POINTS:
             logger.warning(
-                "Insufficient valid pixels (%d < %d); returning input unchanged",
+                (
+                    "Insufficient valid pixels (%d < %d); "
+                    "returning input unchanged"
+                ),
                 len(valid_y),
                 _MIN_TRAINING_POINTS,
             )
             return self._finalize(degraded.copy())
 
         logger.debug(
-            "Kriging interpolation: %d gap pixels, %d valid pixels, variogram=%s",
+            (
+                "Kriging interpolation: %d gap pixels, "
+                "%d valid pixels, variogram=%s"
+            ),
             len(gap_y),
             len(valid_y),
             self.variogram_model,

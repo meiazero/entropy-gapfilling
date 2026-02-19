@@ -17,7 +17,8 @@ logger = logging.getLogger(__name__)
 
 # Module-level cache: reuse the same footprint array for repeated window sizes.
 # footprint_rectangle creates a uint8 array; caching avoids repeated allocations
-# when shannon_entropy is called thousands of times (e.g. 77k patches x 3 windows).
+# when shannon_entropy is called thousands of times
+# (e.g. 77k patches x 3 windows).
 _FOOTPRINT_CACHE: dict[int, np.ndarray] = {}
 
 

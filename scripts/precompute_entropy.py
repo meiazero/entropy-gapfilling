@@ -67,6 +67,48 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _compute_patch_entropy(
+    row: dict[str, object],
+    preprocessed_dir: Path,
+    windows: list[int],
+    *,
+    resume: bool,
+) -> tuple[int, dict[str, float], bool] | None:
+    patch_id = int(row["patch_id"])
+    split = str(row["split"])
+    satellite = str(row["satellite"])
+    clean_path = preprocessed_dir / str(row["clean_path"])
+
+    if not clean_path.exists():
+        log.warning("Clean patch not found: %s", clean_path)
+        return None
+
+    patch_entropy: dict[str, float] = {}
+    all_exist = True
+    clean: np.ndarray | None = None
+
+    for ws in windows:
+        out_path = entropy_path(
+            preprocessed_dir, split, satellite, patch_id, ws
+        )
+
+        if resume and out_path.exists():
+            arr = np.load(out_path)
+            patch_entropy[f"mean_entropy_{ws}"] = float(np.mean(arr))
+            continue
+
+        all_exist = False
+        if clean is None:
+            clean = np.load(clean_path).astype(np.float32)
+
+        ent = shannon_entropy(clean, window_size=ws)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        np.save(out_path, ent)
+        patch_entropy[f"mean_entropy_{ws}"] = float(np.mean(ent))
+
+    return patch_id, patch_entropy, all_exist and resume
+
+
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
     preprocessed_dir: Path = args.preprocessed_dir
@@ -92,47 +134,20 @@ def main(argv: list[str] | None = None) -> None:
     entropy_means: dict[int, dict[str, float]] = {}
 
     for row in tqdm(rows, desc="Computing entropy"):
-        patch_id = int(row["patch_id"])
-        split = row["split"]
-        satellite = row["satellite"]
-        clean_path = preprocessed_dir / row["clean_path"]
-
-        if not clean_path.exists():
-            log.warning("Clean patch not found: %s", clean_path)
+        result = _compute_patch_entropy(
+            row,
+            preprocessed_dir,
+            windows,
+            resume=resume,
+        )
+        if result is None:
             continue
 
-        patch_entropy: dict[str, float] = {}
-        all_exist = True
-        clean: np.ndarray | None = None
-
-        for ws in windows:
-            out_path = entropy_path(
-                preprocessed_dir, split, satellite, patch_id, ws
-            )
-
-            if resume and out_path.exists():
-                arr = np.load(out_path)
-                patch_entropy[f"mean_entropy_{ws}"] = float(np.mean(arr))
-                continue
-
-            all_exist = False
-
-            # Load the clean patch once for all window sizes
-            if clean is None:
-                clean = np.load(clean_path).astype(np.float32)
-
-            ent = shannon_entropy(clean, window_size=ws)
-
-            out_path.parent.mkdir(parents=True, exist_ok=True)
-            np.save(out_path, ent)
-
-            patch_entropy[f"mean_entropy_{ws}"] = float(np.mean(ent))
-
-        if all_exist and resume:
+        patch_id, patch_entropy, was_skipped = result
+        if was_skipped:
             n_skipped += 1
         else:
             n_computed += 1
-
         entropy_means[patch_id] = patch_entropy
 
     # Vectorized manifest update: merge entropy_means into the DataFrame

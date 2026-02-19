@@ -69,7 +69,10 @@ class InpaintingDataset(Dataset):  # type: ignore[type-arg]
             raise FileNotFoundError(msg)
 
         if noise_level not in _NOISE_COL:
-            msg = f"Invalid noise_level: {noise_level!r}. Valid: {list(_NOISE_COL)}"
+            msg = (
+                f"Invalid noise_level: {noise_level!r}. "
+                f"Valid: {list(_NOISE_COL)}"
+            )
             raise ValueError(msg)
 
         self._base_dir = manifest_path.parent
@@ -111,7 +114,7 @@ class InpaintingDataset(Dataset):  # type: ignore[type-arg]
 
         df = df.reset_index(drop=True)
         self._records = df
-        # Pre-extract path columns as Python lists for O(1) index access in __getitem__
+        # Pre-extract path columns for O(1) index access in __getitem__
         self._clean_paths: list[str] = df["clean_path"].tolist()
         self._mask_paths: list[str] = df["mask_path"].tolist()
         self._degraded_paths: list[str] = df[self._noise_col].tolist()
