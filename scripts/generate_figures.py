@@ -17,6 +17,7 @@ from pathlib import Path
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import seaborn as sns
 
 from pdi_pipeline.aggregation import (
@@ -152,7 +153,13 @@ def fig1_entropy_examples(results_dir: Path, output_dir: Path) -> None:
 
     nrows = len(available_sats)
     ncols = len(window_sizes)
-    fig, axes = plt.subplots(nrows, ncols, figsize=FIGSIZE_GRID, squeeze=False)
+    fig, axes = plt.subplots(
+        nrows,
+        ncols,
+        figsize=FIGSIZE_GRID,
+        squeeze=False,
+        constrained_layout=True,
+    )
     fig.suptitle("Local Shannon Entropy at Multiple Scales")
 
     for row_idx, sat in enumerate(available_sats):
@@ -170,7 +177,6 @@ def fig1_entropy_examples(results_dir: Path, output_dir: Path) -> None:
             ax.set_title(f"{sat} - {ws}x{ws}")
             ax.axis("off")
 
-    fig.tight_layout()
     _save_figure(fig, output_dir, "fig1_entropy_examples")
     plt.close(fig)
     log.info("Saved fig1_entropy_examples")
@@ -185,8 +191,14 @@ def fig2_entropy_vs_psnr(results_dir: Path, output_dir: Path) -> None:
     ncols = min(5, n_methods)
     nrows = (n_methods + ncols - 1) // ncols
 
-    fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 2.5, nrows * 2.5))
-    axes_flat = np.array(axes).flatten() if n_methods > 1 else [axes]
+    fig, axes = plt.subplots(
+        nrows,
+        ncols,
+        figsize=(ncols * 2.5, nrows * 2.5),
+        squeeze=False,
+        constrained_layout=True,
+    )
+    axes_flat = axes.flatten()
 
     for idx, method in enumerate(methods):
         ax = axes_flat[idx]
@@ -195,12 +207,14 @@ def fig2_entropy_vs_psnr(results_dir: Path, output_dir: Path) -> None:
             ax.set_title(method)
             continue
 
-        ax.scatter(
-            mdf["entropy_7"],
-            mdf["psnr"],
+        sns.scatterplot(
+            data=mdf,
+            x="entropy_7",
+            y="psnr",
             s=1,
             alpha=0.3,
             rasterized=True,
+            ax=ax,
         )
         ax.set_xlabel("Entropy (7x7)")
         ax.set_ylabel("PSNR (dB)")
@@ -210,7 +224,6 @@ def fig2_entropy_vs_psnr(results_dir: Path, output_dir: Path) -> None:
     for idx in range(n_methods, len(axes_flat)):
         axes_flat[idx].set_visible(False)
 
-    fig.tight_layout()
     _save_figure(fig, output_dir, "fig2_entropy_vs_psnr")
     plt.close(fig)
     log.info("Saved fig2_entropy_vs_psnr")
@@ -229,15 +242,13 @@ def fig3_psnr_by_entropy_bin(results_dir: Path, output_dir: Path) -> None:
     t1 = float(valid["entropy_7"].quantile(1 / 3))
     t2 = float(valid["entropy_7"].quantile(2 / 3))
 
-    def _bin(v: float) -> str:
-        if v <= t1:
-            return "low"
-        if v <= t2:
-            return "medium"
-        return "high"
-
     valid = valid.copy()
-    valid["entropy_bin"] = valid["entropy_7"].apply(_bin)
+    valid["entropy_bin"] = pd.cut(
+        valid["entropy_7"],
+        bins=[-np.inf, t1, t2, np.inf],
+        labels=["low", "medium", "high"],
+        right=True,
+    )
 
     fig, ax = plt.subplots(figsize=FIGSIZE_DOUBLE)
     sns.boxplot(
@@ -265,13 +276,27 @@ def fig4_psnr_by_noise(results_dir: Path, output_dir: Path) -> None:
     """Fig 4: Boxplot of PSNR per method grouped by noise level."""
     df = load_results(results_dir)
 
+    valid = df.dropna(subset=["psnr", "noise_level", "method"])
+    if valid.empty:
+        log.warning("No valid data for fig4")
+        return
+
+    hue_order = [
+        level
+        for level in ["inf", "40", "30", "20"]
+        if level in set(valid["noise_level"].astype(str))
+    ]
+    if not hue_order:
+        log.warning("No noise levels available for fig4")
+        return
+
     fig, ax = plt.subplots(figsize=FIGSIZE_DOUBLE)
     sns.boxplot(
-        data=df,
+        data=valid,
         x="method",
         y="psnr",
         hue="noise_level",
-        hue_order=["inf", "40", "30", "20"],
+        hue_order=hue_order,
         ax=ax,
         fliersize=0.5,
         linewidth=0.5,
@@ -357,9 +382,9 @@ def fig5_lisa_clusters(results_dir: Path, output_dir: Path) -> None:
 
     nrows = len(representatives)
     ncols = 1 + len(selected_methods)  # error_map(best) + LISA per method
-    fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 2.5, nrows * 2.5))
-    if nrows == 1:
-        axes = axes[np.newaxis, :]
+    fig, axes = plt.subplots(
+        nrows, ncols, figsize=(ncols * 2.5, nrows * 2.5), squeeze=False
+    )
 
     for row_idx, (label, patch_id, satellite) in enumerate(representatives):
         clean_path = (
@@ -529,10 +554,12 @@ def fig6_visual_examples(results_dir: Path, output_dir: Path) -> None:
         nrows = len(representatives)
 
         fig, axes = plt.subplots(
-            nrows, ncols, figsize=(ncols * 1.8, nrows * 2.0)
+            nrows,
+            ncols,
+            figsize=(ncols * 1.8, nrows * 2.0),
+            squeeze=False,
+            constrained_layout=True,
         )
-        if nrows == 1:
-            axes = axes[np.newaxis, :]
 
         # Output directory for individual PNGs
         vis_dir = output_dir / "visual_examples" / sat
@@ -632,7 +659,6 @@ def fig6_visual_examples(results_dir: Path, output_dir: Path) -> None:
 
                 axes[row_idx, col].axis("off")
 
-        fig.tight_layout()
         _save_figure(fig, output_dir, f"fig6_visual_examples_{sat}")
         plt.close(fig)
         log.info("Saved fig6_visual_examples_%s", sat)
@@ -839,9 +865,13 @@ def fig9_local_metric_maps(results_dir: Path, output_dir: Path) -> None:
         return
 
     nrows = len(top_methods)
-    fig, axes = plt.subplots(nrows, 2, figsize=(5.0, nrows * 2.5))
-    if nrows == 1:
-        axes = axes[np.newaxis, :]
+    fig, axes = plt.subplots(
+        nrows,
+        2,
+        figsize=(5.0, nrows * 2.5),
+        squeeze=False,
+        constrained_layout=True,
+    )
 
     for row_idx, method in enumerate(top_methods):
         recon = _load_recon_array(results_dir, method, patch_id)
@@ -868,7 +898,6 @@ def fig9_local_metric_maps(results_dir: Path, output_dir: Path) -> None:
         f"Local Quality Maps (patch {patch_id}, {satellite})",
         fontsize=FONT_SIZE + 1,
     )
-    fig.tight_layout()
     _save_figure(fig, output_dir, "fig9_local_metric_maps")
     plt.close(fig)
     log.info("Saved fig9_local_metric_maps")

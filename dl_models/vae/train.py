@@ -109,6 +109,7 @@ def main() -> None:
         )
         return
 
+    _prefetch = 2 if num_workers > 0 else None
     train_loader = DataLoader(
         train_ds,
         batch_size=args.batch_size,
@@ -116,6 +117,7 @@ def main() -> None:
         num_workers=num_workers,
         pin_memory=pin,
         persistent_workers=num_workers > 0,
+        prefetch_factor=_prefetch,
     )
     val_loader = DataLoader(
         val_ds,
@@ -124,6 +126,7 @@ def main() -> None:
         num_workers=num_workers,
         pin_memory=pin,
         persistent_workers=num_workers > 0,
+        prefetch_factor=_prefetch,
     )
 
     log.info("Train: %d, Val: %d", len(train_ds), len(val_ds))
@@ -133,7 +136,7 @@ def main() -> None:
     early_stop = EarlyStopping(patience=args.patience)
 
     use_amp = device.type == "cuda"
-    scaler = torch.amp.GradScaler(device.type, enabled=use_amp)
+    scaler = torch.amp.GradScaler(device.type, enabled=use_amp)  # type: ignore[reportPrivateImportUsage]
 
     best_val_loss = float("inf")
 
@@ -161,7 +164,9 @@ def main() -> None:
         train_recon_sum = 0.0
         train_kl_sum = 0.0
         for step, (x, clean, mask) in enumerate(train_loader, 1):
-            x, clean, mask = x.to(device), clean.to(device), mask.to(device)
+            x = x.to(device, non_blocking=True)
+            clean = clean.to(device, non_blocking=True)
+            mask = mask.to(device, non_blocking=True)
             optimizer.zero_grad(set_to_none=True)
             with torch.autocast(device_type=device.type, enabled=use_amp):
                 pred, mu, logvar = model(x)
@@ -212,11 +217,9 @@ def main() -> None:
         val_masks: list[torch.Tensor] = []
         with torch.no_grad():
             for x, clean, mask in val_loader:
-                x, clean, mask = (
-                    x.to(device),
-                    clean.to(device),
-                    mask.to(device),
-                )
+                x = x.to(device, non_blocking=True)
+                clean = clean.to(device, non_blocking=True)
+                mask = mask.to(device, non_blocking=True)
                 with torch.autocast(device_type=device.type, enabled=use_amp):
                     pred, mu, logvar = model(x)
                     loss, recon, kl = vae_loss(

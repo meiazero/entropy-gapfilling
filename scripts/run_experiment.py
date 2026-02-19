@@ -25,13 +25,17 @@ from tqdm import tqdm
 
 from pdi_pipeline.config import ExperimentConfig, load_config
 from pdi_pipeline.dataset import PatchDataset
+from pdi_pipeline.experiment_artifacts import (
+    ReconstructionManager,
+    compute_entropy_extremes,
+    write_entropy_extremes_manifest,
+)
 from pdi_pipeline.logging_utils import (
     get_project_root,
     setup_file_logging,
     setup_logging,
 )
 from pdi_pipeline.methods.registry import get_interpolator
-from pdi_pipeline.visualization import save_array_as_png
 
 setup_logging()
 log = logging.getLogger(__name__)
@@ -128,6 +132,7 @@ def run_experiment(
     config: ExperimentConfig,
     dry_run: bool = False,
     save_reconstructions: int = 0,
+    save_entropy_top_k: int = 5,
 ) -> None:
     """Execute the full experiment loop."""
     from pdi_pipeline import metrics as m
@@ -189,11 +194,27 @@ def run_experiment(
         method_instances[mc.name] = get_interpolator(mc.name, **mc.params)
         log.info("Loaded method: %s", mc.name)
 
+    entropy_extremes = compute_entropy_extremes(
+        manifest_path,
+        config,
+        selections,
+        top_k=save_entropy_top_k,
+    )
+    write_entropy_extremes_manifest(output_path, entropy_extremes)
+
+    recon_manager = ReconstructionManager(
+        output_dir=output_path,
+        entropy_extremes=entropy_extremes,
+        save_first_n=save_reconstructions,
+        first_seed=config.seeds[0] if config.seeds else None,
+    )
+
     checkpoint_interval = 500
     buffer: list[dict[str, Any]] = []
     n_done = 0
     n_skipped = 0
     t0 = time.monotonic()
+    entropy_keys = {f"entropy_{ws}" for ws in config.entropy_windows}
 
     with tqdm(total=total_work, desc="Experiment") as pbar:
         for seed in config.seeds:
@@ -232,6 +253,7 @@ def run_experiment(
                                 pbar.update(1)
                                 continue
 
+                            t_start = time.perf_counter()
                             try:
                                 result = method.apply(
                                     patch.degraded, patch.mask
@@ -242,105 +264,22 @@ def run_experiment(
                                 status = "ok"
                                 error_msg = ""
 
-                                # Save reconstruction arrays and PNGs
-                                # (first seed, all noise levels)
-                                if (
-                                    save_reconstructions > 0
-                                    and seed == config.seeds[0]
-                                ):
-                                    # Raw .npy arrays per noise level
-                                    npy_dir = (
-                                        output_path
-                                        / "reconstruction_arrays"
-                                        / noise_level
-                                        / mc.name
-                                    )
-                                    npy_dir.mkdir(parents=True, exist_ok=True)
-                                    existing_npy = (
-                                        len(list(npy_dir.glob("*.npy")))
-                                        if npy_dir.exists()
-                                        else 0
-                                    )
-                                    if existing_npy < save_reconstructions:
-                                        np.save(
-                                            npy_dir
-                                            / f"{patch.patch_id:07d}.npy",
-                                            result,
-                                        )
-
-                                    # PNG previews (no-noise only, for
-                                    # quick visual inspection)
-                                    if noise_level == "inf":
-                                        img_dir = (
-                                            output_path
-                                            / "reconstruction_images"
-                                            / mc.name
-                                        )
-                                        existing_png = (
-                                            len(list(img_dir.glob("*.png")))
-                                            if img_dir.exists()
-                                            else 0
-                                        )
-                                        if existing_png < save_reconstructions:
-                                            save_array_as_png(
-                                                result,
-                                                img_dir
-                                                / f"{patch.patch_id:07d}.png",
-                                            )
-
-                                    # Reference arrays and PNGs (once
-                                    # per patch per noise level)
-                                    ref_npy_dir = (
-                                        output_path
-                                        / "reconstruction_arrays"
-                                        / noise_level
-                                        / "_reference"
-                                    )
-                                    ref_npy_path = (
-                                        ref_npy_dir
-                                        / f"{patch.patch_id:07d}_clean.npy"
-                                    )
-                                    if not ref_npy_path.exists():
-                                        ref_npy_dir.mkdir(
-                                            parents=True, exist_ok=True
-                                        )
-                                        np.save(ref_npy_path, patch.clean)
-                                        np.save(
-                                            ref_npy_dir
-                                            / f"{patch.patch_id:07d}_degraded.npy",
-                                            patch.degraded,
-                                        )
-                                        np.save(
-                                            ref_npy_dir
-                                            / f"{patch.patch_id:07d}_mask.npy",
-                                            patch.mask,
-                                        )
-
-                                    # PNG reference (no-noise only)
-                                    if noise_level == "inf":
-                                        ref_dir = (
-                                            output_path
-                                            / "reconstruction_images"
-                                            / "_reference"
-                                        )
-                                        clean_png = (
-                                            ref_dir
-                                            / f"{patch.patch_id:07d}_clean.png"
-                                        )
-                                        if not clean_png.exists():
-                                            save_array_as_png(
-                                                patch.clean, clean_png
-                                            )
-                                            save_array_as_png(
-                                                patch.degraded,
-                                                ref_dir
-                                                / f"{patch.patch_id:07d}_degraded.png",
-                                            )
-                                            save_array_as_png(
-                                                patch.mask,
-                                                ref_dir
-                                                / f"{patch.patch_id:07d}_mask.png",
-                                            )
+                                recon_manager.maybe_save_entropy_extreme(
+                                    noise_level,
+                                    mc.name,
+                                    patch.patch_id,
+                                    result,
+                                    patch.clean,
+                                    patch.degraded,
+                                    patch.mask,
+                                )
+                                recon_manager.maybe_save_first(
+                                    seed,
+                                    noise_level,
+                                    mc.name,
+                                    patch.patch_id,
+                                    result,
+                                )
 
                             except Exception as exc:
                                 log.exception(
@@ -359,15 +298,42 @@ def run_experiment(
                                 }
                                 status = "error"
                                 error_msg = str(exc)
+                            elapsed_s = time.perf_counter() - t_start
 
-                            entropy = _load_entropy(
-                                preprocessed_dir,
-                                patch.split,
-                                patch.satellite,
-                                patch.patch_id,
-                                config.entropy_windows,
-                                clean=patch.clean,
-                            )
+                            # Use precomputed mean entropy from manifest
+                            # (avoids per-patch file I/O); fall back to
+                            # loading entropy maps only when missing.
+                            if patch.mean_entropy is not None:
+                                entropy = {
+                                    k: v
+                                    for k, v in patch.mean_entropy.items()
+                                    if k in entropy_keys
+                                }
+                                # Fill any missing windows
+                                missing = [
+                                    ws
+                                    for ws in config.entropy_windows
+                                    if f"entropy_{ws}" not in entropy
+                                ]
+                                if missing:
+                                    extra = _load_entropy(
+                                        preprocessed_dir,
+                                        patch.split,
+                                        patch.satellite,
+                                        patch.patch_id,
+                                        missing,
+                                        clean=patch.clean,
+                                    )
+                                    entropy.update(extra)
+                            else:
+                                entropy = _load_entropy(
+                                    preprocessed_dir,
+                                    patch.split,
+                                    patch.satellite,
+                                    patch.patch_id,
+                                    config.entropy_windows,
+                                    clean=patch.clean,
+                                )
 
                             row: dict[str, Any] = {
                                 "seed": seed,
@@ -379,6 +345,7 @@ def run_experiment(
                                 "gap_fraction": patch.gap_fraction,
                                 "status": status,
                                 "error_msg": error_msg,
+                                "elapsed_s": elapsed_s,
                             }
                             row.update(entropy)
                             row.update(scores)
@@ -441,6 +408,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         metavar="N",
         help="Save first N reconstruction arrays per method per noise level (first seed).",
     )
+    parser.add_argument(
+        "--save-entropy-top-k",
+        type=int,
+        default=5,
+        metavar="K",
+        help=(
+            "Save top-K high and low entropy patches per noise level "
+            "(K=0 disables)."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -462,6 +439,7 @@ def main(argv: list[str] | None = None) -> None:
         config,
         dry_run=args.dry_run,
         save_reconstructions=args.save_reconstructions,
+        save_entropy_top_k=args.save_entropy_top_k,
     )
 
 

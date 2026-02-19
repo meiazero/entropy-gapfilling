@@ -153,8 +153,8 @@ def table2_overall_results(results_dir: Path, output_dir: Path) -> None:
     for noise in present_levels:
         ndf = noise_summary[noise_summary["noise_level"] == noise]
         ranked = ndf.sort_values("mean", ascending=False)
-        for rank, (_, rr) in enumerate(ranked.iterrows(), 1):
-            rankings.setdefault(noise, {})[rr["method"]] = rank
+        for rank, rr in enumerate(ranked.itertuples(), 1):
+            rankings.setdefault(noise, {})[rr.method] = rank
 
     for method in methods:
         mdf = noise_summary[noise_summary["method"] == method]
@@ -218,8 +218,8 @@ def table3_entropy_stratified(results_dir: Path, output_dir: Path) -> None:
         for b in bins:
             bdf = ent_summary[ent_summary["entropy_bin"] == b]
             ranked = bdf.sort_values("mean", ascending=False)
-            for rank, (_, rr) in enumerate(ranked.iterrows(), 1):
-                bin_rankings.setdefault(b, {})[rr["method"]] = rank
+            for rank, rr in enumerate(ranked.itertuples(), 1):
+                bin_rankings.setdefault(b, {})[rr.method] = rank
 
         for method in methods:
             mdf = ent_summary[ent_summary["method"] == method]
@@ -404,18 +404,18 @@ def table6_regression(results_dir: Path, output_dir: Path) -> None:
             r"\midrule",
         ]
 
-        for _, row in coef.iterrows():
-            var = str(row["variable"]).replace("_", r"\_")
+        for row in coef.itertuples():
+            var = str(row.variable).replace("_", r"\_")
             p_str = (
                 "$< 10^{-10}$"
-                if row["p_value"] < 1e-10
-                else f"${row['p_value']:.2e}$"
+                if row.p_value < 1e-10
+                else f"${row.p_value:.2e}$"
             )
-            ci_str = f"[{row['ci_lo']:.4f}, {row['ci_hi']:.4f}]"
+            ci_str = f"[{row.ci_lo:.4f}, {row.ci_hi:.4f}]"
             lines.append(
-                f"{var} & ${row['beta']:.4f}$ & "
-                f"${row['std_err']:.4f}$ & "
-                f"${row['z_value']:.2f}$ & "
+                f"{var} & ${row.beta:.4f}$ & "
+                f"${row.std_err:.4f}$ & "
+                f"${row.z_value:.2f}$ & "
                 f"{p_str} & {ci_str} \\\\"
             )
 
@@ -431,9 +431,9 @@ def table6_regression(results_dir: Path, output_dir: Path) -> None:
             lines.append(r"\toprule")
             lines.append(r"Variable & VIF \\")
             lines.append(r"\midrule")
-            for _, vrow in result.vif.iterrows():
-                var = str(vrow["variable"]).replace("_", r"\_")
-                lines.append(f"{var} & ${vrow['vif']:.2f}$ \\\\")
+            for vrow in result.vif.itertuples():
+                var = str(vrow.variable).replace("_", r"\_")
+                lines.append(f"{var} & ${vrow.vif:.2f}$ \\\\")
             lines.append(r"\bottomrule")
             lines.append(r"\end{tabular}")
 
@@ -479,8 +479,8 @@ def table7_satellite(results_dir: Path, output_dir: Path) -> None:
     for sat in satellites:
         sdf = sat_summary[sat_summary["satellite"] == sat]
         ranked = sdf.sort_values("mean", ascending=False)
-        for rank, (_, rr) in enumerate(ranked.iterrows(), 1):
-            sat_rankings.setdefault(sat, {})[rr["method"]] = rank
+        for rank, rr in enumerate(ranked.itertuples(), 1):
+            sat_rankings.setdefault(sat, {})[rr.method] = rank
 
     for method in methods:
         mdf = sat_summary[sat_summary["method"] == method]
@@ -574,14 +574,15 @@ def table8_dl_comparison(results_dir: Path, output_dir: Path) -> None:
         )
 
     prev_type = ""
-    for _, row in combined.iterrows():
-        type_str = row["type"] if row["type"] != prev_type else ""
-        prev_type = row["type"]
-        method_str = str(row["method"]).replace("_", r"\_")
+    for row in combined.itertuples():
+        row_type = str(row.type)
+        type_str = row_type if row_type != prev_type else ""
+        prev_type = row_type
+        method_str = str(row.method).replace("_", r"\_")
         cells = [type_str, method_str]
         for m_col in present:
-            val = row[m_col]
-            rank = int(row[f"rank_{m_col}"])
+            val = getattr(row, m_col)
+            rank = int(getattr(row, f"rank_{m_col}"))
             if rank == 1:
                 cells.append(f"\\textbf{{{val:.3f}}}")
             elif rank == 2:

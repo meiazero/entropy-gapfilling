@@ -153,6 +153,7 @@ def main() -> None:
 
         patch_id = int(test_ds.patch_ids[idx])
 
+        t_start = time.perf_counter()
         try:
             result = model.apply(degraded_np, mask_np)
             scores = m.compute_all(clean_np, result, mask_np)
@@ -177,12 +178,14 @@ def main() -> None:
             }
             status = "error"
             error_msg = str(exc)
+        elapsed_s = time.perf_counter() - t_start
 
         row: dict[str, Any] = {
             "model": model.name,
             "patch_id": patch_id,
             "status": status,
             "error_msg": error_msg,
+            "elapsed_s": elapsed_s,
         }
         row.update(scores)
         rows.append(row)
@@ -206,6 +209,12 @@ def main() -> None:
                     ok_df[metric].mean(),
                     ok_df[metric].std(),
                 )
+        if "elapsed_s" in ok_df.columns:
+            log.info(
+                "  TIME: %.4fs +/- %.4fs",
+                ok_df["elapsed_s"].mean(),
+                ok_df["elapsed_s"].std(),
+            )
 
     n_errors = len(df[df["status"] == "error"])
     if n_errors > 0:

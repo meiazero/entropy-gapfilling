@@ -28,6 +28,7 @@ class PatchSample:
     mask: np.ndarray  # (H, W) float32, 1=gap
     degraded: np.ndarray  # (H, W, C) float32 [0, 1]
     noise_level: str  # "inf", "40", "30", "20"
+    mean_entropy: dict[str, float] | None = None  # e.g. {"entropy_7": 3.45}
 
 
 _NOISE_COL = {
@@ -145,6 +146,16 @@ class PatchDataset:
         if mask.ndim == 3:
             mask = mask[:, :, 0]
 
+        # Extract precomputed mean entropy values from manifest
+        entropy_dict: dict[str, float] = {}
+        for key, val in row.items():
+            if key.startswith("mean_entropy_") and val:
+                try:
+                    ws = key.replace("mean_entropy_", "")
+                    entropy_dict[f"entropy_{ws}"] = float(val)
+                except (ValueError, TypeError):
+                    pass
+
         return PatchSample(
             patch_id=int(row["patch_id"]),
             satellite=row["satellite"],
@@ -156,6 +167,7 @@ class PatchDataset:
             mask=mask,
             degraded=degraded,
             noise_level=self._noise_level,
+            mean_entropy=entropy_dict if entropy_dict else None,
         )
 
     def __iter__(self):

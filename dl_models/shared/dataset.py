@@ -75,14 +75,33 @@ class InpaintingDataset(Dataset):  # type: ignore[type-arg]
         self._base_dir = manifest_path.parent
         self._noise_col = _NOISE_COL[noise_level]
 
-        df = pd.read_csv(manifest_path, dtype=str)
+        _needed_cols = [
+            "patch_id",
+            "satellite",
+            "split",
+            "clean_path",
+            "mask_path",
+            self._noise_col,
+        ]
+        df = pd.read_csv(
+            manifest_path,
+            usecols=_needed_cols,
+            dtype={
+                "patch_id": np.int32,
+                "satellite": "category",
+                "split": "category",
+                "clean_path": str,
+                "mask_path": str,
+                self._noise_col: str,
+            },
+        )
 
         df = df[df["split"] == split]
         if satellite is not None:
             df = df[df["satellite"] == satellite]
 
         # Deterministic ordering by patch_id
-        df = df.sort_values("patch_id", key=lambda s: s.astype(int))
+        df = df.sort_values("patch_id")
 
         if max_patches is not None and len(df) > max_patches:
             rng = np.random.default_rng(seed)
@@ -90,7 +109,12 @@ class InpaintingDataset(Dataset):  # type: ignore[type-arg]
             idx.sort()
             df = df.iloc[idx]
 
-        self._records = df.reset_index(drop=True)
+        df = df.reset_index(drop=True)
+        self._records = df
+        # Pre-extract path columns as Python lists for O(1) index access in __getitem__
+        self._clean_paths: list[str] = df["clean_path"].tolist()
+        self._mask_paths: list[str] = df["mask_path"].tolist()
+        self._degraded_paths: list[str] = df[self._noise_col].tolist()
 
     def __len__(self) -> int:
         return len(self._records)
@@ -98,11 +122,9 @@ class InpaintingDataset(Dataset):  # type: ignore[type-arg]
     def __getitem__(
         self, idx: int
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        row = self._records.iloc[idx]
-
-        clean_path = self._base_dir / row["clean_path"]
-        mask_path = self._base_dir / row["mask_path"]
-        degraded_path = self._base_dir / row[self._noise_col]
+        clean_path = self._base_dir / self._clean_paths[idx]
+        mask_path = self._base_dir / self._mask_paths[idx]
+        degraded_path = self._base_dir / self._degraded_paths[idx]
 
         clean = np.load(clean_path).astype(np.float32)
         mask = np.load(mask_path).astype(np.float32)
@@ -197,6 +219,8 @@ def make_loaders(
         seed=seed,
     )
 
+    _prefetch = 2 if num_workers > 0 else None
+
     train_loader: torch.utils.data.DataLoader[
         tuple[torch.Tensor, torch.Tensor, torch.Tensor]
     ] = DataLoader(
@@ -206,6 +230,7 @@ def make_loaders(
         num_workers=num_workers,
         pin_memory=pin,
         persistent_workers=num_workers > 0,
+        prefetch_factor=_prefetch,
         drop_last=False,
     )
     val_loader: torch.utils.data.DataLoader[
@@ -217,6 +242,7 @@ def make_loaders(
         num_workers=num_workers,
         pin_memory=pin,
         persistent_workers=num_workers > 0,
+        prefetch_factor=_prefetch,
         drop_last=False,
     )
 

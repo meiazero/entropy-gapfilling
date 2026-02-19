@@ -26,6 +26,7 @@ import logging
 import os
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import numpy as np
@@ -111,6 +112,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             f"Default: {DEFAULT_OUTPUT_DIR}"
         ),
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help=(
+            "Number of parallel worker threads for I/O-bound TIFF reading. "
+            "Default: min(cpu_count, 8)."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -157,11 +167,12 @@ def validate_clean(arr: np.ndarray, path: Path) -> None:
 
 def read_tiff(path: Path) -> np.ndarray:
     with rasterio.open(path) as src:
-        return src.read().astype(np.float32)
+        return src.read(out_dtype=np.float32)
 
 
 def process_patch(
-    row: pd.Series,
+    row: tuple,
+    row_fields: dict[str, int],
     data_root: Path,
     output_dir: Path,
     *,
@@ -169,11 +180,18 @@ def process_patch(
 ) -> tuple[dict, bool] | None:
     """Process a single patch.
 
+    Args:
+        row: A namedtuple-like row from itertuples().
+        row_fields: Mapping of column name to attribute index.
+        data_root: Root directory for source GeoTIFF files.
+        output_dir: Output directory for NPY files.
+        resume: Skip patches whose output files already exist.
+
     Returns (manifest_row, was_skipped) or None on failure.
     """
-    patch_id: int = int(row["patch_id"])
-    satellite: str = str(row["satellite"])
-    split: str = str(row["split"])
+    patch_id: int = int(row[row_fields["patch_id"]])
+    satellite: str = str(row[row_fields["satellite"]])
+    split: str = str(row[row_fields["split"]])
 
     out_paths = {
         v: output_path_for(output_dir, split, satellite, patch_id, v)
@@ -181,9 +199,23 @@ def process_patch(
     }
 
     if resume and all(p.exists() for p in out_paths.values()):
-        return _manifest_row(row, out_paths, output_dir), True
+        # On resume, load arrays only if needed for manifest metadata
+        mask_arr = np.load(out_paths["mask"])
+        clean_arr = np.load(out_paths["clean"])
+        mrow = _manifest_row(
+            row,
+            row_fields,
+            out_paths,
+            output_dir,
+            mask_arr=mask_arr,
+            clean_arr=clean_arr,
+        )
+        return mrow, True
 
-    src_paths = {v: data_root / str(row[VARIANT_COL_MAP[v]]) for v in VARIANTS}
+    src_paths = {
+        v: data_root / str(row[row_fields[VARIANT_COL_MAP[v]]])
+        for v in VARIANTS
+    }
 
     for _v, sp in src_paths.items():
         if not sp.exists():
@@ -207,38 +239,50 @@ def process_patch(
         log.warning("patch %d: validation failed - %s", patch_id, exc)
         return None
 
+    # Transform arrays to pipeline convention
+    processed: dict[str, np.ndarray] = {}
+    for v in VARIANTS:
+        arr = arrays[v]
+        if v == "mask":
+            # (1, H, W) -> (H, W), invert: source 1=valid -> 1=gap
+            processed[v] = 1.0 - arr.squeeze(0)
+        else:
+            # (C, H, W) -> (H, W, C)
+            processed[v] = np.transpose(arr, (1, 2, 0))
+
     saved_paths: list[Path] = []
     try:
         for v in VARIANTS:
-            arr = arrays[v]
-            if v == "mask":
-                # (1, H, W) -> (H, W), invert: source 1=valid -> 1=gap
-                processed = 1.0 - arr.squeeze(0)
-            else:
-                # (C, H, W) -> (H, W, C)
-                processed = np.transpose(arr, (1, 2, 0))
-
             out_paths[v].parent.mkdir(parents=True, exist_ok=True)
-            np.save(out_paths[v], processed)
+            np.save(out_paths[v], processed[v])
             saved_paths.append(out_paths[v])
     except OSError as exc:
         log.warning("patch %d: write error - %s", patch_id, exc)
         _cleanup(saved_paths)
         return None
 
-    return _manifest_row(row, out_paths, output_dir), False
+    mrow = _manifest_row(
+        row,
+        row_fields,
+        out_paths,
+        output_dir,
+        mask_arr=processed["mask"],
+        clean_arr=processed["clean"],
+    )
+    return mrow, False
 
 
 def _manifest_row(
-    row: pd.Series,
+    row: tuple,
+    row_fields: dict[str, int],
     out_paths: dict[str, Path],
     output_dir: Path,
+    *,
+    mask_arr: np.ndarray,
+    clean_arr: np.ndarray,
 ) -> dict:
-    mask_arr = np.load(out_paths["mask"])
-    clean_arr = np.load(out_paths["clean"])
-
     gap_fraction = float(np.mean(mask_arr))
-    height, width = mask_arr.shape
+    height, width = mask_arr.shape[:2]
     n_bands = clean_arr.shape[2] if clean_arr.ndim == 3 else 1
 
     rel_paths = {
@@ -246,15 +290,15 @@ def _manifest_row(
     }
 
     return {
-        "patch_id": int(row["patch_id"]),
-        "satellite": str(row["satellite"]),
-        "split": str(row["split"]),
-        "source_file": str(row["source_file"]),
-        "acquisition_date": str(row["acquisition_date"]),
-        "bands": str(row["bands"]),
-        "crs": str(row["crs"]),
-        "col_off": int(row["col_off"]),
-        "row_off": int(row["row_off"]),
+        "patch_id": int(row[row_fields["patch_id"]]),
+        "satellite": str(row[row_fields["satellite"]]),
+        "split": str(row[row_fields["split"]]),
+        "source_file": str(row[row_fields["source_file"]]),
+        "acquisition_date": str(row[row_fields["acquisition_date"]]),
+        "bands": str(row[row_fields["bands"]]),
+        "crs": str(row[row_fields["crs"]]),
+        "col_off": int(row[row_fields["col_off"]]),
+        "row_off": int(row[row_fields["row_off"]]),
         "height": height,
         "width": width,
         "n_bands": n_bands,
@@ -293,7 +337,7 @@ def _assign_splits(
     df["split"] = ""
 
     for sat in sorted(df["satellite"].unique()):
-        sat_idx = df.index[df["satellite"] == sat].to_numpy()
+        sat_idx = df.index[df["satellite"] == sat].to_numpy().copy()
         rng = np.random.default_rng(_stable_seed(seed, sat))
         rng.shuffle(sat_idx)
 
@@ -402,7 +446,18 @@ def main(argv: list[str] | None = None) -> None:
         log.error("metadata.parquet not found at %s", parquet_path)
         sys.exit(1)
 
-    df = pd.read_parquet(parquet_path)
+    _needed_cols = [
+        "patch_id",
+        "satellite",
+        "source_file",
+        "acquisition_date",
+        "bands",
+        "crs",
+        "col_off",
+        "row_off",
+        *VARIANT_COL_MAP.values(),
+    ]
+    df = pd.read_parquet(parquet_path, columns=_needed_cols)
     log.info("Loaded %d patches from metadata.parquet", len(df))
 
     df = _assign_splits(df, SPLIT_RATIOS, SPLIT_SEED)
@@ -505,17 +560,44 @@ def main(argv: list[str] | None = None) -> None:
 
     t0 = time.monotonic()
 
-    for _, row in tqdm(df.iterrows(), total=len(df), desc="Preprocessing"):
-        result = process_patch(row, data_root, output_dir, resume=args.resume)
-        if result is None:
-            failed_ids.append(int(row["patch_id"]))
-        else:
-            manifest_row, was_skipped = result
-            manifest_rows.append(manifest_row)
-            if was_skipped:
-                n_skipped += 1
+    # Build column index map for itertuples() access (index offset +1
+    # because itertuples prepends the Index element at position 0).
+    row_fields = {col: i + 1 for i, col in enumerate(df.columns)}
+
+    n_workers = (
+        args.workers
+        if args.workers is not None
+        else min(os.cpu_count() or 4, 8)
+    )
+    log.info("Using %d worker threads for parallel TIFF I/O", n_workers)
+
+    rows_list = list(df.itertuples())
+    with ThreadPoolExecutor(max_workers=n_workers) as pool:
+        futures = {
+            pool.submit(
+                process_patch,
+                row,
+                row_fields,
+                data_root,
+                output_dir,
+                resume=args.resume,
+            ): row
+            for row in rows_list
+        }
+        for future in tqdm(
+            as_completed(futures), total=len(futures), desc="Preprocessing"
+        ):
+            row = futures[future]
+            result = future.result()
+            if result is None:
+                failed_ids.append(int(row[row_fields["patch_id"]]))
             else:
-                n_processed += 1
+                manifest_row, was_skipped = result
+                manifest_rows.append(manifest_row)
+                if was_skipped:
+                    n_skipped += 1
+                else:
+                    n_processed += 1
 
     elapsed = time.monotonic() - t0
 

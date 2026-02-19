@@ -11,6 +11,18 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+_METRIC_COLS: frozenset[str] = frozenset({
+    "psnr",
+    "ssim",
+    "rmse",
+    "sam",
+    "ergas",
+    "gap_fraction",
+    "entropy_7",
+    "entropy_15",
+    "entropy_31",
+})
+
 
 def load_results(path: str | Path) -> pd.DataFrame:
     """Load raw experiment results from CSV.
@@ -25,7 +37,22 @@ def load_results(path: str | Path) -> pd.DataFrame:
     path = Path(path)
     if path.is_dir():
         path = path / "raw_results.csv"
-    return pd.read_csv(path)
+    df = pd.read_csv(path)
+    # Convert low-cardinality string columns to categoricals for memory savings
+    for col in (
+        "method",
+        "method_category",
+        "satellite",
+        "noise_level",
+        "status",
+    ):
+        if col in df.columns:
+            df[col] = df[col].astype("category")
+    # Downcast float64 metric columns to float32 - halves memory for 77k rows
+    float32_cols = [c for c in df.columns if c in _METRIC_COLS]
+    if float32_cols:
+        df[float32_cols] = df[float32_cols].astype(np.float32)
+    return df
 
 
 def _bootstrap_ci(
@@ -43,10 +70,8 @@ def _bootstrap_ci(
     indices = rng.integers(0, len(values), size=(n_boot, len(values)))
     means = values[indices].mean(axis=1)
     alpha = (1.0 - ci) / 2.0
-    return (
-        float(np.percentile(means, 100 * alpha)),
-        float(np.percentile(means, 100 * (1 - alpha))),
-    )
+    lo, hi = np.quantile(means, [alpha, 1.0 - alpha])
+    return float(lo), float(hi)
 
 
 def summary_by_method(
@@ -103,15 +128,13 @@ def summary_by_entropy_bin(
     t1 = float(valid[entropy_col].quantile(1 / 3))
     t2 = float(valid[entropy_col].quantile(2 / 3))
 
-    def _bin(v: float) -> str:
-        if v <= t1:
-            return "low"
-        if v <= t2:
-            return "medium"
-        return "high"
-
     valid = valid.copy()
-    valid["entropy_bin"] = valid[entropy_col].apply(_bin)
+    valid["entropy_bin"] = pd.cut(
+        valid[entropy_col],
+        bins=[-np.inf, t1, t2, np.inf],
+        labels=["low", "medium", "high"],
+        right=True,
+    )
 
     rows = []
     for (method, ebin), group in valid.groupby(["method", "entropy_bin"]):
@@ -156,15 +179,13 @@ def summary_by_gap_fraction(
     t1 = float(valid["gap_fraction"].quantile(1 / 3))
     t2 = float(valid["gap_fraction"].quantile(2 / 3))
 
-    def _bin(v: float) -> str:
-        if v <= t1:
-            return "small"
-        if v <= t2:
-            return "medium"
-        return "large"
-
     valid = valid.copy()
-    valid["gap_bin"] = valid["gap_fraction"].apply(_bin)
+    valid["gap_bin"] = pd.cut(
+        valid["gap_fraction"],
+        bins=[-np.inf, t1, t2, np.inf],
+        labels=["small", "medium", "large"],
+        right=True,
+    )
 
     rows = []
     for (method, gbin), group in valid.groupby(["method", "gap_bin"]):

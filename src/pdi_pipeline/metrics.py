@@ -74,6 +74,102 @@ def _validate_inputs(
     return clean, reconstructed, _as_gap_mask(mask_2d)
 
 
+# ---------------------------------------------------------------------------
+# Private core implementations (accept already-validated arrays)
+# ---------------------------------------------------------------------------
+
+
+def _psnr_core(
+    clean: np.ndarray,
+    reconstructed: np.ndarray,
+    gap: np.ndarray,
+) -> float:
+    if not np.any(gap):
+        return float("inf")
+    if clean.ndim == 3:
+        gap_3d = np.broadcast_to(gap[:, :, np.newaxis], clean.shape)
+        diff = clean[gap_3d] - reconstructed[gap_3d]
+    else:
+        diff = clean[gap] - reconstructed[gap]
+    mse = float(np.mean(diff**2))
+    if mse < 1e-12:
+        return float("inf")
+    return float(10.0 * np.log10(1.0 / mse))
+
+
+def _ssim_core(
+    clean: np.ndarray,
+    reconstructed: np.ndarray,
+    gap: np.ndarray,
+) -> float:
+    if not np.any(gap):
+        return 1.0
+    is_multichannel = clean.ndim == 3
+    _, ssim_map = structural_similarity(
+        clean,
+        reconstructed,
+        data_range=1.0,
+        full=True,
+        channel_axis=2 if is_multichannel else None,
+    )
+    if ssim_map.ndim == 3:
+        ssim_map = np.mean(ssim_map, axis=2)
+    return float(np.mean(ssim_map[gap]))
+
+
+def _rmse_core(
+    clean: np.ndarray,
+    reconstructed: np.ndarray,
+    gap: np.ndarray,
+) -> float:
+    if not np.any(gap):
+        return 0.0
+    if clean.ndim == 3:
+        gap_3d = np.broadcast_to(gap[:, :, np.newaxis], clean.shape)
+        diff = clean[gap_3d] - reconstructed[gap_3d]
+    else:
+        diff = clean[gap] - reconstructed[gap]
+    return float(np.sqrt(np.mean(diff**2)))
+
+
+def _sam_core(
+    clean: np.ndarray,
+    reconstructed: np.ndarray,
+    gap: np.ndarray,
+) -> float:
+    if not np.any(gap):
+        return 0.0
+    clean_vecs = clean[gap]
+    recon_vecs = reconstructed[gap]
+    dot = np.sum(clean_vecs * recon_vecs, axis=1)
+    norm_clean = np.linalg.norm(clean_vecs, axis=1)
+    norm_recon = np.linalg.norm(recon_vecs, axis=1)
+    denom = norm_clean * norm_recon
+    valid = denom > 1e-10
+    if not np.any(valid):
+        return 0.0
+    cos_angle = np.clip(dot[valid] / denom[valid], -1.0, 1.0)
+    return float(np.mean(np.degrees(np.arccos(cos_angle))))
+
+
+def _ergas_core(
+    clean: np.ndarray,
+    reconstructed: np.ndarray,
+    gap: np.ndarray,
+) -> float:
+    if not np.any(gap):
+        return 0.0
+    clean_gap = clean[gap]
+    recon_gap = reconstructed[gap]
+    rmse_per_band = np.sqrt(np.mean((clean_gap - recon_gap) ** 2, axis=0))
+    mean_per_band = np.mean(clean_gap, axis=0)
+    valid = np.abs(mean_per_band) > 1e-10
+    if not np.any(valid):
+        return 0.0
+    ratio_sq = (rmse_per_band[valid] / mean_per_band[valid]) ** 2
+    return float(100.0 * np.sqrt(np.mean(ratio_sq)))
+
+
 def psnr(
     clean: np.ndarray,
     reconstructed: np.ndarray,
@@ -92,22 +188,8 @@ def psnr(
     Returns:
         PSNR in dB. Returns inf if MSE is effectively zero.
     """
-    clean, reconstructed, mask_2d = _validate_inputs(clean, reconstructed, mask)
-    gap = mask_2d
-
-    if not np.any(gap):
-        return float("inf")
-
-    if clean.ndim == 3:
-        gap_3d = np.broadcast_to(gap[:, :, np.newaxis], clean.shape)
-        diff = clean[gap_3d] - reconstructed[gap_3d]
-    else:
-        diff = clean[gap] - reconstructed[gap]
-
-    mse = float(np.mean(diff**2))
-    if mse < 1e-12:
-        return float("inf")
-    return float(10.0 * np.log10(1.0 / mse))
+    clean, reconstructed, gap = _validate_inputs(clean, reconstructed, mask)
+    return _psnr_core(clean, reconstructed, gap)
 
 
 def ssim(
@@ -128,27 +210,8 @@ def ssim(
     Returns:
         Mean SSIM value restricted to gap region.
     """
-    clean, reconstructed, mask_2d = _validate_inputs(clean, reconstructed, mask)
-    gap = mask_2d
-
-    if not np.any(gap):
-        return 1.0
-
-    is_multichannel = clean.ndim == 3
-
-    _, ssim_map = structural_similarity(
-        clean,
-        reconstructed,
-        data_range=1.0,
-        full=True,
-        channel_axis=2 if is_multichannel else None,
-    )
-
-    # ssim_map is (H, W) regardless of channel_axis
-    if ssim_map.ndim == 3:
-        ssim_map = np.mean(ssim_map, axis=2)
-
-    return float(np.mean(ssim_map[gap]))
+    clean, reconstructed, gap = _validate_inputs(clean, reconstructed, mask)
+    return _ssim_core(clean, reconstructed, gap)
 
 
 def rmse(
@@ -166,19 +229,8 @@ def rmse(
     Returns:
         RMSE value over gap pixels.
     """
-    clean, reconstructed, mask_2d = _validate_inputs(clean, reconstructed, mask)
-    gap = mask_2d
-
-    if not np.any(gap):
-        return 0.0
-
-    if clean.ndim == 3:
-        gap_3d = np.broadcast_to(gap[:, :, np.newaxis], clean.shape)
-        diff = clean[gap_3d] - reconstructed[gap_3d]
-    else:
-        diff = clean[gap] - reconstructed[gap]
-
-    return float(np.sqrt(np.mean(diff**2)))
+    clean, reconstructed, gap = _validate_inputs(clean, reconstructed, mask)
+    return _rmse_core(clean, reconstructed, gap)
 
 
 def sam(
@@ -200,7 +252,7 @@ def sam(
     Returns:
         Mean spectral angle in degrees over gap pixels.
     """
-    clean, reconstructed, mask_2d = _validate_inputs(clean, reconstructed, mask)
+    clean, reconstructed, gap = _validate_inputs(clean, reconstructed, mask)
 
     if clean.ndim != 3 or clean.shape[2] < 2:
         msg = (
@@ -209,30 +261,7 @@ def sam(
         )
         raise DimensionError(msg)
 
-    gap = mask_2d
-    if not np.any(gap):
-        return 0.0
-
-    # Extract spectral vectors at gap pixels: (N, C)
-    clean_vecs = clean[gap]
-    recon_vecs = reconstructed[gap]
-
-    # Dot product and norms along spectral axis
-    dot = np.sum(clean_vecs * recon_vecs, axis=1)
-    norm_clean = np.linalg.norm(clean_vecs, axis=1)
-    norm_recon = np.linalg.norm(recon_vecs, axis=1)
-
-    denom = norm_clean * norm_recon
-    # Avoid division by zero for zero vectors
-    valid = denom > 1e-10
-    if not np.any(valid):
-        return 0.0
-
-    cos_angle = np.clip(dot[valid] / denom[valid], -1.0, 1.0)
-    angles_rad = np.arccos(cos_angle)
-    angles_deg = np.degrees(angles_rad)
-
-    return float(np.mean(angles_deg))
+    return _sam_core(clean, reconstructed, gap)
 
 
 def ergas(
@@ -257,7 +286,7 @@ def ergas(
     Returns:
         ERGAS value (dimensionless). Lower is better.
     """
-    clean, reconstructed, mask_2d = _validate_inputs(clean, reconstructed, mask)
+    clean, reconstructed, gap = _validate_inputs(clean, reconstructed, mask)
 
     if clean.ndim != 3 or clean.shape[2] < 2:
         msg = (
@@ -266,26 +295,7 @@ def ergas(
         )
         raise DimensionError(msg)
 
-    gap = mask_2d
-    if not np.any(gap):
-        return 0.0
-
-    # Vectorized: extract gap pixels for all bands at once (N_gap, B)
-    clean_gap = clean[gap]  # (N_gap, B)
-    recon_gap = reconstructed[gap]  # (N_gap, B)
-
-    rmse_per_band = np.sqrt(
-        np.mean((clean_gap - recon_gap) ** 2, axis=0)
-    )  # (B,)
-    mean_per_band = np.mean(clean_gap, axis=0)  # (B,)
-
-    valid = np.abs(mean_per_band) > 1e-10
-    if not np.any(valid):
-        return 0.0
-
-    # Divide by number of *valid* bands, not total bands (bug fix)
-    ratio_sq = (rmse_per_band[valid] / mean_per_band[valid]) ** 2
-    return float(100.0 * np.sqrt(np.mean(ratio_sq)))
+    return _ergas_core(clean, reconstructed, gap)
 
 
 def local_psnr(
@@ -319,33 +329,28 @@ def local_psnr(
         sq_err = (clean - reconstructed) ** 2
 
     h, w = sq_err.shape
-    half = window // 2
     result = np.full((h, w), np.nan, dtype=np.float32)
 
-    # Pad arrays for border handling
-    sq_err_pad = np.pad(sq_err, half, mode="reflect").astype(np.float64)
-    gap_pad = np.pad(
-        gap.astype(np.float64), half, mode="constant", constant_values=0.0
-    )
-
-    # Vectorized sliding-window sums via cumulative sums.
-    # gap_count[i, j] = number of gap pixels in the window centered at (i, j)
-    # err_sum[i, j]  = sum of sq_err at gap pixels in the window
-    masked_err = sq_err_pad * gap_pad
+    # uniform_filter with mode="constant", cval=0 implicitly zero-pads at
+    # borders, which is equivalent to treating non-gap pixels as 0 contribution.
+    # Manual np.pad is therefore redundant and removed.
+    gap_f = gap.astype(np.float64)
+    masked_err = sq_err.astype(np.float64) * gap_f
 
     # Vectorized sliding-window sums via scipy uniform_filter -- O(HW)
-    kernel = float(window)
-    area = kernel * kernel
-    gap_count = uniform_filter(gap_pad, size=window, mode="constant", cval=0.0)
-    err_sum = uniform_filter(masked_err, size=window, mode="constant", cval=0.0)
-
-    # Extract the valid (unpadded) region
-    gap_count = gap_count[half : half + h, half : half + w] * area
-    err_sum = err_sum[half : half + h, half : half + w] * area
+    area = float(window * window)
+    gap_count = (
+        uniform_filter(gap_f, size=window, mode="constant", cval=0.0) * area
+    )
+    err_sum = (
+        uniform_filter(masked_err, size=window, mode="constant", cval=0.0)
+        * area
+    )
 
     # Compute MSE and PSNR only where there are gap pixels in the window
     has_gap = gap_count > 0.5  # at least 1 gap pixel
-    mse = np.where(has_gap, err_sum / gap_count, 0.0)
+    mse = np.zeros_like(err_sum, dtype=np.float64)
+    np.divide(err_sum, gap_count, out=mse, where=has_gap)
 
     # PSNR: cap at 100 dB for near-zero MSE
     _PSNR_CAP = 100.0
@@ -422,15 +427,17 @@ def compute_all(
         Dictionary with keys 'psnr', 'ssim', 'rmse', and optionally
         'sam' (only if input is multichannel with C >= 2).
     """
-    results = {
-        "psnr": psnr(clean, reconstructed, mask),
-        "ssim": ssim(clean, reconstructed, mask),
-        "rmse": rmse(clean, reconstructed, mask),
+    # Validate once; pass pre-validated arrays to core functions.
+    clean, reconstructed, gap = _validate_inputs(clean, reconstructed, mask)
+
+    results: dict[str, float] = {
+        "psnr": _psnr_core(clean, reconstructed, gap),
+        "ssim": _ssim_core(clean, reconstructed, gap),
+        "rmse": _rmse_core(clean, reconstructed, gap),
     }
 
-    clean_arr = np.asarray(clean)
-    if clean_arr.ndim == 3 and clean_arr.shape[2] >= 2:
-        results["sam"] = sam(clean, reconstructed, mask)
-        results["ergas"] = ergas(clean, reconstructed, mask)
+    if clean.ndim == 3 and clean.shape[2] >= 2:
+        results["sam"] = _sam_core(clean, reconstructed, gap)
+        results["ergas"] = _ergas_core(clean, reconstructed, gap)
 
     return results

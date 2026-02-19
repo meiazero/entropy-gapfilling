@@ -2,13 +2,15 @@
 
 Provides helpers used by both the experiment runner (PNG export of
 reconstructions) and the figure generation scripts.
+
+Uses OpenCV via ``cv2.imwrite`` for fast PNG export.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-import matplotlib.pyplot as plt
+import cv2
 import numpy as np
 
 
@@ -24,16 +26,20 @@ def to_display_rgb(arr: np.ndarray) -> np.ndarray:
         Float array in [0, 1] with shape (H, W, 3) or (H, W) for
         single-band inputs. Constant arrays return zeros.
     """
+    if arr.ndim not in (2, 3):
+        msg = f"Expected 2D or 3D array, got shape {arr.shape}"
+        raise ValueError(msg)
+
     if arr.ndim == 3 and arr.shape[2] >= 3:
         arr = arr[:, :, :3]
 
     vmin = float(np.nanmin(arr))
     vmax = float(np.nanmax(arr))
     if vmax - vmin < 1e-8:
-        return np.zeros_like(arr, dtype=np.float64)
+        return np.zeros_like(arr, dtype=np.float32)
 
     result = np.clip((arr - vmin) / (vmax - vmin), 0.0, 1.0)
-    return np.nan_to_num(result, nan=0.0)
+    return np.nan_to_num(result, nan=0.0).astype(np.float32)
 
 
 def save_array_as_png(
@@ -47,18 +53,24 @@ def save_array_as_png(
     delegating to :func:`to_display_rgb` for normalization and
     band selection.
 
+    Uses OpenCV when available for faster PNG encoding, falling
+    back to matplotlib otherwise.
+
     Args:
         arr: 2D or 3D numpy array.
         path: Output file path (parent directories created
             automatically).
-        dpi: Resolution for the saved image.
+        dpi: Resolution for the saved image (matplotlib fallback only).
     """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
     rgb = to_display_rgb(arr)
 
-    if rgb.ndim == 2:
-        plt.imsave(str(path), rgb, cmap="gray", dpi=dpi)
-    else:
-        plt.imsave(str(path), rgb, dpi=dpi)
+    # convertScaleAbs: clips, scales, and casts to uint8 in a single C call
+    img_u8 = cv2.convertScaleAbs(rgb, alpha=255.0, beta=0.0)
+    if img_u8.ndim == 3:
+        img_u8 = cv2.cvtColor(img_u8, cv2.COLOR_RGB2BGR)
+    if not cv2.imwrite(str(path), img_u8):
+        msg = f"Failed to write image to {path}"
+        raise OSError(msg)

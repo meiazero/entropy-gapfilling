@@ -308,15 +308,17 @@ def robust_regression(
     rlm_model = sm.RLM(y, X, M=sm.robust.norms.HuberT())
     rlm_fit = rlm_model.fit()
 
-    # Coefficient table
+    # Coefficient table - compute conf_int once (statsmodels refits the model
+    # internally on each call, so calling it twice doubles the cost).
+    _ci = rlm_fit.conf_int()
     coef_df = pd.DataFrame({
         "variable": X.columns.tolist(),
         "beta": rlm_fit.params,
         "std_err": rlm_fit.bse,
         "z_value": rlm_fit.tvalues,
         "p_value": rlm_fit.pvalues,
-        "ci_lo": rlm_fit.conf_int().iloc[:, 0].values,
-        "ci_hi": rlm_fit.conf_int().iloc[:, 1].values,
+        "ci_lo": _ci.iloc[:, 0].values,
+        "ci_hi": _ci.iloc[:, 1].values,
     })
 
     # Pseudo R-squared adjusted (from OLS for reference)

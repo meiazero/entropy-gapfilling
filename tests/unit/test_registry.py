@@ -6,6 +6,11 @@ import pytest
 
 from pdi_pipeline.exceptions import ConfigError
 from pdi_pipeline.methods.base import BaseMethod
+from pdi_pipeline.methods.compressive import (
+    L1DCTInpainting,
+    L1WaveletInpainting,
+)
+from pdi_pipeline.methods.nearest import NearestInterpolator
 from pdi_pipeline.methods.registry import (
     get_interpolator,
     list_categories,
@@ -21,17 +26,17 @@ class TestGetInterpolator:
 
     def test_nearest_class_name(self) -> None:
         interp = get_interpolator("nearest")
-        assert type(interp).__name__ == "NearestInterpolator"
+        assert isinstance(interp, NearestInterpolator)
 
     def test_alias_l1_dct_resolves(self) -> None:
         interp = get_interpolator("l1_dct")
         assert isinstance(interp, BaseMethod)
-        assert type(interp).__name__ == "L1DCTInpainting"
+        assert isinstance(interp, L1DCTInpainting)
 
     def test_alias_l1_wavelet_resolves(self) -> None:
         interp = get_interpolator("l1_wavelet")
         assert isinstance(interp, BaseMethod)
-        assert type(interp).__name__ == "L1WaveletInpainting"
+        assert isinstance(interp, L1WaveletInpainting)
 
     def test_unknown_name_raises_config_error(self) -> None:
         with pytest.raises(ConfigError, match="Unknown method"):

@@ -13,12 +13,12 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import csv
 import logging
 import time
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 from tqdm import tqdm
 
 from pdi_pipeline.entropy import shannon_entropy
@@ -78,8 +78,8 @@ def main(argv: list[str] | None = None) -> None:
         log.error("Manifest not found: %s", manifest_path)
         return
 
-    with manifest_path.open() as fh:
-        rows = list(csv.DictReader(fh))
+    manifest_df = pd.read_csv(manifest_path)
+    rows = manifest_df.to_dict("records")
 
     log.info("Loaded %d patches from manifest", len(rows))
     log.info("Entropy windows: %s", windows)
@@ -103,6 +103,7 @@ def main(argv: list[str] | None = None) -> None:
 
         patch_entropy: dict[str, float] = {}
         all_exist = True
+        clean: np.ndarray | None = None
 
         for ws in windows:
             out_path = entropy_path(
@@ -116,7 +117,10 @@ def main(argv: list[str] | None = None) -> None:
 
             all_exist = False
 
-            clean = np.load(clean_path).astype(np.float32)
+            # Load the clean patch once for all window sizes
+            if clean is None:
+                clean = np.load(clean_path).astype(np.float32)
+
             ent = shannon_entropy(clean, window_size=ws)
 
             out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -131,30 +135,24 @@ def main(argv: list[str] | None = None) -> None:
 
         entropy_means[patch_id] = patch_entropy
 
-    # Update manifest with entropy columns
+    # Vectorized manifest update: merge entropy_means into the DataFrame
     entropy_cols = [f"mean_entropy_{ws}" for ws in windows]
 
-    for row in rows:
-        pid = int(row["patch_id"])
-        if pid in entropy_means:
-            for col in entropy_cols:
-                row[col] = str(
-                    round(entropy_means[pid].get(col, float("nan")), 6)
-                )
-        else:
-            for col in entropy_cols:
-                row[col] = ""
+    if entropy_means:
+        entropy_df = pd.DataFrame.from_dict(entropy_means, orient="index")
+        entropy_df.index.name = "patch_id"
+        entropy_df = entropy_df.reset_index()
+        manifest_df = manifest_df.drop(
+            columns=[c for c in entropy_cols if c in manifest_df.columns],
+            errors="ignore",
+        )
+        manifest_df = manifest_df.merge(entropy_df, on="patch_id", how="left")
 
-    # Determine all fieldnames (original + entropy)
-    fieldnames = list(rows[0].keys())
     for col in entropy_cols:
-        if col not in fieldnames:
-            fieldnames.append(col)
+        if col not in manifest_df.columns:
+            manifest_df[col] = float("nan")
 
-    with manifest_path.open("w", newline="") as fh:
-        writer = csv.DictWriter(fh, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
+    manifest_df.to_csv(manifest_path, index=False)
 
     elapsed = time.monotonic() - t0
     log.info("--- Summary ---")

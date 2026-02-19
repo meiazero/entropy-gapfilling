@@ -15,6 +15,20 @@ from pdi_pipeline.exceptions import DimensionError, ValidationError
 
 logger = logging.getLogger(__name__)
 
+# Module-level cache: reuse the same footprint array for repeated window sizes.
+# footprint_rectangle creates a uint8 array; caching avoids repeated allocations
+# when shannon_entropy is called thousands of times (e.g. 77k patches x 3 windows).
+_FOOTPRINT_CACHE: dict[int, np.ndarray] = {}
+
+
+def _get_footprint(window_size: int) -> np.ndarray:
+    if window_size not in _FOOTPRINT_CACHE:
+        _FOOTPRINT_CACHE[window_size] = footprint_rectangle((
+            window_size,
+            window_size,
+        ))
+    return _FOOTPRINT_CACHE[window_size]
+
 
 def shannon_entropy(
     image: np.ndarray,
@@ -43,7 +57,7 @@ def shannon_entropy(
         msg = f"window_size must be a positive odd integer, got {window_size}"
         raise ValidationError(msg)
 
-    image = np.asarray(image, dtype=np.float64)
+    image = np.asarray(image, dtype=np.float32)
 
     if image.ndim == 3:
         gray = np.mean(image, axis=2)
@@ -58,9 +72,10 @@ def shannon_entropy(
     if span < 1e-10:
         return np.zeros(gray.shape, dtype=np.float32)
 
-    gray_u8 = ((gray - vmin) / span * 255.0).astype(np.uint8)
+    # Scale to [0, 255] using float32 (avoids float64 intermediate)
+    scaled = (gray - vmin) * np.float32(255.0 / span)
+    gray_u8 = scaled.astype(np.uint8)
 
-    selem = footprint_rectangle((window_size, window_size))
-    ent = _rank_entropy(gray_u8, footprint=selem)
+    ent = _rank_entropy(gray_u8, footprint=_get_footprint(window_size))
 
     return ent.astype(np.float32)
