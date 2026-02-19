@@ -98,6 +98,41 @@ def _load_completed(output_path: Path) -> set[tuple[int, str, str, int]]:
     )
 
 
+def _ensure_entropy_precomputed(
+    preprocessed_dir: Path,
+    entropy_windows: list[int],
+) -> None:
+    manifest_path = preprocessed_dir / "manifest.csv"
+    if not manifest_path.exists():
+        log.error("Manifest not found: %s", manifest_path)
+        return
+
+    cols = set(pd.read_csv(manifest_path, nrows=0).columns)
+    missing = [ws for ws in entropy_windows if f"mean_entropy_{ws}" not in cols]
+    if not missing:
+        return
+
+    log.info(
+        "Missing mean entropy columns for windows %s. "
+        "Running precompute_entropy with --resume.",
+        missing,
+    )
+
+    import importlib
+
+    precompute_entropy = importlib.import_module("scripts.precompute_entropy")
+
+    args = [
+        "--preprocessed-dir",
+        str(preprocessed_dir),
+        "--resume",
+        "--windows",
+        *[str(ws) for ws in entropy_windows],
+    ]
+
+    precompute_entropy.main(args)
+
+
 def _save_checkpoint(rows: list[dict[str, Any]], output_path: Path) -> None:
     """Append rows to the CSV file in O(len(rows)) time."""
     if not rows:
@@ -152,6 +187,8 @@ def run_experiment(
         log.info(
             "Using pre-computed patch selections from patch_selections.json"
         )
+
+    _ensure_entropy_precomputed(preprocessed_dir, config.entropy_windows)
 
     methods = config.methods
 

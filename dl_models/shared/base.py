@@ -163,7 +163,7 @@ class BaseDLMethod(ABC):
         x = self._to_tensor(degraded, mask)
         mask_bool = self._normalize_mask(mask)
 
-        with torch.no_grad():
+        with torch.inference_mode():
             out = self._forward(x)
 
         result = out.squeeze(0).permute(1, 2, 0).cpu().numpy()

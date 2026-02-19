@@ -175,11 +175,14 @@ def compute_validation_metrics(
     for pred_batch, target_batch, mask_batch in zip(
         preds, targets, masks, strict=False
     ):
-        b = pred_batch.shape[0]
+        pred_np = pred_batch.detach().cpu().permute(0, 2, 3, 1).numpy()
+        target_np = target_batch.detach().cpu().permute(0, 2, 3, 1).numpy()
+        mask_np = mask_batch.detach().cpu().numpy()
+        b = pred_np.shape[0]
         for i in range(b):
-            p = pred_batch[i].permute(1, 2, 0).numpy()
-            t = target_batch[i].permute(1, 2, 0).numpy()
-            m = mask_batch[i].numpy()
+            p = pred_np[i]
+            t = target_np[i]
+            m = mask_np[i]
 
             if p.shape[2] == 1:
                 p = p[:, :, 0]

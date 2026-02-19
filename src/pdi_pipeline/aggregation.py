@@ -88,7 +88,7 @@ def summary_by_method(
         DataFrame indexed by method with aggregation columns.
     """
     rows = []
-    for method, group in df.groupby("method"):
+    for method, group in df.groupby("method", observed=True):
         vals = group[metric].dropna().values
         ci_lo, ci_hi = _bootstrap_ci(vals)
         rows.append({
@@ -137,7 +137,9 @@ def summary_by_entropy_bin(
     )
 
     rows = []
-    for (method, ebin), group in valid.groupby(["method", "entropy_bin"]):
+    for (method, ebin), group in valid.groupby(
+        ["method", "entropy_bin"], observed=True
+    ):
         vals = group[metric].values
         ci_lo, ci_hi = _bootstrap_ci(vals)
         rows.append({
@@ -188,7 +190,9 @@ def summary_by_gap_fraction(
     )
 
     rows = []
-    for (method, gbin), group in valid.groupby(["method", "gap_bin"]):
+    for (method, gbin), group in valid.groupby(
+        ["method", "gap_bin"], observed=True
+    ):
         vals = group[metric].values
         ci_lo, ci_hi = _bootstrap_ci(vals)
         rows.append({
@@ -222,7 +226,9 @@ def summary_by_satellite(
         DataFrame with method x satellite summary.
     """
     rows = []
-    for (method, sat), group in df.groupby(["method", "satellite"]):
+    for (method, sat), group in df.groupby(
+        ["method", "satellite"], observed=True
+    ):
         vals = group[metric].dropna().values
         ci_lo, ci_hi = _bootstrap_ci(vals)
         rows.append({
@@ -254,7 +260,9 @@ def summary_by_noise(
         DataFrame with method x noise_level summary.
     """
     rows = []
-    for (method, noise), group in df.groupby(["method", "noise_level"]):
+    for (method, noise), group in df.groupby(
+        ["method", "noise_level"], observed=True
+    ):
         vals = group[metric].dropna().values
         ci_lo, ci_hi = _bootstrap_ci(vals)
         rows.append({

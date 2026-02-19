@@ -141,16 +141,14 @@ select = [
 
 # TODO: reduce this ignore list gradually
 ignore = [
-    "PGH003",
-    "TRY003",
+    "PGH003", # Use specific rule codes when ignoring type issues
+    "TRY003", # Avoid specifying long messages outside the exception handler
     "B905", # `zip()` without an explicit `strict=` parameter
     "C901", # complexity
-    "C408",
-    "E741",
-    # LineTooLong
-    "E501",
-    # DoNotAssignLambda
-    "E731",
+    "C408", # Unnecessary `dict` call
+    "E741", # Ambiguous variable name
+    "E501", # Line too long
+    "E731", # DoNotAssignLambda
 ]
 
 [tool.ruff.lint.per-file-ignores]

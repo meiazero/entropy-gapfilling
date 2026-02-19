@@ -60,7 +60,7 @@ def shannon_entropy(
     image = np.asarray(image, dtype=np.float32)
 
     if image.ndim == 3:
-        gray = np.mean(image, axis=2)
+        gray = np.mean(image, axis=2, dtype=np.float32)
     elif image.ndim == 2:
         gray = image
     else:

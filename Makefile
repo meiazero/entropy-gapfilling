@@ -57,7 +57,8 @@ experiment-quick: ## Run quick validation (50 patches, 1 seed)
 	@echo "Running quick validation experiment"
 	@uv run python scripts/run_experiment.py --quick --save-entropy-top-k 5
 	@echo "Generating figures and tables for quick_validation"
-	@uv run python scripts/generate_figures.py --results results/quick_validation
+	@rm -rf results/quick_validation/figures
+	@uv run python scripts/generate_figures.py --results results/quick_validation --png-only
 	@uv run python scripts/generate_tables.py --results results/quick_validation
 
 # =============================================================================

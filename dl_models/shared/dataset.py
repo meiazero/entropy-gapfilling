@@ -126,12 +126,12 @@ class InpaintingDataset(Dataset):  # type: ignore[type-arg]
         mask_path = self._base_dir / self._mask_paths[idx]
         degraded_path = self._base_dir / self._degraded_paths[idx]
 
-        clean = np.load(clean_path).astype(np.float32)
-        mask = np.load(mask_path).astype(np.float32)
-        degraded = np.load(degraded_path).astype(np.float32)
+        clean = np.load(clean_path, mmap_mode="r").astype(np.float32)
+        mask = np.load(mask_path, mmap_mode="r").astype(np.float32)
+        degraded = np.load(degraded_path, mmap_mode="r").astype(np.float32)
 
         # Replace NaN before normalizing
-        degraded = np.nan_to_num(degraded, nan=0.0)
+        degraded = np.nan_to_num(degraded, nan=0.0, copy=False)
 
         # Normalize to [0, 1] using clean image range
         vmin = float(clean.min())

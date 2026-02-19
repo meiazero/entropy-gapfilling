@@ -153,8 +153,9 @@ def validate_mask(arr: np.ndarray, path: Path) -> None:
     if arr.shape != EXPECTED_MASK_SHAPE:
         msg = f"{path}: expected shape {EXPECTED_MASK_SHAPE}, got {arr.shape}"
         raise ValueError(msg)
-    unique = np.unique(arr)
-    if not np.all(np.isin(unique, [0.0, 1.0])):
+    invalid = np.any((arr != 0.0) & (arr != 1.0))
+    if invalid:
+        unique = np.unique(arr)
         msg = f"{path}: mask contains values other than 0 and 1: {unique}"
         raise ValueError(msg)
 
@@ -167,7 +168,7 @@ def validate_clean(arr: np.ndarray, path: Path) -> None:
 
 def read_tiff(path: Path) -> np.ndarray:
     with rasterio.open(path) as src:
-        return src.read(out_dtype=np.float32)
+        return src.read(out_dtype=np.float32, masked=False)
 
 
 def process_patch(
@@ -458,6 +459,8 @@ def main(argv: list[str] | None = None) -> None:
         *VARIANT_COL_MAP.values(),
     ]
     df = pd.read_parquet(parquet_path, columns=_needed_cols)
+    df["patch_id"] = df["patch_id"].astype(np.int32)
+    df["satellite"] = df["satellite"].astype("category")
     log.info("Loaded %d patches from metadata.parquet", len(df))
 
     df = _assign_splits(df, SPLIT_RATIOS, SPLIT_SEED)

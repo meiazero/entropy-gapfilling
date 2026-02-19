@@ -46,9 +46,9 @@ def griddata_fill(
     valid_coords = np.column_stack([valid_y, valid_x]).astype(np.float64)
     gap_coords = np.column_stack([gap_y, gap_x]).astype(np.float64)
 
-    _, nn_indices = distance_transform_edt(
+    nn_indices = distance_transform_edt(
         ~valid_mask,
-        return_distances=True,
+        return_distances=False,
         return_indices=True,
     )
 

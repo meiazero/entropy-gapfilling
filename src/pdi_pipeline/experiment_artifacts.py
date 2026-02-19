@@ -49,7 +49,11 @@ def compute_entropy_extremes(
         if f"mean_entropy_{ws}" in _manifest_columns(manifest_path)
     ]
     if not entropy_cols:
-        logger.warning("No mean entropy columns found in manifest")
+        logger.warning(
+            "No mean entropy columns found in manifest. "
+            "Run scripts/precompute_entropy.py to populate mean_entropy_* "
+            "before selecting entropy extremes."
+        )
         return {}
 
     usecols = ["patch_id", "satellite", "split", *entropy_cols]

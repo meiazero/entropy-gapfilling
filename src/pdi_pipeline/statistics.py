@@ -75,8 +75,8 @@ def correlation_analysis(
             n=len(valid),
         )
 
-    x = valid[entropy_col].values
-    y = valid[metric_col].values
+    x = valid[entropy_col].to_numpy()
+    y = valid[metric_col].to_numpy()
 
     pr, pp = stats.pearsonr(x, y)
     sr, sp = stats.spearmanr(x, y)
@@ -111,11 +111,13 @@ def correlation_matrix(
         p_value, significant_fdr columns.
     """
     if methods is None:
+        filtered = df
         methods = sorted(df["method"].unique())
+    else:
+        filtered = df[df["method"].isin(methods)]
 
     rows = []
-    for method in methods:
-        mdf = df[df["method"] == method]
+    for method, mdf in filtered.groupby("method", observed=True):
         for ecol in entropy_cols:
             for mcol in metric_cols:
                 result = correlation_analysis(mdf, ecol, mcol)
@@ -184,7 +186,7 @@ def method_comparison(
     """
     groups = []
     method_names = []
-    for method, group in df.groupby("method"):
+    for method, group in df.groupby("method", observed=True):
         vals = group[metric_col].dropna().values
         if len(vals) > 0:
             groups.append(vals)
@@ -287,10 +289,10 @@ def robust_regression(
 
     # Dummy-encode categorical predictors
     method_dummies = pd.get_dummies(
-        valid["method"], prefix="method", drop_first=True, dtype=float
+        valid["method"], prefix="method", drop_first=True, dtype=np.float32
     )
     noise_dummies = pd.get_dummies(
-        valid["noise_level"], prefix="noise", drop_first=True, dtype=float
+        valid["noise_level"], prefix="noise", drop_first=True, dtype=np.float32
     )
 
     X = pd.concat(
@@ -377,6 +379,29 @@ def spatial_autocorrelation(
         mask_flat = mask.ravel().astype(bool)
     else:
         mask_flat = np.ones(len(error_flat), dtype=bool)
+
+    values = error_flat[mask_flat]
+    n_valid = int(values.size)
+    if n_valid < 2:
+        lisa_labels = np.zeros((h, w), dtype=int)
+        lisa_pvals = np.ones((h, w), dtype=np.float32)
+        return SpatialResult(
+            morans_i=0.0,
+            morans_p=1.0,
+            expected_i=0.0,
+            lisa_labels=lisa_labels,
+            lisa_p_values=lisa_pvals,
+        )
+    if np.unique(values).size < 3 or float(np.std(values)) == 0.0:
+        lisa_labels = np.zeros((h, w), dtype=int)
+        lisa_pvals = np.ones((h, w), dtype=np.float32)
+        return SpatialResult(
+            morans_i=0.0,
+            morans_p=1.0,
+            expected_i=0.0,
+            lisa_labels=lisa_labels,
+            lisa_p_values=lisa_pvals,
+        )
 
     # Build lattice weights
     weights = lat2W(h, w, rook=False)
