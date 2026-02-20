@@ -1,78 +1,81 @@
-% ============================================================
-% Local Shannon Entropy as a Predictor of Gap-Filling
-% Performance in Satellite Imagery
-%
-% Target journal: ISPRS Journal of Photogrammetry and Remote
-% Sensing / IEEE Transactions on Geoscience and Remote Sensing
-%
-% Compile with: lualatex x2  (or: make paper)
-% ============================================================
-\documentclass[12pt,a4paper]{article}
+\documentclass{sbc2019}%
 
-\usepackage[english]{babel}
-\usepackage{geometry}
-\geometry{margin=1in}
+\usepackage{graphicx}
+\usepackage[utf8]{inputenc}
+\usepackage[misc,geometry]{ifsym}
+\usepackage{fontspec}
+\usepackage{fontawesome}
+\usepackage{academicons}
+\usepackage{color}
+\usepackage{hyperref}
+\usepackage{aas_macros}
+\usepackage[bottom]{footmisc}
+\usepackage{supertabular}
+\usepackage{afterpage}
+\usepackage{url}
+\usepackage{pifont}
+\usepackage{multicol}
+\usepackage{multirow}
 
 % Acronyms
 \usepackage[acronym]{glossaries-extra}
 \input{acronyms}
 
-% Math
-\usepackage{amsmath,amssymb,bm}
+\setcitestyle{square}
 
-% Figures and tables
-\usepackage{graphicx}
-\usepackage{booktabs}
-\usepackage{multirow}
-\usepackage{longtable}
-\usepackage{array}
-\usepackage{tabularx}
+\definecolor{orcidlogo}{rgb}{0.37,0.48,0.13}
+\definecolor{unilogo}{rgb}{0.16, 0.26, 0.58}
+\definecolor{maillogo}{rgb}{0.58, 0.16, 0.26}
+\definecolor{darkblue}{rgb}{0.0,0.0,0.0}
+\hypersetup{colorlinks,breaklinks,
+            linkcolor=darkblue,urlcolor=darkblue,
+            anchorcolor=darkblue,citecolor=darkblue}
+%\hypersetup{colorlinks,citecolor=blue,linkcolor=blue,urlcolor=blue}
 
-% References and links
-\usepackage[hidelinks]{hyperref}
-\usepackage{cleveref}
+%%%%%%% IMPORTANT: We disable hyperlinks by default with this line, to avoid the error "\pdfendlink ended up in different nesting level" while writing.
+%\hypersetup{draft}
 
-% Algorithms
-\usepackage{algorithm}
-\usepackage{algpseudocode}
+\jid{JBCS}
+\jtitle{Journal of Internet Services and Applications, 2023, 13:1, }
+\doi{10.5753/jisa.2023.XXXXXX}
+\copyrightstatement{This work is licensed under a Creative Commons Attribution 4.0 International License}
+\jyear{2023}
 
-% Misc
-\usepackage{lineno}
-\usepackage{xcolor}
-\usepackage{caption}
-\usepackage{subcaption}
 
-% Placeholder for missing results - renders in red so they are visible
-\newcommand{\TODO}[1]{\textcolor{red}{\textbf{[#1]}}}
 
-% Line numbers for review
-\linenumbers
+\title[Presenting the JISA template for 2023]{Presenting the JISA template for 2023}
 
-\title{%
- Local Shannon Entropy as a Predictor of Gap-Filling\\
- Performance in Satellite Imagery:\\
- A Comparative Evaluation of Classical Interpolation Methods%
+
+\author[Viterbo et al. 2023]{
+\affil{\textbf{José Viterbo}~\href{https://orcid.org/0000-0002-0339-6624}{\textcolor{orcidlogo}{\aiOrcid}}~\textcolor{blue}{\faEnvelopeO}~~[~\textbf{Universidade Federal Fluminense}~|\href{mailto:viterbo@ic.uff.br}{~\textbf{\textit{viterbo@ic.uff.br}}}~]}
+
+\affil{\textbf{Clodis Boscarioli}~\href{https://orcid.org/0000-0002-7110-2026}{\textcolor{orcidlogo}{\aiOrcid}}~~[~\textbf{Universidade Estadual do Oeste do Paraná}~|\href{mailto:clodis.boscarioli@unioeste}{~\textbf{\textit{clodis.boscarioli@unioeste}}}~]}
+
+\affil{\textbf{Roberto Pereira}~\href{https://orcid.org/0000-0003-3052-3016}{\textcolor{orcidlogo}{\aiOrcid}}~~[~\textbf{Universidade Federal do Paraná}~|\href{mailto:robertop.ihc@gmail.com}{~\textbf{\textit{robertop.ihc@gmail.com}}}~]}
+
+\affil{\textbf{Cristiano Maciel}~\href{https://orcid.org/0000-0002-2431-8457}{\textcolor{orcidlogo}{\aiOrcid}}~~[~\textbf{Universidade Federal de Mato Grosso~}|\href{mailto:cmaciel@ufmt.br}{~\textbf{\textit{cmaciel@ufmt.br}}}~]}
+
 }
 
-\author{%
- Emanuel Avila\textsuperscript{1}%
- \thanks{Corresponding author. E-mail: \href{mailto:meiazero@tuta.io}{meiazero@tuta.io}}
- \and
- [Co-Author Name]\textsuperscript{1}%
-}
-
-\date{%
- \textsuperscript{1}[Institution, City, Country]\\[0.5em]
- \small Submitted: \today
-}
-
-% ============================================================
 \begin{document}
+
+\begin{frontmatter}
 \maketitle
 
-% ============================================================
+\begin{mail}
+Institute of Computing, Universidade Federal Fluminense, Av. Gal. Milton Tavares de Souza, s/n, São Domingos, Niterói, RJ, 24210-590, Brazil.
+%Full list of authors' information is available at the end of the article.
+\end{mail}
+
+\begin{dates}
+\small{\textbf{Received:} DD Month YYYY~~~$\bullet$~~~\textbf{Accepted:} DD Month YYYY~~~$\bullet$~~~\textbf{Published:} DD Month YYYY}
+%Full list of authors' information is available at the end of the article.
+\end{dates}
+
+
 \begin{abstract}
-Cloud cover, sensor malfunctions, and orbital repeat cycles
+\textbf{Abstract}
+\noindent Cloud cover, sensor malfunctions, and orbital repeat cycles
 produce frequent data gaps in satellite image time series, degrading
 downstream land-cover classification, change detection, and phenological
 monitoring. Classical gap-filling methods -- from nearest-neighbor
@@ -104,12 +107,19 @@ methods maintain relative advantage in low-entropy areas.
 with high-entropy zones. These findings provide actionable guidance for
 adaptive method selection based on scene complexity prior to gap-filling.
 
-\medskip
-\noindent\textbf{Keywords:}
+\end{abstract}
+
+\begin{keywords}
 satellite imagery; gap filling; cloud removal; Shannon entropy;
 spatial interpolation; image quality metrics; remote sensing;
 compressive sensing; geostatistics.
-\end{abstract}
+\end{keywords}
+
+%\begin{license}
+%Published under the Creative Commons Attribution 4.0 International Public License (CC BY 4.0)
+%\end{license}
+
+\end{frontmatter}
 
 % ============================================================
 \section{Introduction}
@@ -879,92 +889,30 @@ All code, configurations, and pre-processed patch manifests are released
 at \url{https://github.com/meiazero/pdi-entropy-gapfilling}.
 
 % ============================================================
-\section*{Data Availability}
 
-The preprocessed patch corpus (manifest CSV and numpy arrays) will be
-deposited at \TODO{[Zenodo / institutional repository]} upon acceptance.
-Raw imagery is openly available from ESA (Sentinel-2), USGS (Landsat),
-and NASA LP DAAC (MODIS).
 
-\section*{Author Contributions}
+\begin{acknowledgements}
+This is a multiline text of acknowledgments. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+\end{acknowledgements}
 
-\TODO{CRediT statement.}
+\begin{funding}
+This research was funded by lorem ipsum dolor sit amet, consectetur adipiscing elit.
+\end{funding}
 
-\section*{Competing Interests}
+\begin{contributions}
+JV contributed to the conception of this study. CB, RP and CM performed the experiments. JV is the main contributor and writer of this manuscript. All authors read and approved the final manuscript.
+\end{contributions}
 
-The authors declare no competing interests.
+\begin{interests}
+The authors declare that they have the following competing interests, lorem ipsum dolor sit amet, consectetur adipiscing elit.
+\end{interests}
 
-\section*{Acknowledgements}
+\begin{materials}
+The datasets generated and/or analysed during the current study are available in lorem ipsum dolor sit amet.
+\end{materials}
 
-\TODO{Funding sources, HPC access, etc.}
 
-% ============================================================
-\appendix
-
-\section{Kruskal-Wallis Post-Hoc Pairwise Comparisons}
-\label{app:posthoc}
-
-\begin{table}[H]
- \centering
- \small
- \caption{%
- Pairwise Mann-Whitney $U$ tests (Bonferroni-corrected) for PSNR
- at noise-free condition. Cliff's $\delta$ effect sizes reported.
- Significant pairs ($p_{\mathrm{adj}} < 0.05$) marked with $^*$.
- }
- \label{tab:kw-posthoc}
- \begin{tabular}{llccc}
- \toprule
- Method A & Method B & $U$ & $p_{\mathrm{adj}}$ & Cliff's $\delta$\\
- \midrule
- \TODO{...} & & & &\\
- \bottomrule
- \end{tabular}
-\end{table}
-
-\section{Deep Learning Baseline Comparison}
-\label{sec:results-dl}
-
-\Cref{tab:dl-comparison} compares the top-5 classical methods
-against four deep learning baselines
-(Autoencoder, VAE, conditional GAN, Transformer)
-on the same test set.
-
-\begin{table}[H]
- \centering
- \small
- \caption{%
- Classical (top 5 by PSNR) vs. deep learning models.
- Metrics at noise-free condition; Sentinel-2 sensor.
- }
- \label{tab:dl-comparison}
- \begin{tabular}{lccccc}
- \toprule
- Model & PSNR (dB) & SSIM & RMSE & SAM & ERGAS\\
- \midrule
- \multicolumn{6}{l}{\textit{Classical -- top 5}}\\
- \TODO{Method 1} & & & & &\\
- \TODO{Method 2} & & & & &\\
- \TODO{Method 3} & & & & &\\
- \TODO{Method 4} & & & & &\\
- \TODO{Method 5} & & & & &\\
- \midrule
- \multicolumn{6}{l}{\textit{Deep Learning}}\\
- Autoencoder & & & & &\\
- VAE & & & & &\\
- cGAN & & & & &\\
- Transformer & & & & &\\
- \bottomrule
- \end{tabular}
-\end{table}
-
-\section{Supplementary Figures}
-\label{app:supp}
-
-Additional per-satellite scatterplots, LISA maps, and local metric
-maps are available in the supplementary material.
-
-% ============================================================
-
+\bibliographystyle{apalike-sol}
+\bibliography{refs}
 
 \end{document}
