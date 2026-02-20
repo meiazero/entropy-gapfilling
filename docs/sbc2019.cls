@@ -138,7 +138,7 @@
 }{\vskip10pt}
 
 \newenvironment{dates}{%
-  \vskip6pt\noindent\datefont{ }~}%
+  \vskip6pt\noindent\datefont{~%
 }{\vskip2pt}
 
 \newenvironment{keywords}{%

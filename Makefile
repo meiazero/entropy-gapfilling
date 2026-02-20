@@ -68,14 +68,16 @@ experiment-quick: ## Run quick validation (50 patches, 1 seed)
 # =============================================================================
 
 TEX_SRC   := docs/main.tex
-BUILD_DIR := docs/build
+BUILD_DIR := docs/dist
+JOB_NAME  := draft
 
 .PHONY: paper
-paper: ## Compile docs/main.tex -> docs/build/main.pdf (via latexmk)
+paper: ## Compile docs/main.tex -> docs/dist/draft.pdf (via latexmk)
 	@mkdir -p $(BUILD_DIR)
-	@latexmk -lualatex -cd -interaction=nonstopmode -halt-on-error \
-		-outdir=$(abspath $(BUILD_DIR)) $(TEX_SRC)
-	@echo "Output: $(BUILD_DIR)/main.pdf"
+	@rm -f $(BUILD_DIR)/$(JOB_NAME).fdb_latexmk $(BUILD_DIR)/$(JOB_NAME).fls
+	@latexmk -xelatex -cd -interaction=nonstopmode -halt-on-error \
+		-jobname=$(JOB_NAME) -outdir=$(abspath $(BUILD_DIR)) $(TEX_SRC)
+	@echo "Output: $(BUILD_DIR)/$(JOB_NAME).pdf"
 
 # =============================================================================
 ##@ Deep Learning - Configuration
