@@ -14,6 +14,13 @@ from pathlib import Path
 
 import numpy as np
 
+from pdi_pipeline.preprocessing import (
+    compute_normalize_range,
+    ensure_mask_2d,
+    normalize_image,
+    replace_nan,
+)
+
 
 @dataclass(frozen=True)
 class PatchSample:
@@ -38,15 +45,6 @@ _NOISE_COL = {
     "30": "degraded_30_path",
     "20": "degraded_20_path",
 }
-
-
-_MIN_SPAN = 1e-8
-
-
-def _normalize(arr: np.ndarray, vmin: float, vmax: float) -> np.ndarray:
-    span = max(vmax - vmin, _MIN_SPAN)
-    out = (arr - vmin) / span
-    return np.clip(out, 0.0, 1.0).astype(np.float32)
 
 
 class PatchDataset:
@@ -135,20 +133,13 @@ class PatchDataset:
         degraded = np.load(degraded_path).astype(np.float32)
 
         # Replace NaN in degraded with 0 before normalizing
-        degraded = np.nan_to_num(degraded, nan=0.0)
+        degraded = replace_nan(degraded)
 
-        # Normalize to [0, 1] using clean image range
-        vmin = float(clean.min())
-        vmax = float(clean.max())
-        if vmax - vmin < _MIN_SPAN:
-            vmax = vmin + 1.0
+        norm_range = compute_normalize_range(clean)
+        clean = normalize_image(clean, norm_range)
+        degraded = normalize_image(degraded, norm_range)
 
-        clean = _normalize(clean, vmin, vmax)
-        degraded = _normalize(degraded, vmin, vmax)
-
-        # Ensure mask is 2D
-        if mask.ndim == 3:
-            mask = mask[:, :, 0]
+        mask = ensure_mask_2d(mask)
 
         # Extract precomputed mean entropy values from manifest
         entropy_dict: dict[str, float] = {}

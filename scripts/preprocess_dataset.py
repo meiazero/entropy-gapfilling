@@ -665,11 +665,7 @@ def main(argv: list[str] | None = None) -> None:
     # because itertuples prepends the Index element at position 0).
     row_fields = {col: i + 1 for i, col in enumerate(df.columns)}
 
-    n_workers = (
-        args.workers
-        if args.workers is not None
-        else min(os.cpu_count() or 4, 8)
-    )
+    n_workers = args.workers if args.workers is not None else os.cpu_count() - 1
     log.info("Using %d worker threads for parallel TIFF I/O", n_workers)
 
     rows_list = list(df.itertuples())

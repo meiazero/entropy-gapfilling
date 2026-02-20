@@ -23,19 +23,19 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
+from pdi_pipeline.preprocessing import (
+    compute_normalize_range,
+    normalize_image,
+    replace_nan,
+    threshold_mask,
+)
+
 _NOISE_COL: dict[str, str] = {
     "inf": "degraded_inf_path",
     "40": "degraded_40_path",
     "30": "degraded_30_path",
     "20": "degraded_20_path",
 }
-
-
-def _normalize(arr: np.ndarray, vmin: float, vmax: float) -> np.ndarray:
-    """Normalize array to [0, 1] using clean image range."""
-    span = max(vmax - vmin, 1e-8)
-    out = (arr - vmin) / span
-    return np.clip(out, 0.0, 1.0).astype(np.float32)
 
 
 class InpaintingDataset(Dataset):  # type: ignore[type-arg]
@@ -134,21 +134,13 @@ class InpaintingDataset(Dataset):  # type: ignore[type-arg]
         degraded = np.load(degraded_path, mmap_mode="r").astype(np.float32)
 
         # Replace NaN before normalizing
-        degraded = np.nan_to_num(degraded, nan=0.0, copy=False)
+        degraded = replace_nan(degraded)
 
-        # Normalize to [0, 1] using clean image range
-        vmin = float(clean.min())
-        vmax = float(clean.max())
-        if vmax - vmin < 1e-8:
-            vmax = vmin + 1.0
-        clean = _normalize(clean, vmin, vmax)
-        degraded = _normalize(degraded, vmin, vmax)
+        norm_range = compute_normalize_range(clean)
+        clean = normalize_image(clean, norm_range)
+        degraded = normalize_image(degraded, norm_range)
 
-        # Ensure mask is 2D
-        if mask.ndim == 3:
-            mask = mask[:, :, 0]
-
-        mask_2d = (mask > 0.5).astype(np.float32)
+        mask_2d = threshold_mask(mask)
 
         # Zero out gap pixels in input
         masked_input = degraded * (1.0 - mask_2d[:, :, np.newaxis])
