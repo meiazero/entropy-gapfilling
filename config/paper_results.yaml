@@ -4,7 +4,7 @@ experiment:
   noise_levels: ["inf", "40", "30", "20"]
   satellites: ["sentinel2", "landsat8", "landsat9", "modis"]
   entropy_windows: [7, 15, 31]
-  max_patches: null
+  max_patches: 150
   output_dir: "results/"
 
 methods:

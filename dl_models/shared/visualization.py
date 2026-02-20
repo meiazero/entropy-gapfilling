@@ -174,35 +174,6 @@ def plot_rmse_curves(histories: list[dict[str, Any]], output_dir: Path) -> None:
     )
 
 
-def plot_pixel_accuracy_f1(
-    histories: list[dict[str, Any]], output_dir: Path
-) -> None:
-    """Pixel accuracy + F1 at 3 thresholds, one subplot per model."""
-    thresholds = ["002", "005", "010"]
-    tau_labels = ["0.02", "0.05", "0.10"]
-    n = len(histories)
-    fig, axes = plt.subplots(1, n, figsize=(5 * n, 4), squeeze=False)
-
-    for i, h in enumerate(histories):
-        ax = axes[0, i]
-        epochs = _get_epochs(h)
-        for j, (tk, tl) in enumerate(zip(thresholds, tau_labels, strict=True)):
-            pa = _get_values(h, f"val_pixel_acc_{tk}")
-            f1 = _get_values(h, f"val_f1_{tk}")
-            c = COLORS[j % len(COLORS)]
-            ax.plot(epochs, pa, color=c, linestyle="-", label=f"PA t={tl}")
-            ax.plot(epochs, f1, color=c, linestyle="--", label=f"F1 t={tl}")
-        ax.set_xlabel("Epoch")
-        ax.set_ylabel("Score")
-        ax.set_title(f"{h['model_name'].upper()}")
-        ax.legend(fontsize=7, ncol=2)
-        ax.set_ylim(0, 1.05)
-
-    fig.suptitle("Pixel Accuracy & F1 at Multiple Thresholds", y=1.02)
-    fig.tight_layout()
-    _save_fig(fig, output_dir, "pixel_accuracy_f1")
-
-
 def plot_gan_balance(histories: list[dict[str, Any]], output_dir: Path) -> None:
     """GAN-only: G loss vs D loss, g_adv vs g_recon decomposition."""
     gan_hists = [h for h in histories if h["model_name"] == "gan"]

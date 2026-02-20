@@ -21,7 +21,6 @@ from dl_models.shared.visualization import (
     plot_loss_curves,
     plot_lr_schedule,
     plot_model_comparison,
-    plot_pixel_accuracy_f1,
     plot_psnr_curves,
     plot_rmse_curves,
     plot_ssim_curves,
@@ -61,7 +60,6 @@ def main() -> None:
     plot_psnr_curves(histories, args.output)
     plot_ssim_curves(histories, args.output)
     plot_rmse_curves(histories, args.output)
-    plot_pixel_accuracy_f1(histories, args.output)
     plot_gan_balance(histories, args.output)
     plot_vae_decomposition(histories, args.output)
     plot_lr_schedule(histories, args.output)

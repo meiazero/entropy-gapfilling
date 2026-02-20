@@ -1,8 +1,7 @@
 """Image quality metrics for gap-filling evaluation.
 
 All metrics are computed strictly on gap pixels (mask=1) to avoid
-diluting the signal with untouched pixels. Local variants produce
-per-pixel maps via sliding windows for spatial analysis (LISA).
+diluting the signal with untouched pixels.
 """
 
 from __future__ import annotations
@@ -10,15 +9,11 @@ from __future__ import annotations
 import logging
 
 import numpy as np
-from scipy.ndimage import uniform_filter
 from skimage.metrics import structural_similarity
 
 from pdi_pipeline.exceptions import DimensionError
 
 logger = logging.getLogger(__name__)
-
-_PSNR_CAP = 100.0
-_MSE_FLOOR = 1e-12
 
 
 def _as_gap_mask(mask: np.ndarray) -> np.ndarray:
@@ -299,116 +294,6 @@ def ergas(
         raise DimensionError(msg)
 
     return _ergas_core(clean, reconstructed, gap)
-
-
-def local_psnr(
-    clean: np.ndarray,
-    reconstructed: np.ndarray,
-    mask: np.ndarray,
-    window: int = 15,
-) -> np.ndarray:
-    """Per-pixel PSNR map via sliding window.
-
-    Computes PSNR within a local window centered on each pixel, using
-    only gap pixels within that window. Used for LISA spatial analysis.
-
-    Args:
-        clean: Reference image, (H, W) or (H, W, C).
-        reconstructed: Reconstructed image, same shape.
-        mask: Binary mask, (H, W), 1=gap.
-        window: Side length of the square window (must be odd).
-
-    Returns:
-        Float32 array of shape (H, W) with local PSNR values.
-        Pixels with no gap neighbors in their window get NaN.
-    """
-    clean, reconstructed, mask_2d = _validate_inputs(clean, reconstructed, mask)
-    gap = mask_2d
-
-    if clean.ndim == 3:
-        # Average squared error across channels
-        sq_err = np.mean((clean - reconstructed) ** 2, axis=2)
-    else:
-        sq_err = (clean - reconstructed) ** 2
-
-    h, w = sq_err.shape
-    result = np.full((h, w), np.nan, dtype=np.float32)
-
-    # uniform_filter with mode="constant", cval=0 implicitly zero-pads at
-    # borders, which is equivalent to treating non-gap pixels as 0 contribution.
-    # Manual np.pad is therefore redundant and removed.
-    gap_f = gap.astype(np.float64)
-    masked_err = sq_err.astype(np.float64) * gap_f
-
-    # Vectorized sliding-window sums via scipy uniform_filter -- O(HW)
-    area = float(window * window)
-    gap_count = (
-        uniform_filter(gap_f, size=window, mode="constant", cval=0.0) * area
-    )
-    err_sum = (
-        uniform_filter(masked_err, size=window, mode="constant", cval=0.0)
-        * area
-    )
-
-    # Compute MSE and PSNR only where there are gap pixels in the window
-    has_gap = gap_count > 0.5  # at least 1 gap pixel
-    mse = np.zeros_like(err_sum, dtype=np.float64)
-    np.divide(err_sum, gap_count, out=mse, where=has_gap)
-
-    valid_mse = mse > _MSE_FLOOR
-    result[has_gap & valid_mse] = (
-        10.0 * np.log10(1.0 / mse[has_gap & valid_mse])
-    ).astype(np.float32)
-    result[has_gap & ~valid_mse] = _PSNR_CAP
-
-    return result
-
-
-def local_ssim(
-    clean: np.ndarray,
-    reconstructed: np.ndarray,
-    mask: np.ndarray,
-    window: int = 15,
-) -> np.ndarray:
-    """Per-pixel SSIM map restricted to gap region.
-
-    Computes the full SSIM map and masks it to gap pixels only.
-    The SSIM computation itself already uses local windows internally.
-
-    Args:
-        clean: Reference image, (H, W) or (H, W, C).
-        reconstructed: Reconstructed image, same shape.
-        mask: Binary mask, (H, W), 1=gap.
-        window: Passed as win_size to skimage SSIM (must be odd).
-
-    Returns:
-        Float32 array of shape (H, W) with SSIM values at gap pixels
-        and NaN elsewhere.
-    """
-    clean, reconstructed, mask_2d = _validate_inputs(clean, reconstructed, mask)
-    gap = mask_2d
-    is_multichannel = clean.ndim == 3
-
-    win_size = min(window, min(clean.shape[0], clean.shape[1]))
-    if win_size % 2 == 0:
-        win_size -= 1
-    win_size = max(win_size, 3)
-
-    _, ssim_map = structural_similarity(
-        clean,
-        reconstructed,
-        data_range=1.0,
-        full=True,
-        win_size=win_size,
-        channel_axis=2 if is_multichannel else None,
-    )
-
-    if ssim_map.ndim == 3:
-        ssim_map = np.mean(ssim_map, axis=2)
-
-    result = np.full_like(ssim_map, np.nan, dtype=np.float32)
-    result[gap] = ssim_map[gap]
-    return result
 
 
 def compute_all(

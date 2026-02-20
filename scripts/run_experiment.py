@@ -1,8 +1,8 @@
 """Run the gap-filling experiment pipeline.
 
-Iterates over seeds x noise levels x methods x patches, computes metrics
-on each reconstruction, and writes results to a Parquet file with
-checkpointing for resumable execution.
+Samples patches using the configured seeds, then evaluates each selected
+patch once across noise levels and methods. Results are written to a
+Parquet file with checkpointing for resumable execution.
 
 Usage:
     uv run python scripts/run_experiment.py --config config/paper_results.yaml
@@ -102,16 +102,16 @@ def _load_completed(output_path: Path) -> set[tuple[int, str, str, int]]:
 def _ensure_entropy_precomputed(
     preprocessed_dir: Path,
     entropy_windows: list[int],
-) -> None:
+) -> str:
     manifest_path = preprocessed_dir / "manifest.csv"
     if not manifest_path.exists():
         log.error("Manifest not found: %s", manifest_path)
-        return
+        return "missing"
 
     cols = set(pd.read_csv(manifest_path, nrows=0).columns)
     missing = [ws for ws in entropy_windows if f"mean_entropy_{ws}" not in cols]
     if not missing:
-        return
+        return "complete"
 
     log.info(
         "Missing mean entropy columns for windows %s. "
@@ -132,6 +132,7 @@ def _ensure_entropy_precomputed(
     ]
 
     precompute_entropy.main(args)
+    return "ran"
 
 
 def _save_checkpoint(rows: list[dict[str, Any]], output_path: Path) -> None:
@@ -164,21 +165,99 @@ def _load_patch_selections(
     }
 
 
-def _dataset_for_combo(
+def _seed_sequences(
+    seeds: list[int],
+    satellites: list[str],
+) -> dict[str, np.random.SeedSequence]:
+    base = np.random.SeedSequence(seeds)
+    spawned = base.spawn(len(satellites))
+    return dict(zip(satellites, spawned, strict=True))
+
+
+def _build_patch_plan(
     manifest_path: Path,
     config: ExperimentConfig,
     selections: dict[str, dict[int, list[int]]] | None,
+) -> tuple[dict[str, list[int]] | None, dict[str, dict[int, int]]]:
+    if not config.satellites:
+        return None, {}
+
+    seed_sequences = _seed_sequences(config.seeds, config.satellites)
+    seed_map: dict[str, dict[int, int]] = {}
+
+    if selections is not None:
+        selected_by_sat: dict[str, list[int]] = {}
+        for sat in config.satellites:
+            ordered_ids: list[int] = []
+            sat_seed_map: dict[int, int] = {}
+            for seed in config.seeds:
+                for patch_id in selections.get(sat, {}).get(seed, []):
+                    if patch_id not in sat_seed_map:
+                        sat_seed_map[patch_id] = seed
+                        ordered_ids.append(patch_id)
+
+            if (
+                config.max_patches is not None
+                and len(ordered_ids) > config.max_patches
+            ):
+                rng = np.random.default_rng(seed_sequences[sat])
+                idx = rng.choice(
+                    len(ordered_ids),
+                    size=config.max_patches,
+                    replace=False,
+                )
+                idx.sort()
+                ordered_ids = [ordered_ids[i] for i in idx]
+                sat_seed_map = {
+                    patch_id: sat_seed_map[patch_id] for patch_id in ordered_ids
+                }
+
+            selected_by_sat[sat] = ordered_ids
+            seed_map[sat] = sat_seed_map
+        return selected_by_sat, seed_map
+
+    selected_by_sat = {}
+    seed_map = {}
+    seed_default = config.seeds[0] if config.seeds else 0
+    manifest = pd.read_csv(
+        manifest_path,
+        usecols=["patch_id", "satellite", "split"],
+    )
+    for sat in config.satellites:
+        sat_rows = manifest[
+            (manifest["split"] == "train") & (manifest["satellite"] == sat)
+        ]
+        patch_ids = sat_rows["patch_id"].astype(int).sort_values().tolist()
+        if (
+            config.max_patches is not None
+            and len(patch_ids) > config.max_patches
+        ):
+            rng = np.random.default_rng(seed_sequences[sat])
+            idx = rng.choice(
+                len(patch_ids),
+                size=config.max_patches,
+                replace=False,
+            )
+            idx.sort()
+            patch_ids = [patch_ids[i] for i in idx]
+        selected_by_sat[sat] = patch_ids
+        seed_map[sat] = dict.fromkeys(patch_ids, seed_default)
+
+    return selected_by_sat, seed_map
+
+
+def _dataset_for_combo(
+    manifest_path: Path,
+    config: ExperimentConfig,
+    selected_ids: list[int] | None,
     *,
     seed: int,
     noise_level: str,
     satellite: str,
 ) -> PatchDataset:
-    selected_ids = (
-        selections.get(satellite, {}).get(seed) if selections else None
-    )
     return PatchDataset(
         manifest_path,
-        split="test",
+        split="train",
         satellite=satellite,
         noise_level=noise_level,
         max_patches=config.max_patches,
@@ -190,21 +269,24 @@ def _dataset_for_combo(
 def _compute_total_work(
     manifest_path: Path,
     config: ExperimentConfig,
-    selections: dict[str, dict[int, list[int]]] | None,
+    selected_by_sat: dict[str, list[int]] | None,
 ) -> int:
     total = 0
-    for seed in config.seeds:
-        for noise_level in config.noise_levels:
-            for satellite in config.satellites:
-                dataset = _dataset_for_combo(
-                    manifest_path,
-                    config,
-                    selections,
-                    seed=seed,
-                    noise_level=noise_level,
-                    satellite=satellite,
-                )
-                total += len(dataset) * len(config.methods)
+    seed = config.seeds[0] if config.seeds else 0
+    for noise_level in config.noise_levels:
+        for satellite in config.satellites:
+            selected_ids = (
+                selected_by_sat.get(satellite) if selected_by_sat else None
+            )
+            dataset = _dataset_for_combo(
+                manifest_path,
+                config,
+                selected_ids,
+                seed=seed,
+                noise_level=noise_level,
+                satellite=satellite,
+            )
+            total += len(dataset) * len(config.methods)
     return total
 
 
@@ -339,7 +421,8 @@ def _run_evaluation_loop(
     *,
     config: ExperimentConfig,
     manifest_path: Path,
-    selections: dict[str, Any] | None,
+    selected_by_sat: dict[str, list[int]] | None,
+    seed_map: dict[str, dict[int, int]],
     methods: list[Any],
     method_instances: dict[str, Any],
     completed: set[tuple[Any, ...]],
@@ -357,53 +440,60 @@ def _run_evaluation_loop(
     n_skipped = 0
 
     with tqdm(total=total_work, desc="Experiment") as pbar:
-        for seed in config.seeds:
-            for noise_level in config.noise_levels:
-                for sat in config.satellites:
-                    ds = _dataset_for_combo(
-                        manifest_path,
-                        config,
-                        selections,
-                        seed=seed,
-                        noise_level=noise_level,
-                        satellite=sat,
-                    )
+        seed_default = config.seeds[0] if config.seeds else 0
+        for noise_level in config.noise_levels:
+            for sat in config.satellites:
+                selected_ids = (
+                    selected_by_sat.get(sat) if selected_by_sat else None
+                )
+                ds = _dataset_for_combo(
+                    manifest_path,
+                    config,
+                    selected_ids,
+                    seed=seed_default,
+                    noise_level=noise_level,
+                    satellite=sat,
+                )
 
-                    for mc in methods:
-                        method = method_instances[mc.name]
+                for mc in methods:
+                    method = method_instances[mc.name]
 
-                        for patch in ds:
-                            key = (
-                                seed,
-                                noise_level,
-                                mc.name,
-                                patch.patch_id,
-                            )
-                            if key in completed:
-                                n_skipped += 1
-                                pbar.update(1)
-                                continue
-                            row = _evaluate_patch(
-                                method,
-                                patch,
-                                seed=seed,
-                                noise_level=noise_level,
-                                method_name=mc.name,
-                                method_category=mc.category,
-                                metrics_module=metrics_module,
-                                recon_manager=recon_manager,
-                                preprocessed_dir=preprocessed_dir,
-                                config=config,
-                                entropy_keys=entropy_keys,
-                            )
-
-                            buffer.append(row)
-                            n_done += 1
+                    for patch in ds:
+                        seed = seed_map.get(sat, {}).get(
+                            patch.patch_id,
+                            seed_default,
+                        )
+                        key = (
+                            seed,
+                            noise_level,
+                            mc.name,
+                            patch.patch_id,
+                        )
+                        if key in completed:
+                            n_skipped += 1
                             pbar.update(1)
+                            continue
+                        row = _evaluate_patch(
+                            method,
+                            patch,
+                            seed=seed,
+                            noise_level=noise_level,
+                            method_name=mc.name,
+                            method_category=mc.category,
+                            metrics_module=metrics_module,
+                            recon_manager=recon_manager,
+                            preprocessed_dir=preprocessed_dir,
+                            config=config,
+                            entropy_keys=entropy_keys,
+                        )
 
-                            if len(buffer) >= checkpoint_interval:
-                                _save_checkpoint(buffer, output_path)
-                                buffer.clear()
+                        buffer.append(row)
+                        n_done += 1
+                        pbar.update(1)
+
+                        if len(buffer) >= checkpoint_interval:
+                            _save_checkpoint(buffer, output_path)
+                            buffer.clear()
 
     _save_checkpoint(buffer, output_path)
     buffer.clear()
@@ -454,17 +544,49 @@ def run_experiment(
             "Using pre-computed patch selections from patch_selections.json"
         )
 
-    _ensure_entropy_precomputed(preprocessed_dir, config.entropy_windows)
+    log.info(
+        "Entropy precompute: start (windows=%s)",
+        config.entropy_windows,
+    )
+    entropy_status = _ensure_entropy_precomputed(
+        preprocessed_dir,
+        config.entropy_windows,
+    )
+    if entropy_status == "ran":
+        log.info("Entropy precompute: completed")
+    elif entropy_status == "complete":
+        log.info("Entropy precompute: already complete")
+    else:
+        log.info("Entropy precompute: skipped")
+
+    selected_by_sat, seed_map = _build_patch_plan(
+        manifest_path,
+        config,
+        selections,
+    )
 
     methods = config.methods
-    total_work = _compute_total_work(manifest_path, config, selections)
+    total_work = _compute_total_work(manifest_path, config, selected_by_sat)
 
     log.info("Experiment: %s", config.name)
     log.info("Seeds: %d", len(config.seeds))
+    log.info("Seed usage: sampling only (no seed multiplication)")
     log.info("Noise levels: %s", config.noise_levels)
     log.info("Methods: %d (%s)", len(methods), [m.name for m in methods])
     log.info("Total evaluations: %d", total_work)
     log.info("Output: %s", output_path)
+
+    if selected_by_sat is not None:
+        log.info("Selection strategy: union across seeds, capped per satellite")
+
+    if selected_by_sat is not None:
+        for sat, patch_ids in selected_by_sat.items():
+            log.info(
+                "Selection: %s -> %d patches (max=%s)",
+                sat,
+                len(patch_ids),
+                config.max_patches,
+            )
 
     if dry_run:
         log.info("DRY RUN -- exiting without execution.")
@@ -498,7 +620,8 @@ def run_experiment(
     n_done, n_skipped = _run_evaluation_loop(
         config=config,
         manifest_path=manifest_path,
-        selections=selections,
+        selected_by_sat=selected_by_sat,
+        seed_map=seed_map,
         methods=methods,
         method_instances=method_instances,
         completed=completed,

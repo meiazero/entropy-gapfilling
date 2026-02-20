@@ -9,8 +9,6 @@ from pdi_pipeline.exceptions import DimensionError
 from pdi_pipeline.metrics import (
     compute_all,
     ergas,
-    local_psnr,
-    local_ssim,
     psnr,
     rmse,
     sam,
@@ -187,35 +185,6 @@ class TestERGAS:
         img = rng.random((8, 8, 3)).astype(np.float32) + 0.1
         mask = np.zeros((8, 8), dtype=np.float32)
         assert ergas(img, img * 0.5, mask) == 0.0
-
-
-class TestLocalPSNR:
-    def test_output_shape(self) -> None:
-        rng = np.random.default_rng(42)
-        img = rng.random((32, 32)).astype(np.float32)
-        mask = np.ones((32, 32), dtype=np.float32)
-        result = local_psnr(img, img * 0.9, mask, window=7)
-        assert result.shape == (32, 32)
-        assert result.dtype == np.float32
-
-
-class TestLocalSSIM:
-    def test_output_shape(self) -> None:
-        rng = np.random.default_rng(42)
-        img = rng.random((32, 32)).astype(np.float32)
-        mask = np.ones((32, 32), dtype=np.float32)
-        result = local_ssim(img, img * 0.9, mask, window=7)
-        assert result.shape == (32, 32)
-        assert result.dtype == np.float32
-
-    def test_non_gap_pixels_are_nan(self) -> None:
-        rng = np.random.default_rng(42)
-        img = rng.random((32, 32)).astype(np.float32)
-        mask = np.zeros((32, 32), dtype=np.float32)
-        mask[10:20, 10:20] = 1.0
-        result = local_ssim(img, img * 0.9, mask, window=7)
-        assert np.all(np.isnan(result[0, 0]))
-        assert not np.isnan(result[15, 15])
 
 
 class TestComputeAll:

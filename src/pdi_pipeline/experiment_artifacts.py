@@ -42,48 +42,143 @@ def compute_entropy_extremes(
     """
     if top_k <= 0:
         return {}
-
-    entropy_cols = [
-        f"mean_entropy_{ws}"
-        for ws in config.entropy_windows
-        if f"mean_entropy_{ws}" in _manifest_columns(manifest_path)
-    ]
+    entropy_cols = _entropy_columns(manifest_path, config.entropy_windows)
     if not entropy_cols:
-        logger.warning(
-            "No mean entropy columns found in manifest. "
-            "Run scripts/precompute_entropy.py to populate mean_entropy_* "
-            "before selecting entropy extremes."
-        )
+        _log_missing_entropy_cols()
         return {}
 
+    manifest = _load_entropy_manifest(
+        manifest_path,
+        config.satellites,
+        entropy_cols,
+    )
+    patch_ids_by_sat = _patch_ids_by_satellite(
+        manifest,
+        config,
+        selections,
+    )
+    patch_ids_by_noise = _patch_ids_by_noise(
+        patch_ids_by_sat,
+        config.noise_levels,
+    )
+    manifest["entropy_score"] = manifest[entropy_cols].mean(axis=1, skipna=True)
+    return _extremes_by_noise(manifest, patch_ids_by_noise, top_k)
+
+
+def _entropy_columns(
+    manifest_path: Path,
+    entropy_windows: list[int],
+) -> list[str]:
+    return [
+        f"mean_entropy_{ws}"
+        for ws in entropy_windows
+        if f"mean_entropy_{ws}" in _manifest_columns(manifest_path)
+    ]
+
+
+def _log_missing_entropy_cols() -> None:
+    logger.warning(
+        "No mean entropy columns found in manifest. "
+        "Run scripts/precompute_entropy.py to populate mean_entropy_* "
+        "before selecting entropy extremes."
+    )
+
+
+def _load_entropy_manifest(
+    manifest_path: Path,
+    satellites: list[str],
+    entropy_cols: list[str],
+) -> pd.DataFrame:
     used_cols = ["patch_id", "satellite", "split", *entropy_cols]
     manifest = pd.read_csv(manifest_path, usecols=used_cols)
-    manifest = manifest[manifest["split"] == "test"]
-    manifest = manifest[manifest["satellite"].isin(config.satellites)]
-    manifest = manifest.sort_values("patch_id").reset_index(drop=True)
+    manifest = manifest[manifest["split"] == "train"]
+    manifest = manifest[manifest["satellite"].isin(satellites)]
+    return manifest.sort_values("patch_id").reset_index(drop=True)
 
-    patch_ids_by_noise: dict[str, set[int]] = {
-        noise: set() for noise in config.noise_levels
-    }
+
+def _patch_ids_by_satellite(
+    manifest: pd.DataFrame,
+    config: ExperimentConfig,
+    selections: dict[str, dict[int, list[int]]] | None,
+) -> dict[str, list[int]]:
+    seed_sequences = np.random.SeedSequence(config.seeds)
+    per_sat_sequences = seed_sequences.spawn(len(config.satellites))
+
+    patch_ids_by_sat: dict[str, list[int]] = {}
+    for satellite, sat_seq in zip(
+        config.satellites,
+        per_sat_sequences,
+        strict=True,
+    ):
+        patch_ids = _patch_ids_for_satellite(
+            manifest,
+            satellite,
+            config,
+            selections,
+        )
+        patch_ids = _cap_patch_ids(patch_ids, config.max_patches, sat_seq)
+        patch_ids_by_sat[satellite] = patch_ids
+
+    return patch_ids_by_sat
+
+
+def _patch_ids_for_satellite(
+    manifest: pd.DataFrame,
+    satellite: str,
+    config: ExperimentConfig,
+    selections: dict[str, dict[int, list[int]]] | None,
+) -> list[int]:
+    if selections is None:
+        return _select_patch_ids(
+            manifest,
+            satellite,
+            seed=0,
+            max_patches=None,
+            selected_ids=None,
+        )
+
+    ordered_ids: list[int] = []
+    seen: set[int] = set()
     for seed in config.seeds:
-        for noise_level in config.noise_levels:
-            for satellite in config.satellites:
-                selected_ids = (
-                    selections.get(satellite, {}).get(seed)
-                    if selections
-                    else None
-                )
-                patch_ids = _select_patch_ids(
-                    manifest,
-                    satellite,
-                    seed,
-                    config.max_patches,
-                    selected_ids,
-                )
-                patch_ids_by_noise[noise_level].update(patch_ids)
+        for patch_id in selections.get(satellite, {}).get(seed, []):
+            if patch_id not in seen:
+                seen.add(patch_id)
+                ordered_ids.append(patch_id)
+    return ordered_ids
 
-    manifest["entropy_score"] = manifest[entropy_cols].mean(axis=1, skipna=True)
 
+def _cap_patch_ids(
+    patch_ids: list[int],
+    max_patches: int | None,
+    seed_seq: np.random.SeedSequence,
+) -> list[int]:
+    if max_patches is None or len(patch_ids) <= max_patches:
+        return patch_ids
+
+    rng = np.random.default_rng(seed_seq)
+    idx = rng.choice(len(patch_ids), size=max_patches, replace=False)
+    idx.sort()
+    return [patch_ids[i] for i in idx]
+
+
+def _patch_ids_by_noise(
+    patch_ids_by_sat: dict[str, list[int]],
+    noise_levels: list[str],
+) -> dict[str, set[int]]:
+    patch_ids_by_noise: dict[str, set[int]] = {
+        noise: set() for noise in noise_levels
+    }
+    for noise_level in noise_levels:
+        for patch_ids in patch_ids_by_sat.values():
+            patch_ids_by_noise[noise_level].update(patch_ids)
+    return patch_ids_by_noise
+
+
+def _extremes_by_noise(
+    manifest: pd.DataFrame,
+    patch_ids_by_noise: dict[str, set[int]],
+    top_k: int,
+) -> dict[str, EntropyExtremes]:
     extremes_by_noise: dict[str, EntropyExtremes] = {}
     for noise_level, patch_ids in patch_ids_by_noise.items():
         if not patch_ids:

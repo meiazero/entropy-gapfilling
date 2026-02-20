@@ -158,8 +158,7 @@ def compute_validation_metrics(
     """Bridge torch tensors to numpy and compute quality metrics.
 
     Converts (B, C, H, W) tensors to numpy (H, W, C) and calls
-    psnr/ssim/rmse per sample. Also computes pixel accuracy and F1
-    at multiple thresholds.
+    psnr/ssim/rmse per sample.
 
     Args:
         preds: List of prediction tensors, each (B, C, H, W).
@@ -168,16 +167,11 @@ def compute_validation_metrics(
         max_ssim_samples: Cap for SSIM computation (performance).
 
     Returns:
-        Dict with val_psnr, val_ssim, val_rmse, and pixel accuracy /
-        F1 at thresholds 0.02, 0.05, 0.10.
+        Dict with val_psnr, val_ssim, and val_rmse.
     """
     psnr_vals: list[float] = []
     ssim_vals: list[float] = []
     rmse_vals: list[float] = []
-
-    thresholds = [0.02, 0.05, 0.10]
-    acc_counts = dict.fromkeys(thresholds, 0.0)
-    acc_totals = dict.fromkeys(thresholds, 0.0)
 
     ssim_count = 0
 
@@ -204,19 +198,6 @@ def compute_validation_metrics(
                 ssim_vals.append(ssim(t, p, m))
                 ssim_count += 1
 
-            gap = m > 0.5
-            if np.any(gap):
-                if p.ndim == 3:
-                    gap_3d = np.broadcast_to(gap[:, :, np.newaxis], p.shape)
-                    diff = np.abs(p[gap_3d] - t[gap_3d])
-                else:
-                    diff = np.abs(p[gap] - t[gap])
-                n_gap = float(diff.size)
-                for tau in thresholds:
-                    correct = float(np.sum(diff < tau))
-                    acc_counts[tau] += correct
-                    acc_totals[tau] += n_gap
-
     result: dict[str, float] = {}
 
     if psnr_vals:
@@ -227,12 +208,5 @@ def compute_validation_metrics(
 
     result["val_ssim"] = float(np.mean(ssim_vals)) if ssim_vals else 0.0
     result["val_rmse"] = float(np.mean(rmse_vals)) if rmse_vals else 0.0
-
-    for tau in thresholds:
-        tau_key = str(tau).replace(".", "")
-        pa = acc_counts[tau] / acc_totals[tau] if acc_totals[tau] > 0 else 0.0
-        f1 = 2 * pa / (1 + pa) if (1 + pa) > 0 else 0.0
-        result[f"val_pixel_acc_{tau_key}"] = pa
-        result[f"val_f1_{tau_key}"] = f1
 
     return result

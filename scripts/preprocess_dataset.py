@@ -427,7 +427,7 @@ def _simulate_selection(
     """Replicate PatchDataset's deterministic patch selection on raw metadata.
 
     For each (satellite, seed) pair, applies the same sort-then-sample
-    logic as PatchDataset.__init__ on the test split.
+    logic as PatchDataset.__init__ on the train split.
 
     Returns:
         Nested dict ``{satellite: {seed: [sorted_patch_ids]}}``.
@@ -435,7 +435,7 @@ def _simulate_selection(
     selections: dict[str, dict[int, list[int]]] = {}
 
     for sat in satellites:
-        sat_df = df[(df["split"] == "test") & (df["satellite"] == sat)]
+        sat_df = df[(df["split"] == "train") & (df["satellite"] == sat)]
         sat_df = sat_df.sort_values("patch_id").reset_index(drop=True)
         all_ids = sat_df["patch_id"].tolist()
         n = len(all_ids)
@@ -652,10 +652,10 @@ def main(argv: list[str] | None = None) -> None:
         SPLIT_SEED,
     )
 
+    df = _apply_config_selection(args, df, output_dir)
+
     if _try_resume_fast_path(args, output_dir, df):
         return
-
-    df = _apply_config_selection(args, df, output_dir)
 
     output_dir.mkdir(parents=True, exist_ok=True)
 

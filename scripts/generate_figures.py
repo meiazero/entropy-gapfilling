@@ -770,135 +770,6 @@ def fig7_correlation_heatmap(results_dir: Path, output_dir: Path) -> None:
     log.info("Saved fig7_correlation_heatmap(s)")
 
 
-def fig9_local_metric_maps(results_dir: Path, output_dir: Path) -> None:
-    """Fig 9: Aggregated local PSNR and SSIM maps for a representative patch.
-
-    Shows spatial distribution of reconstruction quality to support
-    the LISA hotspot analysis (fig5).
-    """
-    from pdi_pipeline.metrics import local_psnr, local_ssim
-
-    df = load_results(results_dir)
-    project_root = Path(__file__).resolve().parent.parent
-    preprocessed = project_root / "preprocessed"
-    recon_dir = results_dir / "reconstruction_images"
-    arrays_dir = results_dir / "reconstruction_arrays"
-
-    if not recon_dir.exists() and not arrays_dir.exists():
-        log.info("No reconstruction data found. Skipping fig9.")
-        return
-
-    valid = df.dropna(subset=["entropy_7", "psnr"])
-    if valid.empty:
-        log.info("No valid data for fig9")
-        return
-
-    # Constrain to patches that have reconstruction data
-    avail_ids = _available_recon_patch_ids(recon_dir)
-    valid = valid[valid["patch_id"].isin(avail_ids)]
-    if valid.empty:
-        log.info("No patches with reconstruction data for fig9")
-        return
-
-    # Pick median-entropy patch
-    median_ent = float(valid["entropy_7"].median())
-    ref_row = valid.iloc[
-        (valid["entropy_7"] - median_ent).abs().argsort()[:1]
-    ].iloc[0]
-    patch_id = int(ref_row["patch_id"])
-    satellite = ref_row["satellite"]
-
-    clean_path = preprocessed / "test" / satellite / f"{patch_id:07d}_clean.npy"
-    mask_path = preprocessed / "test" / satellite / f"{patch_id:07d}_mask.npy"
-
-    if not clean_path.exists() or not mask_path.exists():
-        log.info("Patch files not found for patch_id=%d", patch_id)
-        return
-
-    clean = np.load(clean_path)
-    mask = np.load(mask_path)
-
-    # Pick top 3 methods by PSNR for this patch
-    patch_df = valid[valid["patch_id"] == patch_id]
-    top_methods = (
-        patch_df
-        .groupby("method")["psnr"]
-        .mean()
-        .sort_values(ascending=False)
-        .head(3)
-        .index.tolist()
-    )
-
-    if not top_methods:
-        log.info("No method data for patch_id=%d", patch_id)
-        return
-
-    nrows = len(top_methods)
-    fig, axes = plt.subplots(
-        nrows,
-        2,
-        figsize=(5.0, nrows * 2.5),
-        squeeze=False,
-        constrained_layout=True,
-    )
-
-    for row_idx, method in enumerate(top_methods):
-        recon = _load_recon_array(results_dir, method, patch_id)
-        if recon is None:
-            axes[row_idx, 0].set_visible(False)
-            axes[row_idx, 1].set_visible(False)
-            continue
-
-        clean_eval = clean
-        recon_eval = recon
-        if (
-            clean_eval.ndim == 3
-            and recon_eval.ndim == 3
-            and clean_eval.shape[:2] == recon_eval.shape[:2]
-            and clean_eval.shape[2] != recon_eval.shape[2]
-        ):
-            common_channels = min(clean_eval.shape[2], recon_eval.shape[2])
-            clean_eval = clean_eval[:, :, :common_channels]
-            recon_eval = recon_eval[:, :, :common_channels]
-
-        if clean_eval.shape != recon_eval.shape:
-            log.warning(
-                (
-                    "Skipping fig9 method=%s patch=%d due shape mismatch: "
-                    "clean=%s recon=%s"
-                ),
-                method,
-                patch_id,
-                clean_eval.shape,
-                recon_eval.shape,
-            )
-            axes[row_idx, 0].set_visible(False)
-            axes[row_idx, 1].set_visible(False)
-            continue
-
-        # Use raw arrays for local metrics (not normalized PNGs)
-        lpsnr = local_psnr(clean_eval, recon_eval, mask, window=15)
-        lssim = local_ssim(clean_eval, recon_eval, mask, window=15)
-
-        im0 = axes[row_idx, 0].imshow(lpsnr, cmap="RdYlGn")
-        axes[row_idx, 0].set_title(f"{method} - Local PSNR")
-        axes[row_idx, 0].axis("off")
-        plt.colorbar(im0, ax=axes[row_idx, 0], fraction=0.046, pad=0.04)
-
-        im1 = axes[row_idx, 1].imshow(lssim, cmap="RdYlGn", vmin=0, vmax=1)
-        axes[row_idx, 1].set_title(f"{method} - Local SSIM")
-        axes[row_idx, 1].axis("off")
-        plt.colorbar(im1, ax=axes[row_idx, 1], fraction=0.046, pad=0.04)
-
-    fig.suptitle(
-        f"Local Quality Maps (patch {patch_id}, {satellite})",
-        fontsize=FONT_SIZE + 1,
-    )
-    _save_figure(fig, output_dir, "fig9_local_metric_maps")
-    plt.close(fig)
-    log.info("Saved fig9_local_metric_maps")
-
-
 ALL_FIGURES = {
     1: fig1_entropy_examples,
     2: fig2_entropy_vs_psnr,
@@ -907,7 +778,6 @@ ALL_FIGURES = {
     5: fig5_lisa_clusters,
     6: fig6_visual_examples,
     7: fig7_correlation_heatmap,
-    9: fig9_local_metric_maps,
 }
 
 
@@ -931,7 +801,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--figure",
         type=int,
         default=None,
-        help="Generate only this figure number (1-8).",
+        help="Generate only this figure number (1-7).",
     )
     parser.add_argument(
         "--png-only",
