@@ -1,0 +1,24 @@
+\begin{table}[t]
+ \centering
+ \footnotesize
+ \caption{Summary of deep learning architectures. Input:
+ $[\mathbf{x};\, \mathbf{z}] \in \mathbb{R}^{5 \times 64 \times 64}$;
+ output: $\hat{\mathbf{y}} \in [0,1]^{4 \times 64 \times 64}$.}
+ \label{tab:dl-architectures}
+ \begin{tabular}{lllc}
+ \toprule
+ Model & Bottleneck / Core & Loss & Skip \\
+ \midrule
+ AE  & $512{\times}1{\times}1$ vector
+     & MSE$_{\mathcal{G}}$ & -- \\
+ VAE & $\boldsymbol{\mu},\log\boldsymbol{\sigma}^2 \!\in\! \mathbb{R}^{256}$
+     & MSE$_{\mathcal{G}}$+$\beta$KL & -- \\
+ GAN & Dilated conv (2,\,4)
+     & ${\ell_1}^{\mathcal{G}}$+BCE$_{\mathrm{adv}}$ & \checkmark \\
+ U-Net & $1024{\times}4{\times}4$ ResBlock
+       & MSE$_{\mathcal{G}}$ & \checkmark \\
+ ViT & 4$\times$ Transformer ($d$=256)
+     & MSE$_{\mathcal{G}}$ & -- \\
+ \bottomrule
+ \end{tabular}
+\end{table}

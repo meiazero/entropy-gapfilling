@@ -1,0 +1,32 @@
+\begin{table}[t]
+ \centering
+ \small
+ \caption{%
+ Mean PSNR (dB) $\pm$ 95\% CI by method and noise level.
+ Best per column in \textbf{bold}; second-best \underline{underlined}.
+ All pairwise differences are significant ($p < 0.05$, Bonferroni) unless
+ marked \textsuperscript{ns}.
+ }
+ \label{tab:psnr-method-noise}
+ \begin{tabular}{lcccc}
+ \toprule
+ Method & $\mathrm{SNR}{=}\infty$ & 40\,dB & 30\,dB & 20\,dB\\
+ \midrule
+ Nearest & -- & -- & -- & --\\
+ Bilinear & -- & -- & -- & --\\
+ Bicubic & -- & -- & -- & --\\
+ Lanczos & -- & -- & -- & --\\
+ IDW & -- & -- & -- & --\\
+ RBF & -- & -- & -- & --\\
+ Thin-plate spline & -- & -- & -- & --\\
+ Kriging & -- & -- & -- & --\\
+ DCT-ISTA & -- & -- & -- & --\\
+ Wavelet-ISTA & -- & -- & -- & --\\
+ TV & -- & -- & -- & --\\
+ $\ell_1$-DCT & -- & -- & -- & --\\
+ $\ell_1$-Wavelet & -- & -- & -- & --\\
+ Non-local means & -- & -- & -- & --\\
+ Exemplar-based & -- & -- & -- & --\\
+ \bottomrule
+ \end{tabular}
+\end{table}

@@ -1,0 +1,30 @@
+\begin{table}[t]
+ \centering
+ \small
+ \caption{%
+ Mean PSNR (dB) stratified by entropy tercile (entropy window 15$\times$15).
+ Tercile thresholds are data-driven (33rd/67th percentiles).
+ }
+ \label{tab:psnr-entropy-tercile}
+ \begin{tabular}{lccc}
+ \toprule
+ Method & Low entropy & Medium entropy & High entropy\\
+ \midrule
+ Nearest & -- & -- & --\\
+ Bilinear & -- & -- & --\\
+ Bicubic & -- & -- & --\\
+ Lanczos & -- & -- & --\\
+ IDW & -- & -- & --\\
+ RBF & -- & -- & --\\
+ Thin-plate spline & -- & -- & --\\
+ Kriging & -- & -- & --\\
+ DCT-ISTA & -- & -- & --\\
+ Wavelet-ISTA & -- & -- & --\\
+ TV & -- & -- & --\\
+ $\ell_1$-DCT & -- & -- & --\\
+ $\ell_1$-Wavelet & -- & -- & --\\
+ Non-local means & -- & -- & --\\
+ Exemplar-based & -- & -- & --\\
+ \bottomrule
+ \end{tabular}
+\end{table}

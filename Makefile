@@ -67,12 +67,32 @@ experiment-quick: ## Run quick validation (50 patches, 1 seed)
 ##@ Paper
 # =============================================================================
 
-TEX_SRC   := docs/main.tex
-BUILD_DIR := docs/dist
-JOB_NAME  := draft
+TEX_SRC      := docs/main.tex
+BUILD_DIR    := docs/dist
+JOB_NAME     := draft
+RESULTS_DIR  ?= results/paper_results
+
+.PHONY: paper-assets
+paper-assets: ## Copy generated tables and figures from results/ to docs/
+	@printf "\033[34m==>\033[0m Copying tables from $(RESULTS_DIR)/tables/ to docs/tables/\n"
+	@mkdir -p docs/tables docs/figures
+	@cp -v $(RESULTS_DIR)/tables/*.tex docs/tables/ 2>/dev/null || \
+		printf "\033[33mWARN\033[0m no .tex files found in $(RESULTS_DIR)/tables/\n"
+	@printf "\033[34m==>\033[0m Copying figures from $(RESULTS_DIR)/figures/ to docs/figures/\n"
+	@cp -v $(RESULTS_DIR)/figures/*.pdf docs/figures/ 2>/dev/null || true
+	@cp -v $(RESULTS_DIR)/figures/*.png docs/figures/ 2>/dev/null || \
+		printf "\033[33mWARN\033[0m no figure files found in $(RESULTS_DIR)/figures/\n"
 
 .PHONY: paper
-paper: ## Compile docs/main.tex -> docs/dist/draft.pdf (via latexmk)
+paper: paper-assets ## Compile docs/main.tex -> docs/dist/draft.pdf (via latexmk)
+	@mkdir -p $(BUILD_DIR)
+	@rm -f $(BUILD_DIR)/$(JOB_NAME).fdb_latexmk $(BUILD_DIR)/$(JOB_NAME).fls
+	@latexmk -xelatex -cd -interaction=nonstopmode -halt-on-error \
+		-jobname=$(JOB_NAME) -outdir=$(abspath $(BUILD_DIR)) $(TEX_SRC)
+	@echo "Output: $(BUILD_DIR)/$(JOB_NAME).pdf"
+
+.PHONY: paper-only
+paper-only: ## Compile paper without copying assets (use existing docs/ files)
 	@mkdir -p $(BUILD_DIR)
 	@rm -f $(BUILD_DIR)/$(JOB_NAME).fdb_latexmk $(BUILD_DIR)/$(JOB_NAME).fls
 	@latexmk -xelatex -cd -interaction=nonstopmode -halt-on-error \

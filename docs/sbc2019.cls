@@ -15,7 +15,7 @@
 \RequirePackage{enumitem}
 \RequirePackage[explicit]{titlesec}
 \RequirePackage[T1]{fontenc}
-\RequirePackage[tracking=smallcaps]{microtype}
+\RequirePackage{microtype}
 \RequirePackage{lmodern}
 \RequirePackage[book]{FiraSans}
 \RequirePackage{caption}
@@ -66,7 +66,7 @@
 \def\engtitlefont{\fontsize{12}{14}\bfseries\selectfont\raggedright\mathversion{normal}}
 \def\authorfont{\normalsize\rightskip5.5pc\vskip1.0pt \mathversion{normal}}
 
-%\def\affilfont{\footnotesize\vskip1.5pt \raggedright\mathversion{normal}}
+\def\affilfont{\footnotesize\vskip1.5pt \raggedright\mathversion{normal}}
 
 %\usepackage{scrextend}
 %\deffootnote{0em}{1.6em}{\thefootnotemark.\enskip
@@ -138,7 +138,7 @@
 }{\vskip10pt}
 
 \newenvironment{dates}{%
-  \vskip6pt\noindent\datefont{~%
+  \vskip6pt\noindent\datefont{~}%
 }{\vskip2pt}
 
 \newenvironment{keywords}{%

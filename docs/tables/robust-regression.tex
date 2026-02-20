@@ -1,0 +1,27 @@
+\begin{table}[t]
+ \centering
+ \small
+ \caption{%
+ Robust regression (Huber-T RLM) results:
+ metric $\sim$ entropy (multi-scale) + method + noise.
+ Coefficients $\beta$ with bootstrap 95\% CI and \gls{VIF}.
+ }
+ \label{tab:robust-regression}
+ \begin{tabular}{lcccc}
+ \toprule
+ Predictor & $\hat{\beta}$ & 95\% CI & $p$-value & VIF\\
+ \midrule
+ Intercept & -- & -- & -- & --\\
+ Entropy (7) & -- & -- & -- & --\\
+ Entropy (15) & -- & -- & -- & --\\
+ Entropy (31) & -- & -- & -- & --\\
+ Method (\ldots) & -- & -- & -- & --\\
+ Noise (40 dB) & -- & -- & -- & --\\
+ Noise (30 dB) & -- & -- & -- & --\\
+ Noise (20 dB) & -- & -- & -- & --\\
+ \midrule
+ \multicolumn{5}{l}{$R^2_{\mathrm{adj}} = $ --;
+ $n = $ --; model: Huber-T RLM}\\
+ \bottomrule
+ \end{tabular}
+\end{table}

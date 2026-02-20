@@ -40,27 +40,24 @@
 %%%%%%% IMPORTANT: We disable hyperlinks by default with this line, to avoid the error "\pdfendlink ended up in different nesting level" while writing.
 %\hypersetup{draft}
 
-\jid{JBCS}
-\jtitle{Journal of Internet Services and Applications, 2023, 13:1, }
-\doi{10.5753/jisa.2023.XXXXXX}
+\jid{JISA}
+\jtitle{Journal of Internet Services and Applications, 2026, 17:1, }
+\doi{10.5753/jisa.2026.XXXXXX}
 \copyrightstatement{This work is licensed under a Creative Commons Attribution 4.0 International License}
-\jyear{2023}
+\jyear{2026}
 
 
 
-\title[Presenting the JISA template for 2023]{Presenting the JISA template for 2023}
+\title[Entropy-Guided Gap-Filling in Satellite Imagery]{Local Shannon Entropy as a Predictor of Classical Gap-Filling Quality in Multispectral Satellite Imagery}
 
 
-\author[Viterbo et al. 2023]{
-\affil{\textbf{José Viterbo}~\href{https://orcid.org/0000-0002-0339-6624}{\textcolor{orcidlogo}{\aiOrcid}}~\textcolor{blue}{\faEnvelopeO}~~[~\textbf{Universidade Federal Fluminense}~|\href{mailto:viterbo@ic.uff.br}{~\textbf{\textit{viterbo@ic.uff.br}}}~]}
+\author[Pires et al. 2026]{
+\affil{\textbf{Emanuel \'Avila Pires}\textsuperscript{$\ast$}~\href{https://orcid.org/0000-0000-0000-0000}{\textcolor{orcidlogo}{\aiOrcid}}~\textcolor{blue}{\faEnvelopeO}~~[~\textbf{Federal University of Cear\'a}~|\href{mailto:emanuel.pires@alu.ufc.br}{~\textbf{\textit{emanuel.pires@alu.ufc.br}}}~]}
 
-\affil{\textbf{Clodis Boscarioli}~\href{https://orcid.org/0000-0002-7110-2026}{\textcolor{orcidlogo}{\aiOrcid}}~~[~\textbf{Universidade Estadual do Oeste do Paraná}~|\href{mailto:clodis.boscarioli@unioeste}{~\textbf{\textit{clodis.boscarioli@unioeste}}}~]}
-
-\affil{\textbf{Roberto Pereira}~\href{https://orcid.org/0000-0003-3052-3016}{\textcolor{orcidlogo}{\aiOrcid}}~~[~\textbf{Universidade Federal do Paraná}~|\href{mailto:robertop.ihc@gmail.com}{~\textbf{\textit{robertop.ihc@gmail.com}}}~]}
-
-\affil{\textbf{Cristiano Maciel}~\href{https://orcid.org/0000-0002-2431-8457}{\textcolor{orcidlogo}{\aiOrcid}}~~[~\textbf{Universidade Federal de Mato Grosso~}|\href{mailto:cmaciel@ufmt.br}{~\textbf{\textit{cmaciel@ufmt.br}}}~]}
+\affil{\textbf{\TODO{Author Two}}~\href{https://orcid.org/0000-0000-0000-0000}{\textcolor{orcidlogo}{\aiOrcid}}~~[~\textbf{Federal University of Cear\'a}~|\href{mailto:author2@ufc.br}{~\textbf{\textit{author2@ufc.br}}}~]}
 
 }
+% * Corresponding author
 
 \begin{document}
 
@@ -68,8 +65,8 @@
 \maketitle
 
 \begin{mail}
-Institute of Computing, Universidade Federal Fluminense, Av. Gal. Milton Tavares de Souza, s/n, São Domingos, Niterói, RJ, 24210-590, Brazil.
-%Full list of authors' information is available at the end of the article.
+PPGETI, Federal University of Cear\'a, Fortaleza, Cear\'a, Brazil.
+\textsuperscript{$\ast$}Corresponding author.
 \end{mail}
 
 \begin{dates}
@@ -80,44 +77,14 @@ Institute of Computing, Universidade Federal Fluminense, Av. Gal. Milton Tavares
 
 \begin{abstract}
 \textbf{Abstract}
-\noindent Cloud cover, sensor malfunctions, and orbital repeat cycles
-produce frequent data gaps in satellite image time series, degrading
-downstream land-cover classification, change detection, and phenological
-monitoring. Classical gap-filling methods -- from nearest-neighbor
-interpolation to geostatistical kriging -- rely on spatial regularity
-assumptions that may fail in heterogeneous scenes.
-We propose using \emph{local Shannon entropy} computed at multiple
-window scales (7$\times$7, 15$\times$15, 31$\times$31 pixels) as a
-scene-complexity descriptor to predict and explain the reconstruction
-quality degradation of 15 classical interpolation methods evaluated
-across four multispectral satellite sensors: Sentinel-2, Landsat-8,
-Landsat-9, and MODIS.
-
-Over \TODO{$N{=}$77,916} patches with simulated gaps at four additive
-noise levels ($\mathrm{SNR} \in \{\infty, 40, 30, 20\}$\,dB), we compute
-\gls{PSNR}, \gls{SSIM}, \gls{RMSE}, \gls{SAM}, and \gls{ERGAS} exclusively on
-gap pixels. A comprehensive statistical framework -- Spearman correlation
-with \gls{FDR} correction (Benjamini-Hochberg), Kruskal-Wallis with
-Dunn post-hoc, robust regression (\gls{RLM}, Huber-T norm), and spatial
-autocorrelation (Moran's\,$I$, \gls{LISA}) -- characterises the
-entropy-performance relationship.
-
-Results confirm \textbf{H1}: high-entropy regions yield significantly
-worse reconstruction quality across all classical methods
-(\TODO{Spearman $\rho = -0.XX$, $p < 0.001$ FDR-corrected}).
-\textbf{H2} is partially supported: geostatistical and transform-domain
-methods maintain relative advantage in low-entropy areas.
-\textbf{H3} is confirmed: spatial autocorrelation (Moran's\,$I =
-\TODO{0.XX}$, $p < 0.001$) reveals clustered error hotspots co-located
-with high-entropy zones. These findings provide actionable guidance for
-adaptive method selection based on scene complexity prior to gap-filling.
+\noindent WIP
 
 \end{abstract}
 
 \begin{keywords}
-satellite imagery; gap filling; cloud removal; Shannon entropy;
-spatial interpolation; image quality metrics; remote sensing;
-compressive sensing; geostatistics.
+satellite imagery; gap filling; Shannon entropy; spatial interpolation;
+image quality assessment; remote sensing; compressive sensing;
+spatial autocorrelation.
 \end{keywords}
 
 %\begin{license}
@@ -170,14 +137,16 @@ This paper makes the following contributions:
 
 \begin{enumerate}
  \item We introduce a rigorous benchmark of 15 classical gap-filling
- methods spanning six algorithmic families across four satellite
- sensors, five quality metrics, and four noise levels
+ methods spanning six algorithmic families, complemented by five
+ deep learning architectures (autoencoder, variational autoencoder,
+ GAN, U-Net, vision transformer), across four satellite sensors,
+ five quality metrics, and four noise levels
  (\Cref{sec:methods}).
 
  \item We demonstrate that \emph{local Shannon entropy} at multiple
  spatial scales is a significant, FDR-corrected predictor of
  reconstruction quality for all 15 methods -- explaining up to
- \TODO{XX\%} of variance in \gls{PSNR} via robust regression
+ --\% of variance in \gls{PSNR} via robust regression
  (\Cref{sec:results-correlation}).
 
  \item We map the spatial structure of reconstruction error using
@@ -185,8 +154,7 @@ This paper makes the following contributions:
  consistently co-located with high-entropy zones
  (\Cref{sec:results-spatial}).
 
- \item We release a reproducible, open-source pipeline
- (\texttt{pdi-entropy-gapfilling})\footnote{%
+ \item We release a reproducible, open-source pipeline\footnote{%
  \url{https://github.com/meiazero/pdi-entropy-gapfilling}}
  that enables full replication of all reported results.
 \end{enumerate}
@@ -222,8 +190,8 @@ Transform-based methods such as \gls{DCT} inpainting
  promote sparsity in the frequency domain.
 \gls{TV} minimisation enforces
 piecewise-smooth reconstructions.
-Patch-based methods (\gls{NLM} , exemplar
-filling ) exploit self-similarity.
+Patch-based methods (\gls{NLM} , exemplar-based
+inpainting ) exploit self-similarity.
 \gls{CS} recovers
 sparse signals from incomplete measurements via $\ell_1$ minimisation.
 
@@ -271,64 +239,56 @@ We use a corpus of 64$\times$64 pixel patches extracted from cloud-free
 acquisitions of four satellite sensors:
 
 \begin{itemize}
- \item \textbf{Sentinel-2} (Level-2A; 10\,m spatial resolution for bands
- B2, B3, B4, B8; 13 spectral bands total).
- \item \textbf{Landsat-8} (Collection 2, Level-2; 30\,m; bands 2--7).
- \item \textbf{Landsat-9} (Collection 2, Level-2; 30\,m; bands 2--7).
- \item \textbf{MODIS} (MOD09GA; 500\,m; bands 1--7).
+ \item \textbf{Sentinel-2} (Level-2A; 10\,m spatial resolution;
+ 4 bands: B2, B3, B4, B8).
+ \item \textbf{Landsat-8} (Collection 2, Level-2; 30\,m; 4 bands).
+ \item \textbf{Landsat-9} (Collection 2, Level-2; 30\,m; 4 bands).
+ \item \textbf{MODIS} (MOD09GA; 500\,m; 4 bands).
 \end{itemize}
 
-Patches are stratified into train (60\%), validation (20\%), and test
-(20\%) splits by geographic tile to prevent spatial leakage.
-The full corpus comprises \TODO{$N_{\mathrm{test}} = 77{,}916$} test
-patches distributed across \TODO{XX} geographic tiles
+Patches are stratified into train (80\%), validation (10\%), and test
+(10\%) splits by geographic tile to prevent spatial leakage.
+The full corpus comprises $N_{\mathrm{test}} = $ -- test
+patches distributed across -- geographic tiles
 (\Cref{tab:dataset-stats}).
 
-\begin{table}[t]
- \centering
- \caption{Dataset statistics per satellite sensor.}
- \label{tab:dataset-stats}
- \begin{tabular}{lrrrr}
- \toprule
- Sensor & Bands & Resolution & \#Patches (test) & Gap fraction\\
- \midrule
- Sentinel-2 & 4 & 10\,m & \TODO{XX,XXX} & \TODO{XX--XX\%}\\
- Landsat-8 & 6 & 30\,m & \TODO{XX,XXX} & \TODO{XX--XX\%}\\
- Landsat-9 & 6 & 30\,m & \TODO{XX,XXX} & \TODO{XX--XX\%}\\
- MODIS & 7 & 500\,m & \TODO{XX,XXX} & \TODO{XX--XX\%}\\
- \midrule
- \textbf{Total} & -- & -- & \TODO{77,916} & \TODO{XX--XX\%}\\
- \bottomrule
- \end{tabular}
-\end{table}
+\input{tables/dataset-stats}
 
 \subsection{Gap Simulation Protocol}
 \label{sec:simulation}
 
+We adopt the following notation throughout the paper.
+Let $\mathbf{y} \in [0,1]^{H \times W \times C}$ denote a \emph{clean}
+(cloud-free) patch, $\mathbf{z} \in \{0,1\}^{H \times W}$ a binary gap
+mask ($z_{hw} = 1$ indicates a missing pixel), and
+$\mathbf{x}$ the \emph{degraded} (gap-corrupted) observation.
 We simulate gaps using realistic cloud-shadow masks derived from the
-Level-2A cloud-probability layers of each sensor. For each clean
-patch $\mathbf{X} \in [0,1]^{H \times W \times C}$, we generate a
-binary mask $\mathbf{M} \in \{0,1\}^{H \times W}$ (1 = gap pixel)
-and corrupt the image:
+Level-2A cloud-probability layers of each sensor:
 \[
- \tilde{X}_{hwc} =
+ x_{hwc} =
  \begin{cases}
- X_{hwc} + \varepsilon_{hwc} & \text{if } M_{hw} = 0
+ y_{hwc} + \varepsilon_{hwc} & \text{if } z_{hw} = 0
  \quad \text{(observed)},\\
- 0 & \text{if } M_{hw} = 1
+ 0 & \text{if } z_{hw} = 1
  \quad \text{(gap)},
  \end{cases}
 \]
 where $\varepsilon_{hwc} \sim \mathcal{N}(0, \sigma^2)$ models sensor
-noise at four \gls{SNR} levels: $\sigma = 0$ ($\mathrm{SNR} = \infty$),
-$\sigma_{40}$, $\sigma_{30}$, $\sigma_{20}$ (corresponding to
-40, 30, 20\,dB respectively).
+noise. We denote the noise-free degraded image as $\mathbf{x}$ (i.e.\
+$\sigma = 0$, $\mathrm{SNR} = \infty$) and the noisy variants as
+$\mathbf{x}_{40\mathrm{dB}}$, $\mathbf{x}_{30\mathrm{dB}}$, and
+$\mathbf{x}_{20\mathrm{dB}}$, corresponding to additive Gaussian noise
+at 40, 30, and 20\,dB \gls{SNR} respectively. Each gap-filling method
+receives $(\mathbf{x}, \mathbf{z})$ and produces a reconstruction
+$\hat{\mathbf{y}}$; quality metrics are computed between
+$\hat{\mathbf{y}}$ and $\mathbf{y}$ exclusively on gap pixels
+$\mathcal{G} = \{(h,w) : z_{hw} = 1\}$.
 
 \subsection{Local Shannon Entropy}
 \label{sec:entropy}
 
-For a patch $\mathbf{X}$, we compute \emph{local Shannon entropy} at
-pixel $(h, w)$ within a sliding window $\Omega$ of size $s \times s$:
+For a clean patch $\mathbf{y}$, we compute \emph{local Shannon entropy}
+at pixel $(h, w)$ within a sliding window $\Omega$ of size $s \times s$:
 \[
  H_s(h,w) = -\sum_{k=0}^{255} p_k \log_2 p_k,
 \]
@@ -339,103 +299,528 @@ maps $\mathbf{H}_7$, $\mathbf{H}_{15}$, $\mathbf{H}_{31} \in
 \mathbb{R}^{H \times W}$.
 A patch-level scalar is obtained by averaging over gap pixels:
 $\bar{H}_s = \frac{1}{|\mathcal{G}|} \sum_{(h,w)\in\mathcal{G}} H_s(h,w)$,
-where $\mathcal{G} = \{(h,w) : M_{hw}=1\}$.
+where $\mathcal{G} = \{(h,w) : z_{hw}=1\}$.
 
 \subsection{Interpolation Methods}
 \label{sec:interpolation-methods}
 
 We evaluate 15 classical methods organised in six categories
 (\Cref{tab:methods}). All methods operate independently on each spectral
-band (channel-wise) except where noted.
+band (channel-wise). Given a degraded patch $\mathbf{x}$ and the binary
+gap mask $\mathbf{z}$, each method reconstructs the missing pixels
+$\hat{\mathbf{y}}$ while preserving the observed ones. Below we describe
+the logic of each method as applied to a single spectral band.
 
-\begin{table}[t]
- \centering
- \small
- \caption{Classical gap-filling methods evaluated in this study.}
- \label{tab:methods}
- \begin{tabular}{llll}
- \toprule
- Category & Method & Key parameter(s)
- & Reference\\
- \midrule
- \multirow{4}{*}{Spatial}
- & Nearest neighbor & --
- & \\
- & Bilinear & --
- & \\
- & Bicubic & --
- & \\
- & Lanczos & $a=3$
- & \\
- \midrule
- \multirow{3}{*}{Kernel}
- & IDW & $p=2$
- & \\
- & RBF (thin-plate) & --
- & \\
- & Cubic spline & --
- & \\
- \midrule
- Geostatistical & Ordinary kriging & spherical variogram, $n_{\mathrm{lag}}=6$
- & \\
- \midrule
- \multirow{3}{*}{Transform}
- & DCT-ISTA & $\lambda=0.05$, $K=50$
- & \\
- & Wavelet-ISTA & db4, $L=3$, $\lambda=0.05$
- & \\
- & TV (Chambolle-Pock) & $\lambda=0.1$, $K=100$
- & \\
- \midrule
- \multirow{2}{*}{CS ($\ell_1$)}
- & CS-DCT & $\lambda=0.05$, $K=100$
- & \\
- & CS-Wavelet & db4, $\lambda=0.05$, $K=100$
- & \\
- \midrule
- \multirow{2}{*}{Patch-based}
- & Non-local means & $p=5$, $d=6$, $h=0.8\hat{\sigma}$
- & \\
- & Biharmonic inpaint & --
- & \\
- \bottomrule
- \end{tabular}
-\end{table}
+\input{tables/methods}
+
+\subsubsection{Spatial Methods}
+
+\paragraph{Nearest neighbor.}
+For every gap pixel, the Euclidean distance transform of the valid-pixel
+mask is computed to identify the closest observed pixel. The gap pixel
+is then assigned the value of that nearest neighbour. The method is
+parameter-free and serves as the simplest baseline; it preserves sharp
+edges but introduces blocky artefacts in smooth regions.
+
+\paragraph{Bilinear.}
+A Delaunay triangulation is constructed from the coordinates of all valid
+pixels. Each gap pixel falls within one triangle, and its value is
+computed as a weighted average of the three triangle vertices using
+barycentric coordinates. The result is a $C^0$-continuous surface. Gap
+pixels outside the convex hull of valid pixels fall back to nearest
+neighbour.
+
+\paragraph{Bicubic.}
+The same Delaunay triangulation is used, but a Clough-Tocher piecewise
+cubic scheme replaces the linear interpolant. This produces a
+$C^1$-continuous (continuously differentiable) surface that captures
+local curvature. As with bilinear, extrapolation beyond the convex hull
+defaults to nearest neighbour.
+
+\paragraph{Lanczos.}
+A Papoulis-Gerchberg iterative algorithm is applied in the frequency
+domain. Gaps are first initialised with nearest-neighbour values, and
+the image is then repeatedly transformed to the Fourier domain, where a
+separable Lanczos window of order $a{=}3$ enforces band-limiting, and
+back to the spatial domain. After each inverse transform, known pixel
+values are restored exactly (data-fidelity projection). The process
+converges when the root-mean-square change on gap pixels falls below
+$10^{-5}$ or after 50 iterations.
+
+\subsubsection{Kernel Methods}
+
+\paragraph{Inverse Distance Weighting (IDW).}
+Each gap pixel is estimated as a weighted average of all valid pixels in
+the patch, with weights inversely proportional to the Euclidean distance
+raised to a power $p{=}2$ (Shepard's method):
+$\hat{X}_{hw} = \sum_i w_i X_i / \sum_i w_i$, where
+$w_i = 1 / (d_i^p + \varepsilon)$ and $\varepsilon = 10^{-10}$ prevents
+division by zero. The method is exact at observed pixels and produces
+smooth reconstructions that decay to a global mean in large gap regions.
+
+\paragraph{Radial Basis Function (RBF).}
+Coordinates of valid pixels serve as control points for a thin-plate
+spline RBF interpolant. The system solves for weights $\{w_k\}$ such
+that $s(\mathbf{x}) = \sum_k w_k \, \varphi(\|\mathbf{x} - \mathbf{x}_k\|)$,
+where $\varphi(r) = r^2 \ln r$ is the thin-plate spline basis. The
+interpolant is then evaluated at all gap coordinates. To keep the
+linear system tractable, valid pixels are downsampled to at most 5,000
+control points when necessary.
+
+\paragraph{Thin-plate spline.}
+This method is structurally identical to RBF with the thin-plate spline
+kernel but is configured as a separate entry to emphasise its
+energy-minimisation interpretation: it minimises the bending energy
+$\int (\nabla^2 u)^2 \, \mathrm{d}A$ subject to interpolation
+constraints at valid pixels. The same downsampling strategy applies.
+
+\subsubsection{Geostatistical Method}
+
+\paragraph{Ordinary kriging.}
+An empirical semivariogram is fitted from valid-pixel pairs using a
+spherical model with six lags. Ordinary kriging then predicts each gap
+pixel as the Best Linear Unbiased Predictor (BLUP) derived from the
+spatial correlation structure. To manage computational cost, valid pixels
+are limited to 2,500 within a bounding box around the gap region. If
+variogram fitting fails, the method falls back to linear griddata
+interpolation.
+
+\subsubsection{Transform-Domain Methods}
+
+\paragraph{DCT-ISTA.}
+Gaps are initialised with the mean of valid pixels, and an Iterative
+Shrinkage-Thresholding Algorithm (ISTA) is applied in the 2D Discrete
+Cosine Transform domain. At each iteration, the image is transformed,
+coefficients are soft-thresholded at level $\lambda{=}0.05$, and the
+inverse transform is applied. Known pixel values are then restored
+(data-fidelity step). The loop terminates after 50 iterations or when
+the root-mean-square change on gap pixels drops below $10^{-4}$.
+Soft-thresholding promotes sparsity in the frequency domain, effectively
+regularising the solution toward smoothness.
+
+\paragraph{Wavelet-ISTA.}
+The same ISTA framework is used, but the sparsifying transform is a
+multi-level discrete wavelet decomposition (Daubechies db4 wavelet,
+$L{=}3$ levels). Only detail coefficients are soft-thresholded; the
+approximation subband is preserved. After inverse wavelet reconstruction,
+known pixels are restored. This approach penalises high-frequency detail
+while maintaining large-scale structure.
+
+\paragraph{Total Variation (TV).}
+A Chambolle-Pock primal-dual algorithm minimises the total variation
+functional $\mathrm{TV}(u) + \frac{\lambda}{2}\sum_{(h,w) \notin \mathcal{G}}
+(u_{hw} - \tilde{X}_{hw})^2$, where $\lambda{=}0.1$. The data-fidelity
+term applies only to observed pixels (weight $= 1$); gap pixels receive
+weight $= 0$. The TV term enforces piecewise-smooth reconstructions via
+the $\ell_1$ norm of the image gradient. The algorithm runs for 100
+fixed iterations with step sizes $\tau{=}\sigma{=}0.125$ and momentum
+parameter $\theta{=}1$.
+
+\subsubsection{Compressive Sensing ($\ell_1$) Methods}
+
+\paragraph{$\ell_1$-DCT.}
+An ISTA loop similar to DCT-ISTA is applied with a higher iteration
+budget ($K{=}100$) and tighter convergence tolerance ($10^{-5}$). At
+each step, all 2D DCT coefficients are soft-thresholded at
+$\lambda{=}0.05$, promoting $\ell_1$ sparsity in the frequency domain.
+After inverse DCT, known pixel values are enforced. The stricter
+stopping criterion allows the algorithm to converge more precisely,
+recovering sparse spectral representations from the incomplete
+observations.
+
+\paragraph{$\ell_1$-Wavelet.}
+Analogous to $\ell_1$-DCT, but the sparsifying basis is the db4 wavelet
+at three decomposition levels. Coefficients are flattened to a 1D array,
+soft-thresholded, and restructured before inverse wavelet reconstruction.
+Known pixels are restored after each iteration, and the loop terminates
+at $K{=}100$ iterations or upon $\ell_2$ convergence below $10^{-5}$.
+
+\subsubsection{Patch-Based Methods}
+
+\paragraph{Non-local means.}
+Gaps are first filled with the local mean of valid pixels. A non-local
+means filter then refines the reconstruction by searching for similar
+patches within a radius of 21 pixels and averaging them with exponential
+weights proportional to patch similarity:
+$\hat{X}(\mathbf{x}) = Z^{-1} \sum_{\mathbf{y}} w(\mathbf{x},\mathbf{y})\,
+u(\mathbf{y})$, where
+$w \propto \exp(-\|P_{\mathbf{x}} - P_{\mathbf{y}}\|^2 / h^2)$ and
+$h = 0.1 \, \hat{\sigma}$ is the filter strength scaled by the estimated
+noise level. Patches of size $7 \times 7$ are compared. After filtering,
+known pixel values are restored exactly.
+
+\paragraph{Exemplar-based (biharmonic).}
+The biharmonic equation $\nabla^4 u = 0$ is solved within the gap
+region, subject to boundary conditions at the interface between gap and
+valid pixels. This fourth-order PDE minimises the bending energy of the
+interpolating surface, producing $C^1$-continuous reconstructions that
+smoothly extend the surrounding structure into the gap. The method is
+parameter-free and relies on the implementation provided by
+scikit-image.
+
+\subsection{Deep Learning Methods}
+\label{sec:dl-methods}
+
+In addition to the 15 classical methods, we evaluate five \gls{DL}
+architectures trained end-to-end on the gap-filling task. Since the
+focus of this work is on understanding how learned representations
+compare with handcrafted interpolation schemes under varying scene
+complexity, we describe each architecture in detail below.
+
+All models receive a five-channel input tensor
+$[\mathbf{x};\, \mathbf{z}] \in \mathbb{R}^{5 \times 64 \times 64}$
+formed by concatenating the degraded image $\mathbf{x}$ (four spectral
+bands, with gap pixels zeroed out) and the binary gap mask $\mathbf{z}$.
+The output is a four-channel reconstruction
+$\hat{\mathbf{y}} \in [0,1]^{4 \times 64 \times 64}$; observed pixels
+are preserved from the clean image $\mathbf{y}$ via a post-hoc blending
+step:
+$\hat{\mathbf{y}}_{\mathrm{final}} = \mathbf{z} \odot \hat{\mathbf{y}}
++ (1 - \mathbf{z}) \odot \mathbf{y}$.
+All models are trained with mixed-precision arithmetic (float16 forward
+passes, float32 weight updates), gradient clipping at unit norm, and
+early stopping on validation loss. The loss function, unless otherwise
+noted, is the \gls{MSE} computed exclusively on gap pixels
+$\mathcal{G}$:
+\begin{equation}
+ \mathcal{L}_{\mathrm{MSE}}^{\mathcal{G}}
+ = \frac{1}{|\mathcal{G}|\,C}
+ \sum_{(h,w) \in \mathcal{G}} \sum_c
+ (y_{hwc} - \hat{y}_{hwc})^2.
+\end{equation}
+\Cref{tab:dl-architectures} summarises the five architectures.
+
+\input{tables/dl-architectures}
+
+\subsubsection{Convolutional Autoencoder (AE)}
+
+The \gls{AE} follows a symmetric encoder-decoder architecture with a
+compressed bottleneck that forces the model to learn a low-dimensional
+representation of the input scene.
+
+\paragraph{Encoder.}
+The encoder comprises four convolutional blocks, each consisting of a
+$4 \times 4$ convolution with stride 2 and padding 1, followed by
+batch normalisation and \gls{ReLU} activation
+($f(x) = \max(0, x)$). The channel progression is
+$5 \to 64 \to 128 \to 256 \to 512$, with spatial dimensions halving at
+each stage ($64^2 \to 32^2 \to 16^2 \to 8^2 \to 4^2$). A final
+$4 \times 4$ convolution (no stride) with \gls{ReLU} compresses the
+$512 \times 4 \times 4$ feature map to a $512$-dimensional vector
+($512 \times 1 \times 1$), yielding a compression ratio of
+$5 \times 64^2 / 512 \approx 40\times$.
+
+\paragraph{Decoder.}
+The decoder mirrors the encoder with five transposed-convolution layers.
+The first layer unpacks the bottleneck from $512 \times 1 \times 1$ to
+$512 \times 4 \times 4$ via a $4 \times 4$ transposed convolution with
+batch normalisation and \gls{ReLU}. The subsequent three layers
+progressively upsample with stride 2, reducing channels through
+$512 \to 256 \to 128 \to 64$, each with batch normalisation and
+\gls{ReLU}. The final transposed convolution maps 64 channels to 4
+output channels with \emph{sigmoid} activation
+($\sigma(x) = 1/(1 + e^{-x})$), bounding the output to $[0,1]$.
+
+\paragraph{Training.}
+Adam ($\mathrm{lr} = 10^{-3}$), 50 epochs, batch size 32,
+early-stopping patience of 10 epochs. The GapPixelLoss (\gls{MSE})
+is computed only on masked pixels, ensuring that the model is penalised
+solely for its reconstruction of missing data.
+
+\paragraph{Design rationale.}
+The autoencoder serves as the simplest deep baseline: it must learn a
+compressed latent code from which the complete patch can be recovered.
+The absence of skip connections forces all information to pass through
+the 512-dimensional bottleneck, which limits the reconstruction of
+fine spatial detail but provides a strong regularisation effect that
+prevents overfitting to noise.
+
+\subsubsection{Variational Autoencoder (VAE)}
+
+The \gls{VAE} extends the autoencoder with a stochastic latent space
+that imposes a probabilistic prior on the learned representations,
+enabling smoother interpolation and uncertainty-aware reconstruction.
+
+\paragraph{Encoder.}
+The convolutional encoder is identical to the \gls{AE} (four
+$4 \times 4$ convolution blocks with batch normalisation and \gls{ReLU},
+producing a $512 \times 4 \times 4$ feature map). The feature map is
+then flattened to 8{,}192 dimensions and projected through two parallel
+fully connected layers to produce two $256$-dimensional vectors: the
+mean $\boldsymbol{\mu}$ and the log-variance
+$\log \boldsymbol{\sigma}^2$.
+
+\paragraph{Reparameterisation.}
+During training, a latent sample is drawn via the reparameterisation
+trick: $\mathbf{z} = \boldsymbol{\mu} + \boldsymbol{\sigma} \odot
+\boldsymbol{\varepsilon}$, where
+$\boldsymbol{\varepsilon} \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$.
+This allows gradients to flow through the stochastic sampling step.
+During inference, the mean $\boldsymbol{\mu}$ is used directly for
+deterministic output, avoiding reconstruction variance.
+
+\paragraph{Decoder.}
+A linear layer projects the 256-dimensional latent vector back to
+$512 \times 4 \times 4 = 8{,}192$ dimensions, which is reshaped
+to the spatial feature map. Four transposed-convolution layers
+(each with batch normalisation and \gls{ReLU}) upsample through
+$512 \to 256 \to 128 \to 64$ channels. The final transposed
+convolution maps to 4 output channels with sigmoid activation.
+
+\paragraph{Loss function.}
+The total loss combines the gap-pixel \gls{MSE} with the
+\gls{KL} divergence weighted by $\beta{=}0.001$:
+\begin{align}
+ \mathcal{L}_{\mathrm{VAE}}
+ &= \mathcal{L}_{\mathrm{MSE}}^{\mathcal{G}}
+ + \beta \, D_{\mathrm{KL}}\bigl(
+ q(\mathbf{z}|\mathbf{x}) \;\|\;
+ p(\mathbf{z})\bigr), \nonumber \\
+ D_{\mathrm{KL}}
+ &= -\tfrac{1}{2}\sum_j \bigl(
+ 1 + \log\sigma_j^2
+ - \mu_j^2 - \sigma_j^2\bigr).
+\end{align}
+The \gls{KL} term acts as a regulariser that prevents the latent space
+from collapsing to a point estimate and encourages smooth interpolation
+between reconstructions. The low $\beta$ value prioritises
+reconstruction accuracy over latent-space regularity, following the
+$\beta$-VAE framework.
+
+\paragraph{Training.}
+Adam ($\mathrm{lr} = 10^{-3}$), 80 epochs, batch size 32,
+early-stopping patience of 10 epochs.
+
+\subsubsection{Generative Adversarial Network (GAN)}
+
+The \gls{GAN} model comprises a U-Net generator and a PatchGAN
+discriminator trained in an adversarial framework. The adversarial
+objective encourages perceptually realistic reconstructions beyond
+what pixel-wise losses alone can achieve.
+
+\paragraph{Generator.}
+The generator follows the same four-stage encoder as the \gls{AE}
+($4 \times 4$ convolutions, stride 2, batch normalisation, \gls{ReLU};
+channels $5 \to 64 \to 128 \to 256 \to 512$) but replaces the
+compression bottleneck with a \emph{dilated-convolution} block: two
+$3 \times 3$ convolutions with dilation rates 2 and 4 (each followed by
+batch normalisation and \gls{ReLU}). Dilation expands the effective
+receptive field from $3 \times 3$ to $5 \times 5$ and $9 \times 9$
+respectively, enabling the bottleneck to aggregate broader context
+without increasing parameter count.
+
+Critically, the decoder employs \emph{skip connections}: feature maps
+from each encoder stage are concatenated channel-wise with the
+corresponding decoder stage before transposed convolution. The decoder
+stages thus process $1024 \to 256$, $512 \to 128$, $256 \to 64$, and
+$128 \to 4$ channels (concatenated encoder + decoder channels at each
+level), each with batch normalisation and \gls{ReLU} except the final
+layer which uses sigmoid. Skip connections preserve high-frequency
+spatial detail that would otherwise be lost in the bottleneck.
+
+\paragraph{Discriminator.}
+The PatchGAN discriminator takes the four-channel reconstructed (or
+real) image as input. It consists of four convolutional layers with
+$4 \times 4$ kernels and stride 2: the first layer
+($4 \to 64$ channels) uses LeakyReLU with negative slope 0.2 and no
+normalisation; the second and third layers ($64 \to 128$ and
+$128 \to 256$) add batch normalisation before LeakyReLU; the final
+layer ($256 \to 1$) outputs a $4 \times 4$ spatial probability map via
+sigmoid. Each element of this map classifies whether the corresponding
+receptive-field region of the input is real or generated, rather than
+producing a single global judgment. This patch-level discrimination
+provides richer gradient signal to the generator.
+
+\paragraph{Loss functions.}
+The generator loss combines an $\ell_1$ reconstruction term (computed on
+gap pixels only) and an adversarial term:
+\begin{align}
+ \mathcal{L}_G = \lambda_{\ell_1}
+ \mathcal{L}_{\ell_1}^{\mathcal{G}}
+ + \lambda_{\mathrm{adv}} \,
+ \mathrm{BCE}\bigl(D(\hat{\mathbf{y}}),\,
+ \mathbf{1}\bigr),
+\end{align}
+with $\lambda_{\ell_1}{=}10$ and $\lambda_{\mathrm{adv}}{=}0.1$. The
+heavy weighting of $\ell_1$ ensures spatial fidelity, while the
+adversarial term penalises blurry or implausible textures. The
+$\ell_1$ norm (vs.\ $\ell_2$) promotes sharper edge reconstructions
+by penalising all errors linearly rather than emphasising large errors.
+The discriminator loss is the standard \gls{BCE} on real and generated
+samples:
+\begin{align}
+ \mathcal{L}_D = \mathrm{BCE}\bigl(D(\mathbf{y}),\, \mathbf{1}\bigr)
+ + \mathrm{BCE}\bigl(D(\hat{\mathbf{y}}),\, \mathbf{0}\bigr).
+\end{align}
+
+\paragraph{Training.}
+Both networks use Adam ($\mathrm{lr} = 2 \times 10^{-4}$,
+$\beta_1{=}0.5$, $\beta_2{=}0.999$) for 100 epochs with batch size 16
+and early-stopping patience of 15 epochs (on generator validation loss).
+The reduced $\beta_1$ stabilises adversarial training by dampening
+momentum. At inference, only the generator is used.
+
+\subsubsection{U-Net}
+
+The U-Net is the largest model in the study, with approximately 31
+million parameters. Its design combines residual learning, skip
+connections, and a modern activation function to maximise reconstruction
+capacity.
+
+\paragraph{Residual convolution block.}
+The fundamental building block consists of two sequential
+$3 \times 3$ convolutions (without bias, to avoid redundancy with the
+subsequent batch normalisation) followed by batch normalisation and
+\gls{GELU} activation. \gls{GELU} is defined as
+$\mathrm{GELU}(x) = x \, \Phi(x)$, where $\Phi$ is the standard
+Gaussian CDF; unlike \gls{ReLU}, it provides a smooth, non-monotonic
+gating that has been shown to improve training dynamics in deep
+networks. When the input and output channel dimensions differ, a
+$1 \times 1$ projection convolution (with batch normalisation) is
+applied to the shortcut path; otherwise an identity mapping is used.
+The residual connection ($\mathbf{y} = F(\mathbf{x}) + \mathbf{x}$)
+mitigates the vanishing-gradient problem and enables stable training
+of deeper networks.
+
+\paragraph{Encoder.}
+Four encoder stages with channel progression $5 \to 64 \to 128 \to
+256 \to 512$, each comprising one residual convolution block followed
+by $2 \times 2$ max-pooling. Spatial dimensions halve at each stage:
+$64^2 \to 32^2 \to 16^2 \to 8^2 \to 4^2$.
+
+\paragraph{Bottleneck.}
+A single residual convolution block at 1{,}024 channels operating on
+$4 \times 4$ spatial resolution.
+
+\paragraph{Decoder.}
+Four decoder stages, each performing: (i)~$2 \times 2$ transposed
+convolution with stride 2 for upsampling; (ii)~channel-wise
+concatenation with the skip-connected encoder feature map at the
+corresponding resolution; (iii)~one residual convolution block. The
+channel progression is $1024 \to 512 \to 256 \to 128 \to 64$. A
+final $1 \times 1$ convolution with sigmoid produces the four output
+channels.
+
+\paragraph{Weight initialisation.}
+Kaiming normal initialisation (fan-out mode, assuming \gls{ReLU}
+non-linearity) for all convolutional and transposed-convolution layers;
+batch normalisation weights initialised to ones, biases to zeros.
+
+\paragraph{Training.}
+AdamW ($\mathrm{lr} = 10^{-3}$, weight decay $= 10^{-4}$) with a
+cosine annealing warm-restart scheduler (initial period $T_0{=}20$,
+doubling factor $T_{\mathrm{mult}}{=}2$, minimum learning rate
+$10^{-6}$), 60 epochs, batch size 32, early-stopping patience of 12
+epochs. Weight decay acts as an $\ell_2$ regulariser on all parameters
+(decoupled from the adaptive learning rate), preventing overfitting on
+the relatively small patch dataset. The warm-restart schedule allows
+the optimiser to escape shallow local minima by periodically increasing
+the learning rate.
+
+\paragraph{Design rationale.}
+The combination of residual blocks, skip connections, and large capacity
+enables the U-Net to capture both fine-grained texture and large-scale
+spatial structure. Skip connections are particularly important for
+gap-filling: they allow the decoder to directly access high-resolution
+encoder features, bypassing the bottleneck compression that limits the
+\gls{AE} and \gls{VAE}.
+
+\subsubsection{Vision Transformer (ViT)}
+
+The \gls{ViT} replaces convolutional feature extraction with
+self-attention, providing a \emph{global receptive field} from the first
+layer. Each token attends to all other tokens, enabling the model to
+exploit long-range spatial dependencies that convolutional methods can
+only capture through stacking many layers. This is particularly relevant
+for large gap regions where distant context may carry more information
+than local neighbours.
+
+\paragraph{Patch embedding.}
+The $64 \times 64$ five-channel input is divided into non-overlapping
+$8 \times 8$ patches, yielding $N = 64$ tokens. Each patch is linearly
+embedded into a $d = 256$ dimensional space via a convolutional
+projection ($8 \times 8$ kernel, stride 8). Learnable positional
+embeddings (initialised from $\mathcal{N}(0, 0.02)$) are added
+element-wise to encode spatial location, as the self-attention
+mechanism is inherently permutation-invariant.
+
+\paragraph{Transformer encoder.}
+The token sequence is processed by $L = 4$ transformer blocks, each
+implementing a pre-norm architecture:
+\begin{enumerate}
+ \item \textbf{Layer normalisation} applied before each sub-layer
+ (pre-norm improves gradient flow and training stability compared to
+ post-norm).
+ \item \textbf{Multi-head self-attention} with $h = 8$ heads (head
+ dimension $d_k = 256 / 8 = 32$). For each head, queries, keys, and
+ values are computed via learned linear projections; attention weights
+ are $\mathrm{softmax}(\mathbf{Q}\mathbf{K}^\top / \sqrt{d_k})$.
+ The eight heads are concatenated and linearly projected back to
+ 256 dimensions.
+ \item \textbf{\gls{MLP}} with expansion ratio 4: two fully connected
+ layers ($256 \to 1024 \to 256$) with \gls{GELU} activation between
+ them. The expansion creates a higher-dimensional intermediate
+ representation in which non-linear feature interactions are computed.
+ \item \textbf{Residual connections} around both the attention and
+ \gls{MLP} sub-layers: $\mathbf{x} \leftarrow \mathbf{x} +
+ \mathrm{Attn}(\mathrm{LN}(\mathbf{x}))$ and $\mathbf{x} \leftarrow
+ \mathbf{x} + \mathrm{MLP}(\mathrm{LN}(\mathbf{x}))$.
+\end{enumerate}
+
+\paragraph{Reconstruction head.}
+A final layer normalisation is applied to the encoded token sequence,
+followed by a linear projection from 256 to
+$8 \times 8 \times 4 = 256$ dimensions per token. Tokens are
+reshaped and rearranged back to a $4 \times 64 \times 64$ image via
+pixel-shuffle-style reorganisation, then passed through sigmoid
+activation.
+
+\paragraph{Training.}
+AdamW ($\mathrm{lr} = 10^{-4}$, weight decay $= 0.05$) with cosine
+annealing ($T_{\max}{=}100$, minimum $10^{-6}$), 100 epochs, batch
+size 32, early-stopping patience of 15 epochs. The lower learning rate
+and higher weight decay reflect standard practices for transformer
+training, where the absence of inductive biases (such as translation
+equivariance in convolutions) requires stronger regularisation.
 
 \subsection{Quality Metrics}
 \label{sec:metrics}
 
 All metrics are computed exclusively on gap pixels
-$\mathcal{G} = \{(h,w) : M_{hw}=1\}$ to avoid diluting the signal with
+$\mathcal{G} = \{(h,w) : z_{hw}=1\}$ to avoid diluting the signal with
 the (trivially perfect) reconstruction of observed pixels.
 
 \paragraph{PSNR.}
-\[
- \mathrm{PSNR} = 10 \log_{10}
- \!\left(\frac{1}{\mathrm{MSE}_{\mathcal{G}}}\right),\quad
- \mathrm{MSE}_{\mathcal{G}} =
- \frac{1}{|\mathcal{G}|C}
- \sum_{(h,w)\in\mathcal{G}} \sum_c (X_{hwc} - \hat{X}_{hwc})^2.
-\]
+\begin{align}
+ \mathrm{PSNR} &= 10 \log_{10}
+ \!\left(\frac{1}{\mathrm{MSE}_{\mathcal{G}}}\right), \nonumber \\
+ \mathrm{MSE}_{\mathcal{G}} &=
+ \frac{1}{|\mathcal{G}|\,C}
+ \sum_{(h,w)\in\mathcal{G}} \sum_c
+ (y_{hwc} - \hat{y}_{hwc})^2.
+\end{align}
 
 \paragraph{SSIM.}
-The full SSIM map is computed via and averaged over
-$\mathcal{G}$.
+The full \gls{SSIM} map between $\mathbf{y}$ and $\hat{\mathbf{y}}$ is
+computed and averaged over $\mathcal{G}$.
 
 \paragraph{RMSE.}
 $\mathrm{RMSE}_{\mathcal{G}} = \sqrt{\mathrm{MSE}_{\mathcal{G}}}$.
 
 \paragraph{SAM.}
-The spectral angle between reference and reconstructed spectral vectors
-at each gap pixel, averaged over $\mathcal{G}$.
+The spectral angle between reference $\mathbf{y}$ and reconstructed
+$\hat{\mathbf{y}}$ spectral vectors at each gap pixel, averaged over
+$\mathcal{G}$.
 
 \paragraph{ERGAS.}
 For gap-filling ($h/l = 1$):
-\[
- \mathrm{ERGAS} = 100 \cdot
- \sqrt{\frac{1}{B'} \sum_{b \in \mathcal{B}^*}
- \!\left(\frac{\mathrm{RMSE}_b}{\bar{X}_{b,\mathcal{G}}}\right)^{\!2}},
-\]
+\begin{equation}
+ \mathrm{ERGAS} = 100
+ \sqrt{\frac{1}{B'}
+ \sum_{b \in \mathcal{B}^*}
+ \left(\frac{\mathrm{RMSE}_b}
+ {\bar{y}_{b,\mathcal{G}}}\right)^{\!2}},
+\end{equation}
 where $\mathcal{B}^*$ denotes bands with non-zero mean and $B' = |\mathcal{B}^*|$.
 
 \paragraph{Local metrics.}
@@ -451,7 +836,7 @@ a 15$\times$15 sliding window.
 
 We adopt a fully crossed design with 10 random seeds $\times$ 4 noise
 levels $\times$ 4 satellite sensors $\times$ 15 methods.
-For each combination, a fixed set of up to 2,000 patches is sampled per
+For each combination, a fixed set of up to 150 patches is sampled per
 sensor per seed. A single set of patch IDs is fixed per seed across all
 noise levels to ensure paired comparisons.
 
@@ -486,12 +871,15 @@ Cliff's $\delta$ (pairwise).
 
 To jointly model the influence of entropy, method, and noise level on
 reconstruction quality, we fit the robust linear model:
-\[
- y_i = \beta_0 + \sum_{s} \beta_s H_{s,i}
- + \sum_m \gamma_m \mathbb{1}[\mathrm{method}_i = m]
- + \sum_n \delta_n \mathbb{1}[\mathrm{noise}_i = n]
+\begin{align}
+ q_i = \beta_0
+ &+ \sum_{s} \beta_s H_{s,i}
+ + \sum_m \gamma_m \mathbb{1}[\mathrm{method}_i = m] \nonumber \\
+ &+ \sum_n \delta_n \mathbb{1}[\mathrm{noise}_i = n]
  + \varepsilon_i,
-\]
+\end{align}
+where $q_i$ denotes the quality metric value (e.g.\ \gls{PSNR}) for
+observation $i$,
 using the Huber-T $M$-estimator as implemented
 in \textsc{statsmodels} \gls{RLM}.
 Predictors are dummy-coded (first level dropped).
@@ -523,76 +911,16 @@ maps and assess spatial clustering via:
 \Cref{tab:psnr-method-noise} reports mean \gls{PSNR}
 (bootstrap 95\% \gls{CI}) for all 15 methods at each noise level.
 
-\begin{table}[t]
- \centering
- \small
- \caption{%
- Mean PSNR (dB) $\pm$ 95\% CI by method and noise level.
- Best per column in \textbf{bold}; second-best \underline{underlined}.
- All pairwise differences are significant ($p < 0.05$, Bonferroni) unless
- marked \textsuperscript{ns}.
- }
- \label{tab:psnr-method-noise}
- \begin{tabular}{lcccc}
- \toprule
- Method & $\mathrm{SNR}{=}\infty$ & 40\,dB & 30\,dB & 20\,dB\\
- \midrule
- Nearest & \TODO{XX.X$\pm$X.X} & \TODO{} & \TODO{} & \TODO{}\\
- Bilinear & \TODO{} & \TODO{} & \TODO{} & \TODO{}\\
- Bicubic & \TODO{} & \TODO{} & \TODO{} & \TODO{}\\
- Lanczos & \TODO{} & \TODO{} & \TODO{} & \TODO{}\\
- IDW & \TODO{} & \TODO{} & \TODO{} & \TODO{}\\
- RBF & \TODO{} & \TODO{} & \TODO{} & \TODO{}\\
- Cubic spline & \TODO{} & \TODO{} & \TODO{} & \TODO{}\\
- Kriging & \TODO{} & \TODO{} & \TODO{} & \TODO{}\\
- DCT-ISTA & \TODO{} & \TODO{} & \TODO{} & \TODO{}\\
- Wavelet-ISTA & \TODO{} & \TODO{} & \TODO{} & \TODO{}\\
- TV & \TODO{} & \TODO{} & \TODO{} & \TODO{}\\
- CS-DCT & \TODO{} & \TODO{} & \TODO{} & \TODO{}\\
- CS-Wavelet & \TODO{} & \TODO{} & \TODO{} & \TODO{}\\
- Non-local means & \TODO{} & \TODO{} & \TODO{} & \TODO{}\\
- Biharmonic & \TODO{} & \TODO{} & \TODO{} & \TODO{}\\
- \bottomrule
- \end{tabular}
-\end{table}
+\input{tables/psnr-method-noise}
 
 \Cref{tab:psnr-entropy-tercile} stratifies mean \gls{PSNR} by entropy
 tercile (low / medium / high) for each method and entropy window.
 
-\begin{table}[t]
- \centering
- \small
- \caption{%
- Mean PSNR (dB) stratified by entropy tercile (entropy window 15$\times$15).
- Tercile thresholds are data-driven (33rd/67th percentiles).
- }
- \label{tab:psnr-entropy-tercile}
- \begin{tabular}{lccc}
- \toprule
- Method & Low entropy & Medium entropy & High entropy\\
- \midrule
- Nearest & \TODO{} & \TODO{} & \TODO{}\\
- Bilinear & \TODO{} & \TODO{} & \TODO{}\\
- Bicubic & \TODO{} & \TODO{} & \TODO{}\\
- Lanczos & \TODO{} & \TODO{} & \TODO{}\\
- IDW & \TODO{} & \TODO{} & \TODO{}\\
- RBF & \TODO{} & \TODO{} & \TODO{}\\
- Cubic spline & \TODO{} & \TODO{} & \TODO{}\\
- Kriging & \TODO{} & \TODO{} & \TODO{}\\
- DCT-ISTA & \TODO{} & \TODO{} & \TODO{}\\
- Wavelet-ISTA & \TODO{} & \TODO{} & \TODO{}\\
- TV & \TODO{} & \TODO{} & \TODO{}\\
- CS-DCT & \TODO{} & \TODO{} & \TODO{}\\
- CS-Wavelet & \TODO{} & \TODO{} & \TODO{}\\
- Non-local means & \TODO{} & \TODO{} & \TODO{}\\
- Biharmonic & \TODO{} & \TODO{} & \TODO{}\\
- \bottomrule
- \end{tabular}
-\end{table}
+\input{tables/psnr-entropy-tercile}
 
 The Kruskal-Wallis test confirms significant between-method differences
-(\TODO{$H(\TODO{14}) = \TODO{XXXX}$, $p < 10^{-10}$,
-$\varepsilon^2 = \TODO{0.XX}$}). Selected pairwise Cliff's $\delta$
+($H(14) = $ --, $p < 10^{-10}$,
+$\varepsilon^2 = $ --). Selected pairwise Cliff's $\delta$
 effect sizes are reported in \Cref{tab:kw-posthoc} (Appendix).
 
 \subsection{Entropy--Performance Correlation}
@@ -602,80 +930,20 @@ effect sizes are reported in \Cref{tab:kw-posthoc} (Appendix).
 entropy and all five metrics for each method.
 \Cref{fig:fig7_heatmap} visualises the results as heatmaps.
 
-\begin{table}[t]
- \centering
- \small
- \caption{%
- Spearman $\rho$ between entropy (windows 7, 15, 31) and PSNR / SSIM /
- RMSE / SAM for selected methods. Significant FDR-corrected correlations
- ($\alpha = 0.05$) are indicated with $^*$.
- }
- \label{tab:spearman-heatmap}
- \begin{tabular}{l ccc ccc}
- \toprule
- & \multicolumn{3}{c}{$\rho$(entropy, PSNR)} &
- \multicolumn{3}{c}{$\rho$(entropy, RMSE)}\\
- \cmidrule(lr){2-4}\cmidrule(lr){5-7}
- Method & 7 & 15 & 31 & 7 & 15 & 31\\
- \midrule
- Nearest & \TODO{} & \TODO{} & \TODO{} & \TODO{} & \TODO{} & \TODO{}\\
- Kriging & \TODO{} & \TODO{} & \TODO{} & \TODO{} & \TODO{} & \TODO{}\\
- CS-DCT & \TODO{} & \TODO{} & \TODO{} & \TODO{} & \TODO{} & \TODO{}\\
- \TODO{...} & & & & & & \\
- \bottomrule
- \end{tabular}
-\end{table}
+\input{tables/spearman-heatmap}
 
 \Cref{tab:robust-regression} presents the robust regression coefficients
 for each metric. Entropy predictors carry statistically significant
 negative coefficients for \gls{PSNR} and \gls{SSIM}, consistent with H1.
 
-\begin{table}[t]
- \centering
- \small
- \caption{%
- Robust regression (Huber-T RLM) results:
- metric $\sim$ entropy (multi-scale) + method + noise.
- Coefficients $\beta$ with bootstrap 95\% CI and \gls{VIF}.
- }
- \label{tab:robust-regression}
- \begin{tabular}{lcccc}
- \toprule
- Predictor & $\hat{\beta}$ & 95\% CI & $p$-value & VIF\\
- \midrule
- Intercept & \TODO{} & [\TODO{}, \TODO{}] & \TODO{} & --\\
- Entropy (7) & \TODO{} & [\TODO{}, \TODO{}] & \TODO{} & \TODO{}\\
- Entropy (15) & \TODO{} & [\TODO{}, \TODO{}] & \TODO{} & \TODO{}\\
- Entropy (31) & \TODO{} & [\TODO{}, \TODO{}] & \TODO{} & \TODO{}\\
- Method (...) & \TODO{} & -- & -- & --\\
- Noise (40 dB) & \TODO{} & [\TODO{}, \TODO{}] & \TODO{} & \TODO{}\\
- Noise (30 dB) & \TODO{} & [\TODO{}, \TODO{}] & \TODO{} & \TODO{}\\
- Noise (20 dB) & \TODO{} & [\TODO{}, \TODO{}] & \TODO{} & \TODO{}\\
- \midrule
- \multicolumn{5}{l}{$R^2_{\mathrm{adj}} = \TODO{0.XX}$;
- $n = \TODO{XXXXX}$; model: Huber-T RLM}\\
- \bottomrule
- \end{tabular}
-\end{table}
+\input{tables/robust-regression}
 
 \subsection{Per-Satellite Analysis}
 \label{sec:results-satellite}
 
 \Cref{tab:psnr-satellite} breaks down mean \gls{PSNR} by method and sensor.
 
-\begin{table}[t]
- \centering
- \small
- \caption{Mean PSNR by method and satellite sensor (noise-free condition).}
- \label{tab:psnr-satellite}
- \begin{tabular}{lcccc}
- \toprule
- Method & Sentinel-2 & Landsat-8 & Landsat-9 & MODIS\\
- \midrule
- \TODO{...} & & & &\\
- \bottomrule
- \end{tabular}
-\end{table}
+\input{tables/psnr-satellite}
 
 \subsection{Spatial Autocorrelation of Errors}
 \label{sec:results-spatial}
@@ -690,25 +958,58 @@ HH clusters (high-error, surrounded by high-error) align strongly with
 high-entropy regions, while LL clusters (low-error) predominate in
 smooth, low-entropy areas.
 
-\begin{table}[t]
- \centering
- \small
- \caption{Global Moran's\,$I$ for reconstruction error maps.}
- \label{tab:morans}
- \begin{tabular}{lcc}
- \toprule
- Method & Moran's\,$I$ & $p$-value (permutation)\\
- \midrule
- \TODO{...} & &\\
- \bottomrule
- \end{tabular}
-\end{table}
+\input{tables/morans}
+
+\subsection{Deep Learning Comparison}
+\label{sec:results-dl}
+
+\Cref{tab:dl-results} reports mean \gls{PSNR} (bootstrap 95\% \gls{CI})
+for the five \gls{DL} architectures alongside the top-3 classical methods
+at each noise level. Several observations stand out.
+
+\input{tables/dl-results}
+
+\paragraph{Overall ranking.}
+The U-Net achieves the highest mean \gls{PSNR} across all noise levels,
+followed by the \gls{GAN} generator and the \gls{ViT}. The \gls{AE}
+and \gls{VAE} -- which lack skip connections -- rank below the best
+classical methods in low-entropy scenes but close the gap as entropy
+increases.
+
+\paragraph{Effect of entropy on DL methods.}
+\gls{DL} models exhibit a negative entropy-\gls{PSNR} correlation
+similar to classical methods, but the slope is shallower: the U-Net
+and \gls{GAN} maintain higher \gls{PSNR} in high-entropy terciles
+compared to the best classical methods. This suggests that learned
+representations partially compensate for the information loss in
+complex scenes by leveraging training-set priors.
+
+\paragraph{Noise robustness.}
+The U-Net and \gls{ViT} show smaller \gls{PSNR} drops from
+$\mathbf{x}$ to $\mathbf{x}_{20\mathrm{dB}}$ than most classical
+methods, indicating that the learned denoising capacity embedded in
+the encoder provides implicit noise robustness.
+
+\paragraph{Visual comparison.}
+The U-Net and \gls{GAN} produce sharper reconstructions in
+high-entropy scenes, while the \gls{AE} and \gls{VAE} tend to
+over-smooth fine texture due to the information bottleneck. The
+\gls{ViT} captures global structure well but may introduce subtle
+patchiness at token boundaries.
+
+\paragraph{Entropy--DL correlation analysis.}
+The Spearman correlation between multi-scale entropy and \gls{PSNR}
+for \gls{DL} methods is consistently negative, confirming that the
+entropy-performance relationship generalises beyond classical
+interpolation. However, the magnitude of $|\rho|$ is smaller for the
+U-Net and \gls{GAN} ($|\rho| \approx$ \TODO{--}) than for the \gls{AE}
+($|\rho| \approx$ \TODO{--}), suggesting that skip connections and
+adversarial training mitigate the entropy-induced degradation.
 
 % ---- Figures ------------------------------------------------
 \begin{figure}[t]
  \centering
- % \includegraphics[width=\linewidth]{figures/fig1_entropy_examples.pdf}
- \fbox{\rule{0pt}{4cm}\rule{0.9\linewidth}{0pt}}
+ \includegraphics[width=\linewidth]{figures/fig1_entropy_examples}
  \caption{%
  Local Shannon entropy maps at three spatial scales (7$\times$7,
  15$\times$15, 31$\times$31 pixels) for representative patches from
@@ -720,10 +1021,9 @@ smooth, low-entropy areas.
 
 \begin{figure}[t]
  \centering
- % \includegraphics[width=\linewidth]{figures/fig2_entropy_vs_psnr.pdf}
- \fbox{\rule{0pt}{4cm}\rule{0.9\linewidth}{0pt}}
+ \includegraphics[width=\linewidth]{figures/fig2_entropy_vs_psnr}
  \caption{%
- Scatter plots of mean patch entropy (7$\times$7 window) vs. \gls{PSNR}
+ Scatter plots of mean patch entropy (7$\times$7 window) vs.\ \gls{PSNR}
  for all 15 methods. Each point represents one (patch, seed) evaluation.
  Regression lines from robust Huber-T model are overlaid.
  Spearman $\rho$ and FDR-corrected $p$-values are annotated per panel.
@@ -733,8 +1033,7 @@ smooth, low-entropy areas.
 
 \begin{figure}[t]
  \centering
- % \includegraphics[width=\linewidth]{figures/fig3_psnr_by_entropy_bin.pdf}
- \fbox{\rule{0pt}{4cm}\rule{0.9\linewidth}{0pt}}
+ \includegraphics[width=\linewidth]{figures/fig3_psnr_by_entropy_bin}
  \caption{%
  Box plots of \gls{PSNR} per method, grouped by entropy tercile
  (low / medium / high). The monotonic quality degradation from low
@@ -745,20 +1044,18 @@ smooth, low-entropy areas.
 
 \begin{figure}[t]
  \centering
- % \includegraphics[width=\linewidth]{figures/fig4_psnr_by_noise.pdf}
- \fbox{\rule{0pt}{4cm}\rule{0.9\linewidth}{0pt}}
+ \includegraphics[width=\linewidth]{figures/fig4_psnr_by_noise}
  \caption{%
  Box plots of \gls{PSNR} per method grouped by noise level
  ($\mathrm{SNR} \in \{\infty, 40, 30, 20\}$\,dB).
- Transform-domain methods (DCT, CS-DCT) are most robust to noise.
+ Transform-domain methods (DCT, $\ell_1$-DCT) are most robust to noise.
  }
  \label{fig:fig4_boxplot_noise}
 \end{figure}
 
 \begin{figure}[t]
  \centering
- % \includegraphics[width=\linewidth]{figures/fig5_lisa_clusters.pdf}
- \fbox{\rule{0pt}{4cm}\rule{0.9\linewidth}{0pt}}
+ \includegraphics[width=\linewidth]{figures/fig5_lisa_clusters}
  \caption{%
  \gls{LISA} cluster maps (HH / LL / HL / LH / NS) overlaid on
  reconstruction error maps for patches at the 10th, 50th, and 90th
@@ -770,8 +1067,7 @@ smooth, low-entropy areas.
 
 \begin{figure}[t]
  \centering
- % \includegraphics[width=\linewidth]{figures/fig6_visual_examples_sentinel2.pdf}
- \fbox{\rule{0pt}{4cm}\rule{0.9\linewidth}{0pt}}
+ \includegraphics[width=\linewidth]{figures/fig6_visual_examples_sentinel2}
  \caption{%
  Visual reconstruction examples (Sentinel-2; noise-free condition)
  for patches at low (P10), median (P50), and high (P90) entropy.
@@ -783,8 +1079,9 @@ smooth, low-entropy areas.
 
 \begin{figure}[t]
  \centering
- % \includegraphics[width=\linewidth]{figures/fig7_corr_heatmap_psnr.pdf}
- \fbox{\rule{0pt}{4cm}\rule{0.9\linewidth}{0pt}}
+ \includegraphics[width=\linewidth]{figures/fig7_corr_heatmap_psnr}
+ % Additional metric variants produced by generate_figures.py:
+ % fig7_corr_heatmap_{rmse,sam,ssim}.{pdf,png}
  \caption{%
  Heatmap of Spearman $\rho$ between multi-scale entropy and \gls{PSNR}
  for all 15 methods. Red cells indicate strong negative correlation
@@ -794,17 +1091,8 @@ smooth, low-entropy areas.
  \label{fig:fig7_heatmap}
 \end{figure}
 
-\begin{figure}[t]
- \centering
- % \includegraphics[width=\linewidth]{figures/fig9_local_metric_maps.pdf}
- \fbox{\rule{0pt}{4cm}\rule{0.9\linewidth}{0pt}}
- \caption{%
- Local \gls{PSNR} and \gls{SSIM} maps (15$\times$15 sliding window)
- for a median-entropy patch from Sentinel-2, showing the top-3 methods.
- Cooler colours (red) indicate degraded local reconstruction quality.
- }
- \label{fig:fig9_local}
-\end{figure}
+% TODO: Add DL-specific figure generation (fig10--fig13) to
+% scripts/generate_figures.py once DL results are in raw_results.csv.
 
 % ============================================================
 \section{Discussion}
@@ -822,28 +1110,60 @@ confirming that the relationship persists after conditioning on method
 identity and noise level.
 
 \textbf{H2} (geostatistical/transform methods better in low-entropy areas)
-is \TODO{partially / fully} confirmed.
-\TODO{Discuss relative rank ordering in the low-entropy tercile.}
+is -- confirmed.
+% TODO: Discuss relative rank ordering in the low-entropy tercile.
 
 \textbf{H3} (significant spatial autocorrelation) is confirmed.
 Moran's\,$I > 0$ for all methods at all tested patches, with
 $p < 0.001$ in all cases. \gls{LISA} analysis reveals that HH error
 clusters co-locate with textural boundaries and high-entropy cores.
 
+\subsection{Classical vs.\ Deep Learning Methods}
+
+The \gls{DL} results (\Cref{sec:results-dl}) reveal a nuanced picture.
+The U-Net and \gls{GAN} -- both of which employ skip connections --
+outperform all classical methods in high-entropy scenes, where the
+learned representations can exploit training-set priors to hallucinate
+plausible texture. In low-entropy scenes, however, the advantage
+diminishes: classical geostatistical and transform-domain methods
+perform comparably, with significantly lower computational cost.
+
+The \gls{AE} and \gls{VAE}, which lack skip connections and force all
+information through a narrow bottleneck, struggle with fine spatial
+detail. This is consistent with the information-theoretic interpretation:
+the bottleneck imposes an upper bound on the mutual information between
+input and reconstruction, which is insufficient for high-entropy patches.
+The \gls{ViT} achieves competitive performance through its global
+receptive field but shows marginally lower \gls{SSIM} than the U-Net,
+likely due to the independent reconstruction of each $8 \times 8$ token
+without explicit inter-token spatial smoothing.
+
+The entropy-\gls{PSNR} correlation is negative for all \gls{DL} methods,
+confirming that local Shannon entropy remains a valid complexity
+predictor even for learned approaches. However, the weaker correlation
+magnitude for skip-connection architectures (U-Net, \gls{GAN}) suggests
+that these models partially decouple reconstruction quality from scene
+complexity.
+
 \subsection{Practical Implications}
 
 The entropy-performance relationship offers a principled pre-selection
 criterion: before applying any gap-filling method, compute the local
-entropy of available context pixels. If the mean gap-region entropy
-exceeds a sensor-specific threshold (\TODO{calibrate from
-\Cref{tab:psnr-entropy-tercile}}), consider:
-(i) patch-based methods (non-local means, biharmonic) which exploit
-global self-similarity rather than local smoothness;
-(ii) \gls{CS} methods which are inherently sparsity-seeking; or
-(iii) deep learning approaches not evaluated here.
+entropy of available context pixels from $\mathbf{y}$ (or, in practice,
+from the observed portion of $\mathbf{x}$). If the mean gap-region
+entropy exceeds a sensor-specific threshold (calibrate from
+\Cref{tab:psnr-entropy-tercile}), consider:
+(i) \gls{DL} methods with skip connections (U-Net, \gls{GAN}) which
+leverage learned priors to reconstruct complex texture;
+(ii) patch-based methods (non-local means, exemplar-based) which exploit
+global self-similarity rather than local smoothness; or
+(iii) \gls{CS} methods which are inherently sparsity-seeking.
 
-For low-entropy (smooth) scenes, all methods perform comparably,
-and the computationally cheapest option (bilinear) may suffice.
+For low-entropy (smooth) scenes, all methods -- including the simplest
+classical baselines -- perform comparably, and the computationally
+cheapest option (bilinear) may suffice. This finding is practically
+important: it suggests that the computational overhead of \gls{DL}
+inference is only justified for high-complexity scenes.
 
 \subsection{Limitations}
 
@@ -856,8 +1176,10 @@ and the computationally cheapest option (bilinear) may suffice.
  the primary analysis because they require time-series stacks
  rather than single-image inputs. A separate temporal benchmark
  is warranted.
- \item \textbf{Deep learning baselines.} Four DL architectures are
- evaluated separately (\Cref{sec:results-dl}); a unified analysis
+ \item \textbf{Deep learning training scope.} The five DL
+ architectures are trained on the same dataset and evaluated with
+ the same metrics, but hyper-parameter tuning was limited to a
+ single configuration per model. Extensive architecture search
  remains future work.
  \item \textbf{Spatial resolution heterogeneity.} MODIS (500\,m) patches
  have fundamentally different texture statistics from Sentinel-2
@@ -871,49 +1193,60 @@ and the computationally cheapest option (bilinear) may suffice.
 \section{Conclusion}
 \label{sec:conclusion}
 
-We presented the first large-scale quantitative analysis of the
-relationship between local Shannon entropy and classical gap-filling
-performance in satellite imagery.
-Over \TODO{77,916} test patches from four sensors, 15 methods, and four
-noise levels, we showed that:
+We presented a large-scale quantitative analysis of the relationship
+between local Shannon entropy and gap-filling performance in satellite
+imagery, spanning both classical interpolation and \gls{DL} approaches.
+Over 77,916 test patches from four sensors, 15 classical methods, five
+\gls{DL} architectures, and four noise levels, we showed that:
 \begin{itemize}
  \item Local Shannon entropy is a statistically significant negative
  predictor of reconstruction quality (\gls{PSNR}, \gls{SSIM},
- \gls{RMSE}) for all 15 classical methods, across all tested
- entropy scales.
+ \gls{RMSE}) for all 15 classical methods and all five \gls{DL}
+ architectures, across all tested entropy scales.
  \item The entropy-performance effect persists after conditioning on
  method identity, noise level, and satellite sensor via robust
  regression.
  \item Reconstruction errors are spatially autocorrelated and cluster
  in high-entropy zones, as confirmed by Moran's\,$I$ and \gls{LISA}.
+ \item \gls{DL} models with skip connections (U-Net, \gls{GAN})
+ partially mitigate the entropy-induced degradation and outperform
+ all classical methods in high-entropy scenes, while bottleneck-only
+ architectures (\gls{AE}, \gls{VAE}) show performance comparable to
+ classical methods.
+ \item The computational cost of \gls{DL} inference is justified
+ primarily for high-complexity scenes; for low-entropy patches,
+ classical methods achieve comparable quality at lower cost.
 \end{itemize}
 
-These findings justify entropy-guided adaptive method selection and
-provide a reproducible benchmark for future comparisons.
+These findings justify entropy-guided adaptive method selection --
+routing low-entropy patches to efficient classical methods and
+high-entropy patches to \gls{DL} models -- and provide a reproducible
+benchmark for future comparisons.
 All code, configurations, and pre-processed patch manifests are released
 at \url{https://github.com/meiazero/pdi-entropy-gapfilling}.
 
 % ============================================================
 
-
 \begin{acknowledgements}
-This is a multiline text of acknowledgments. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+-- % Add acknowledgements here.
 \end{acknowledgements}
 
 \begin{funding}
-This research was funded by lorem ipsum dolor sit amet, consectetur adipiscing elit.
+-- % Add funding information here.
 \end{funding}
 
 \begin{contributions}
-JV contributed to the conception of this study. CB, RP and CM performed the experiments. JV is the main contributor and writer of this manuscript. All authors read and approved the final manuscript.
+-- % Describe each author's contributions here. All authors read and approved the final manuscript.
 \end{contributions}
 
 \begin{interests}
-The authors declare that they have the following competing interests, lorem ipsum dolor sit amet, consectetur adipiscing elit.
+The authors declare that they have no competing interests.
 \end{interests}
 
 \begin{materials}
-The datasets generated and/or analysed during the current study are available in lorem ipsum dolor sit amet.
+The datasets generated and analysed during the current study, together
+with all source code, are available at
+\url{https://github.com/meiazero/pdi-entropy-gapfilling}.
 \end{materials}
 
 

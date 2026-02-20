@@ -1,0 +1,23 @@
+\begin{table}[t]
+ \centering
+ \small
+ \caption{%
+ Spearman $\rho$ between entropy (windows 7, 15, 31) and PSNR / SSIM /
+ RMSE / SAM for selected methods. Significant FDR-corrected correlations
+ ($\alpha = 0.05$) are indicated with $^*$.
+ }
+ \label{tab:spearman-heatmap}
+ \begin{tabular}{l ccc ccc}
+ \toprule
+ & \multicolumn{3}{c}{$\rho$(entropy, PSNR)} &
+ \multicolumn{3}{c}{$\rho$(entropy, RMSE)}\\
+ \cmidrule(lr){2-4}\cmidrule(lr){5-7}
+ Method & 7 & 15 & 31 & 7 & 15 & 31\\
+ \midrule
+ Nearest & -- & -- & -- & -- & -- & --\\
+ Kriging & -- & -- & -- & -- & -- & --\\
+ $\ell_1$-DCT & -- & -- & -- & -- & -- & --\\
+ \ldots & & & & & & \\
+ \bottomrule
+ \end{tabular}
+\end{table}
