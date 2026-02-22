@@ -23,6 +23,18 @@ help: ## Show all available targets
 .PHONY: install
 install: ## Install dependencies and pre-commit hooks
 	@echo "Installing dependencies"
+
+.PHONY: install-latex
+install-latex: ## Install LaTeX toolchain (XeLaTeX + latexmk)
+	@echo "LaTeX dependencies (XeLaTeX + latexmk)"
+	@echo "Ubuntu/Debian: sudo apt-get update && sudo apt-get install -y \
+		latexmk texlive-xetex texlive-latex-extra texlive-fonts-recommended \
+		texlive-fonts-extra texlive-bibtex-extra"
+	@echo "Fedora: sudo dnf install -y latexmk texlive-xetex texlive-latex-extra \
+		texlive-collection-fontsrecommended texlive-collection-fontsextra"
+	@echo "Arch: sudo pacman -S --needed texlive-bin texlive-core texlive-latexextra \
+		texlive-fontsextra"
+	@echo "macOS (Homebrew): brew install mactex-no-gui latexmk"
 	@uv sync
 	@uv run pre-commit install
 
