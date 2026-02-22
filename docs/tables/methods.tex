@@ -1,53 +1,27 @@
-\begin{table*}[t]
- \centering
- \small
- \caption{Classical gap-filling methods evaluated in this study.}
- \label{tab:methods}
- \begin{tabular}{llll}
- \toprule
- Category & Method & Key parameter(s)
- & Reference\\
- \midrule
- \multirow{4}{*}{Spatial}
- & Nearest neighbor & --
- & \\
- & Bilinear & --
- & \\
- & Bicubic & --
- & \\
- & Lanczos & $a=3$
- & \\
- \midrule
- \multirow{3}{*}{Kernel}
- & IDW & $p=2$
- & \\
- & RBF (thin-plate spline) & --
- & \\
- & Thin-plate spline & --
- & \\
- \midrule
- Geostatistical & Ordinary kriging & spherical variogram, $n_{\mathrm{lag}}=6$
- & \\
- \midrule
- \multirow{3}{*}{Transform}
- & DCT-ISTA & $\lambda=0.05$, $K=50$
- & \\
- & Wavelet-ISTA & db4, $L=3$, $\lambda=0.05$
- & \\
- & TV (Chambolle-Pock) & $\lambda=0.1$, $K=100$
- & \\
- \midrule
- \multirow{2}{*}{CS ($\ell_1$)}
- & $\ell_1$-DCT & $\lambda=0.05$, $K=100$
- & \\
- & $\ell_1$-Wavelet & db4, $\lambda=0.05$, $K=100$
- & \\
- \midrule
- \multirow{2}{*}{Patch-based}
- & Non-local means & $h=0.1$, patch $=7$, distance $=21$
- & \\
- & Exemplar-based & patch $=9$
- & \\
- \bottomrule
- \end{tabular}
-\end{table*}
+\begin{table}[htbp]
+\centering
+\caption{Overview of the 15 classical gap-filling methods evaluated.}
+\label{tab:methods}
+\footnotesize
+\begin{tabular}{lll}
+\toprule
+Category & Method & Parameters \\
+\midrule
+Spatial & Nearest Neighbor & None \\
+ & Bilinear & None \\
+ & Bicubic & None \\
+ & Lanczos (PG) & a=3 \\
+Kernel & IDW & p=2.0 \\
+ & RBF & TPS kernel \\
+ & Thin Plate Spline & None \\
+Geostatistical & Ordinary Kriging & Auto variogram \\
+Transform & DCT & iter=50, lam=0.05 \\
+ & Wavelet & db4, iter=50 \\
+ & Total Variation & iter=100 \\
+Compressive & L1-DCT (CS) & iter=100 \\
+ & L1-Wavelet (CS) & iter=100 \\
+Patch-based & Non-Local Means & h=0.1, p=7, s=21 \\
+ & Exemplar-Based & p=9 \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -41,50 +41,55 @@ log = logging.getLogger(__name__)
 
 # Method metadata for Table 1
 METHOD_INFO = {
-    "nearest": ("Spatial", "Nearest Neighbor", "None", "O(HW)"),
-    "bilinear": ("Spatial", "Bilinear", "None", "O(N log N)"),
-    "bicubic": ("Spatial", "Bicubic", "None", "O(N log N)"),
-    "lanczos": ("Spatial", "Lanczos (PG)", "a=3", "O(HW log HW)"),
-    "idw": ("Kernel", "IDW", "p=2.0", "O(NK)"),
-    "rbf": ("Kernel", "RBF", "TPS kernel", "O(N^3)"),
-    "spline": ("Kernel", "Thin Plate Spline", "None", "O(N^3)"),
+    "nearest": ("Spatial", "Nearest Neighbor", "None", r"$O(HW)$"),
+    "bilinear": ("Spatial", "Bilinear", "None", r"$O(N \log N)$"),
+    "bicubic": ("Spatial", "Bicubic", "None", r"$O(N \log N)$"),
+    "lanczos": (
+        "Spatial",
+        "Lanczos (PG)",
+        "a=3",
+        r"$O(HW \log HW)$",
+    ),
+    "idw": ("Kernel", "IDW", "p=2.0", r"$O(NK)$"),
+    "rbf": ("Kernel", "RBF", "TPS kernel", r"$O(N^3)$"),
+    "spline": ("Kernel", "Thin Plate Spline", "None", r"$O(N^3)$"),
     "kriging": (
         "Geostatistical",
         "Ordinary Kriging",
         "Auto variogram",
-        "O(N^3)",
+        r"$O(N^3)$",
     ),
     "dct": (
         "Transform",
         "DCT",
         "iter=50, lam=0.05",
-        "O(HW log HW)",
+        r"$O(HW \log HW)$",
     ),
-    "wavelet": ("Transform", "Wavelet", "db4, iter=50", "O(HW)"),
-    "tv": ("Transform", "Total Variation", "iter=100", "O(HW)"),
+    "wavelet": ("Transform", "Wavelet", "db4, iter=50", r"$O(HW)$"),
+    "tv": ("Transform", "Total Variation", "iter=100", r"$O(HW)$"),
     "cs_dct": (
         "Compressive",
         "L1-DCT (CS)",
         "iter=100",
-        "O(HW log HW)",
+        r"$O(HW \log HW)$",
     ),
     "cs_wavelet": (
         "Compressive",
         "L1-Wavelet (CS)",
         "iter=100",
-        "O(HW)",
+        r"$O(HW)$",
     ),
     "non_local": (
         "Patch-based",
         "Non-Local Means",
         "h=0.1, p=7, s=21",
-        "O(HW P^2)",
+        r"$O(HW P^2)$",
     ),
     "exemplar_based": (
         "Patch-based",
         "Exemplar-Based",
         "p=9",
-        "O(HW P^2)",
+        r"$O(HW P^2)$",
     ),
 }
 
@@ -103,6 +108,7 @@ class LatexTableConfig:
     col_spec: str
     header: str
     font_size: str = r"\footnotesize"
+    env: str = "table"
 
 
 def _render_latex_table(
@@ -112,7 +118,7 @@ def _render_latex_table(
 ) -> str:
     """Render a complete LaTeX table from *config* and body rows."""
     lines = [
-        r"\begin{table}[htbp]",
+        rf"\begin{{{config.env}}}[htbp]",
         r"\centering",
         rf"\caption{{{config.caption}}}",
         rf"\label{{{config.label}}}",
@@ -127,7 +133,7 @@ def _render_latex_table(
     ]
     if extra_after_tabular:
         lines.extend(extra_after_tabular)
-    lines.append(r"\end{table}")
+    lines.append(rf"\end{{{config.env}}}")
     return "\n".join(lines)
 
 
@@ -295,10 +301,10 @@ def table1_method_overview(df: pd.DataFrame, output_dir: Path) -> None:
     """Table 1: Method overview (no data needed)."""
     body: list[str] = []
     prev_cat = ""
-    for _name, (cat, display, params, cplx) in METHOD_INFO.items():
+    for _name, (cat, display, params, _cplx) in METHOD_INFO.items():
         cat_str = cat if cat != prev_cat else ""
         prev_cat = cat
-        body.append(f"{cat_str} & {display} & {params} & {cplx} \\\\")
+        body.append(f"{cat_str} & {display} & {params} \\\\")
 
     tex = _render_latex_table(
         LatexTableConfig(
@@ -306,17 +312,22 @@ def table1_method_overview(df: pd.DataFrame, output_dir: Path) -> None:
                 "Overview of the 15 classical gap-filling methods evaluated."
             ),
             label="tab:methods",
-            col_spec="llllc",
-            header=(r"Category & Method & Parameters & Complexity"),
+            col_spec="lll",
+            header=(r"Category & Method & Parameters"),
         ),
         body,
     )
-    _write_tex(tex, output_dir / "table1_methods.tex")
+    _write_tex(tex, output_dir / "methods.tex")
 
 
 def table2_overall_results(df: pd.DataFrame, output_dir: Path) -> None:
     """Table 2: Mean PSNR +/- CI95% per method x noise level."""
     noise_summary = summary_by_noise(df, metric="psnr")
+    if noise_summary.empty:
+        log.warning("No data for table2")
+        return
+    noise_summary = noise_summary.copy()
+    noise_summary["noise_level"] = noise_summary["noise_level"].astype(str)
 
     methods = sorted(noise_summary["method"].unique())
     noise_levels = ["inf", "40", "30", "20"]
@@ -324,27 +335,33 @@ def table2_overall_results(df: pd.DataFrame, output_dir: Path) -> None:
         n for n in noise_levels if n in noise_summary["noise_level"].values
     ]
 
-    header = "Method & " + " & ".join(
-        f"{n} dB" if n != "inf" else "No noise" for n in present
-    )
-    rankings = _compute_group_rankings(noise_summary, "noise_level", present)
-    body = _build_ranked_rows(
-        noise_summary, "noise_level", present, methods, rankings
-    )
+    if present:
+        header = "Method & " + " & ".join(
+            f"{n} dB" if n != "inf" else "No noise" for n in present
+        )
+        rankings = _compute_group_rankings(
+            noise_summary, "noise_level", present
+        )
+        body = _build_ranked_rows(
+            noise_summary, "noise_level", present, methods, rankings
+        )
+    else:
+        header = "Method"
+        body = [f"{method} \\\\" for method in methods]
 
     tex = _render_latex_table(
         LatexTableConfig(
             caption=(
                 r"Mean PSNR (dB) $\pm$ 95\% CI per method "
-                "and noise level."
+                "and noise level. Higher PSNR is better."
             ),
-            label="tab:overall",
+            label="tab:psnr-method-noise",
             col_spec="l" + "c" * len(present),
             header=header,
         ),
         body,
     )
-    _write_tex(tex, output_dir / "table2_overall.tex")
+    _write_tex(tex, output_dir / "psnr-method-noise.tex")
 
 
 def table3_entropy_stratified(df: pd.DataFrame, output_dir: Path) -> None:
@@ -371,28 +388,36 @@ def table3_entropy_stratified(df: pd.DataFrame, output_dir: Path) -> None:
             ent_summary, "entropy_bin", bins, methods, rankings
         )
 
+        label = (
+            "tab:psnr-entropy-tercile"
+            if ws == "15"
+            else f"tab:psnr-entropy-tercile-{ws}"
+        )
         tex = _render_latex_table(
             LatexTableConfig(
                 caption=(
                     r"Mean PSNR (dB) $\pm$ 95\% CI stratified "
                     rf"by entropy tercile "
-                    rf"({ws}$\times${ws} window)."
+                    rf"({ws}$\times${ws} window). Higher PSNR is better."
                 ),
-                label=f"tab:entropy_stratified_{ws}",
+                label=label,
                 col_spec="lccc",
                 header=("Method & Low Entropy & Medium Entropy & High Entropy"),
             ),
             body,
         )
-        _write_tex(tex, output_dir / f"table3_entropy_{ws}.tex")
+        filename = (
+            "psnr-entropy-tercile.tex"
+            if ws == "15"
+            else f"table3_entropy_{ws}.tex"
+        )
+        _write_tex(tex, output_dir / filename)
 
 
 def table4_correlation(df: pd.DataFrame, output_dir: Path) -> None:
     """Table 4: Spearman rho for entropy x metric."""
     entropy_cols = [c for c in df.columns if c.startswith("entropy_")]
-    metric_cols = [
-        c for c in ["psnr", "ssim", "rmse", "sam"] if c in df.columns
-    ]
+    metric_cols = [c for c in ["psnr"] if c in df.columns]
 
     if not entropy_cols or not metric_cols:
         log.warning("Missing columns for table4")
@@ -405,35 +430,35 @@ def table4_correlation(df: pd.DataFrame, output_dir: Path) -> None:
     methods = sorted(corr_df["method"].unique())
     lookup = _build_correlation_lookup(corr_df)
 
-    header_parts = ["Method"]
-    for ecol in entropy_cols:
-        ws = ecol.split("_")[-1]
-        for mcol in metric_cols:
-            header_parts.append(f"$\\rho_{{H_{{{ws}}}}}$({mcol.upper()})")
+    header_parts = [
+        r"$\rho_{H_{s}}(\mathrm{PSNR})$",
+        *[m.replace("_", r"\_") for m in methods],
+    ]
 
     body: list[str] = []
-    for method in methods:
-        cells: list[str] = [method]
-        for ecol in entropy_cols:
-            for mcol in metric_cols:
-                cells.append(
-                    _format_correlation_cell(lookup, method, ecol, mcol)
-                )
+    for ecol in entropy_cols:
+        ws = ecol.split("_")[-1]
+        row_label = rf"$\rho_{{H_{{{ws}}}}}(\mathrm{{PSNR}})$"
+        cells: list[str] = [row_label]
+        for method in methods:
+            cells.append(_format_correlation_cell(lookup, method, ecol, "psnr"))
         body.append(" & ".join(cells) + r" \\")
 
-    ncols = len(entropy_cols) * len(metric_cols)
+    ncols = len(methods)
     tex = _render_latex_table(
         LatexTableConfig(
             caption=(
-                "Spearman correlation between entropy and quality metrics."
+                "Spearman correlation between entropy and PSNR. "
+                "Higher PSNR is better."
             ),
-            label="tab:correlation",
+            label="tab:spearman-heatmap",
             col_spec="l" + "c" * ncols,
             header=" & ".join(header_parts),
+            env="table*",
         ),
         body,
     )
-    _write_tex(tex, output_dir / "table4_correlation.tex")
+    _write_tex(tex, output_dir / "spearman-heatmap.tex")
 
 
 def table5_kruskal_wallis(df: pd.DataFrame, output_dir: Path) -> None:
@@ -524,6 +549,11 @@ def table6_regression(df: pd.DataFrame, output_dir: Path) -> None:
             extra.append(r"\end{tabular}")
 
         mu = metric.upper()
+        label = (
+            "tab:robust-regression"
+            if metric == "psnr"
+            else f"tab:robust-regression-{metric}"
+        )
         tex = _render_latex_table(
             LatexTableConfig(
                 caption=(
@@ -531,21 +561,24 @@ def table6_regression(df: pd.DataFrame, output_dir: Path) -> None:
                     f"$R^2_{{adj}} = {result.r_squared_adj:.4f}$"
                     f", $n = {result.n}$."
                 ),
-                label=f"tab:regression_{metric}",
+                label=label,
                 col_spec="lrrrrr",
                 header=(
                     r"Variable & $\beta$ & Std. Err. "
                     r"& $z$ & $p$ & 95\% CI"
                 ),
                 font_size=r"\tiny",
+                env="table*",
             ),
             body,
             extra_after_tabular=extra or None,
         )
-        _write_tex(
-            tex,
-            output_dir / f"table6_regression_{metric}.tex",
+        filename = (
+            "robust-regression.tex"
+            if metric == "psnr"
+            else f"table6_regression_{metric}.tex"
         )
+        _write_tex(tex, output_dir / filename)
 
 
 def table7_satellite(df: pd.DataFrame, output_dir: Path) -> None:
@@ -569,15 +602,16 @@ def table7_satellite(df: pd.DataFrame, output_dir: Path) -> None:
         LatexTableConfig(
             caption=(
                 r"Mean PSNR (dB) $\pm$ 95\% CI per method "
-                "and satellite sensor."
+                "and satellite sensor. Higher PSNR is better."
             ),
-            label="tab:satellite",
+            label="tab:psnr-satellite",
             col_spec="l" + "c" * len(satellites),
             header=header,
+            env="table*",
         ),
         body,
     )
-    _write_tex(tex, output_dir / "table7_satellite.tex")
+    _write_tex(tex, output_dir / "psnr-satellite.tex")
 
 
 def table8_dl_comparison(
@@ -598,12 +632,11 @@ def table8_dl_comparison(
     dl_rows = _collect_dl_rows(dl_base)
 
     if not dl_rows:
-        log.warning(
-            "No DL results found at %s. "
-            "Run DL evaluation first to include "
-            "in comparison.",
+        log.info(
+            "No DL results at %s. Skipping table8.",
             dl_base,
         )
+        return
 
     dl_summary = pd.DataFrame(dl_rows)
     combined = pd.concat([classical_summary, dl_summary], ignore_index=True)
@@ -631,9 +664,10 @@ def table8_dl_comparison(
         LatexTableConfig(
             caption=(
                 "Performance comparison: classical "
-                r"interpolation vs.\ deep learning methods."
+                r"interpolation vs.\ deep learning methods. "
+                "Higher PSNR and SSIM are better; lower RMSE is better."
             ),
-            label="tab:dl_comparison",
+            label="tab:dl-results",
             col_spec="ll" + "c" * len(present),
             header=(
                 "Type & Method & " + " & ".join(m.upper() for m in present)
@@ -641,7 +675,7 @@ def table8_dl_comparison(
         ),
         body,
     )
-    _write_tex(tex, output_dir / "table8_dl_comparison.tex")
+    _write_tex(tex, output_dir / "dl-results.tex")
 
 
 # ------------------------------------------------------------------

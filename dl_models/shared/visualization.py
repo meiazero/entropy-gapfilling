@@ -15,23 +15,35 @@ from matplotlib.figure import Figure
 
 from dl_models.shared.trainer import TrainingHistory
 
-COLORS = ["#0072B2", "#D55E00", "#009E73", "#CC79A7"]  # colorblind-safe
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+_STYLE_PATH = _PROJECT_ROOT / "images" / "style.mplstyle"
+
+if _STYLE_PATH.exists():
+    plt.style.use(str(_STYLE_PATH))
+
+# Apply training-specific overrides on top of the shared mplstyle
 plt.rcParams.update({
-    "font.family": "serif",
-    "font.size": 10,
-    "axes.grid": True,
-    "grid.alpha": 0.3,
-    "axes.spines.top": False,
-    "axes.spines.right": False,
     "figure.dpi": 150,
+    "savefig.dpi": 300,
 })
+
+_CMAP = plt.get_cmap("Set2")
+COLORS = [_CMAP(i) for i in range(4)]
 
 
 def _save_fig(fig: Figure, output_dir: Path, name: str) -> None:
     """Save figure as both PDF and PNG."""
     output_dir.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_dir / f"{name}.pdf", bbox_inches="tight", backend="pdf")
-    fig.savefig(output_dir / f"{name}.png", bbox_inches="tight", dpi=300)
+    fig.savefig(
+        output_dir / f"{name}.pdf",
+        bbox_inches="tight",
+        backend="pdf",
+    )
+    fig.savefig(
+        output_dir / f"{name}.png",
+        bbox_inches="tight",
+        dpi=300,
+    )
     plt.close(fig)
 
 
@@ -67,25 +79,36 @@ def plot_loss_curves(histories: list[dict[str, Any]], output_dir: Path) -> None:
     """Train vs val loss. Single model: 2 lines. Multiple: grid."""
     n = len(histories)
     if n == 1:
-        fig, ax = plt.subplots(figsize=(6, 4))
+        fig, ax = plt.subplots(figsize=(6, 4), constrained_layout=True)
         h = histories[0]
         epochs = _get_epochs(h)
         name = h["model_name"]
         train_key = "train_g_loss" if name == "gan" else "train_loss"
         ax.plot(
-            epochs, _get_values(h, train_key), label="Train", color=COLORS[0]
+            epochs,
+            _get_values(h, train_key),
+            label="Train",
+            color=COLORS[0],
         )
         ax.plot(
-            epochs, _get_values(h, "val_loss"), label="Val", color=COLORS[1]
+            epochs,
+            _get_values(h, "val_loss"),
+            label="Val",
+            color=COLORS[1],
         )
         ax.set_xlabel("Epoch")
         ax.set_ylabel("Loss")
         ax.set_title(f"{name.upper()} - Loss Curves")
-        ax.legend()
+        ax.legend(frameon=True, framealpha=0.85)
     else:
         rows = 2
         cols = (n + 1) // 2
-        fig, axes = plt.subplots(rows, cols, figsize=(5 * cols, 4 * rows))
+        fig, axes = plt.subplots(
+            rows,
+            cols,
+            figsize=(5 * cols, 4 * rows),
+            constrained_layout=True,
+        )
         axes_flat = np.asarray(axes).flatten()
         for i, h in enumerate(histories):
             ax = axes_flat[i]
@@ -99,16 +122,18 @@ def plot_loss_curves(histories: list[dict[str, Any]], output_dir: Path) -> None:
                 color=COLORS[0],
             )
             ax.plot(
-                epochs, _get_values(h, "val_loss"), label="Val", color=COLORS[1]
+                epochs,
+                _get_values(h, "val_loss"),
+                label="Val",
+                color=COLORS[1],
             )
             ax.set_xlabel("Epoch")
             ax.set_ylabel("Loss")
             ax.set_title(f"{name.upper()}")
-            ax.legend(fontsize=8)
+            ax.legend(fontsize=8, frameon=True, framealpha=0.85)
         for j in range(i + 1, len(axes_flat)):
             axes_flat[j].set_visible(False)
-        fig.suptitle("Loss Curves", fontsize=12, y=1.02)
-        fig.tight_layout()
+        fig.suptitle("Loss Curves", fontsize=12)
 
     _save_fig(fig, output_dir, "loss_curves")
 
@@ -123,7 +148,7 @@ def _plot_metric_curves(
     filename: str,
 ) -> None:
     """Plot a single validation metric over epochs for all models."""
-    fig, ax = plt.subplots(figsize=(6, 4))
+    fig, ax = plt.subplots(figsize=(6, 4), constrained_layout=True)
     for i, h in enumerate(histories):
         ax.plot(
             _get_epochs(h),
@@ -134,7 +159,7 @@ def _plot_metric_curves(
     ax.set_xlabel("Epoch")
     ax.set_ylabel(ylabel)
     ax.set_title(title)
-    ax.legend()
+    ax.legend(frameon=True, framealpha=0.85)
     _save_fig(fig, output_dir, filename)
 
 
@@ -183,17 +208,28 @@ def plot_gan_balance(histories: list[dict[str, Any]], output_dir: Path) -> None:
     h = gan_hists[0]
     epochs = _get_epochs(h)
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
-    ax1.plot(
-        epochs, _get_values(h, "train_g_loss"), label="G Loss", color=COLORS[0]
+    fig, (ax1, ax2) = plt.subplots(
+        1,
+        2,
+        figsize=(10, 4),
+        constrained_layout=True,
     )
     ax1.plot(
-        epochs, _get_values(h, "train_d_loss"), label="D Loss", color=COLORS[1]
+        epochs,
+        _get_values(h, "train_g_loss"),
+        label="G Loss",
+        color=COLORS[0],
+    )
+    ax1.plot(
+        epochs,
+        _get_values(h, "train_d_loss"),
+        label="D Loss",
+        color=COLORS[1],
     )
     ax1.set_xlabel("Epoch")
     ax1.set_ylabel("Loss")
     ax1.set_title("Generator vs Discriminator")
-    ax1.legend()
+    ax1.legend(frameon=True, framealpha=0.85)
 
     ax2.plot(
         epochs,
@@ -210,10 +246,9 @@ def plot_gan_balance(histories: list[dict[str, Any]], output_dir: Path) -> None:
     ax2.set_xlabel("Epoch")
     ax2.set_ylabel("Loss")
     ax2.set_title("Generator Loss Decomposition")
-    ax2.legend()
+    ax2.legend(frameon=True, framealpha=0.85)
 
-    fig.suptitle("GAN Training Balance", y=1.02)
-    fig.tight_layout()
+    fig.suptitle("GAN Training Balance")
     _save_fig(fig, output_dir, "gan_balance")
 
 
@@ -228,7 +263,12 @@ def plot_vae_decomposition(
     h = vae_hists[0]
     epochs = _get_epochs(h)
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
+    fig, (ax1, ax2) = plt.subplots(
+        1,
+        2,
+        figsize=(10, 4),
+        constrained_layout=True,
+    )
     ax1.plot(
         epochs,
         _get_values(h, "train_recon_loss"),
@@ -244,7 +284,7 @@ def plot_vae_decomposition(
     ax1.set_xlabel("Epoch")
     ax1.set_ylabel("Reconstruction Loss")
     ax1.set_title("Reconstruction Loss")
-    ax1.legend()
+    ax1.legend(frameon=True, framealpha=0.85)
 
     ax2.plot(
         epochs,
@@ -253,15 +293,17 @@ def plot_vae_decomposition(
         color=COLORS[2],
     )
     ax2.plot(
-        epochs, _get_values(h, "val_kl_loss"), label="Val KL", color=COLORS[3]
+        epochs,
+        _get_values(h, "val_kl_loss"),
+        label="Val KL",
+        color=COLORS[3],
     )
     ax2.set_xlabel("Epoch")
     ax2.set_ylabel("KL Divergence")
     ax2.set_title("KL Divergence")
-    ax2.legend()
+    ax2.legend(frameon=True, framealpha=0.85)
 
-    fig.suptitle("VAE Loss Decomposition", y=1.02)
-    fig.tight_layout()
+    fig.suptitle("VAE Loss Decomposition")
     _save_fig(fig, output_dir, "vae_decomposition")
 
 
@@ -274,11 +316,14 @@ def plot_lr_schedule(histories: list[dict[str, Any]], output_dir: Path) -> None:
     h = tf_hists[0]
     epochs = _get_epochs(h)
 
-    fig, ax1 = plt.subplots(figsize=(6, 4))
+    fig, ax1 = plt.subplots(figsize=(6, 4), constrained_layout=True)
     ax2 = ax1.twinx()
 
     ax1.plot(
-        epochs, _get_values(h, "lr"), label="Learning Rate", color=COLORS[0]
+        epochs,
+        _get_values(h, "lr"),
+        label="Learning Rate",
+        color=COLORS[0],
     )
     ax1.set_xlabel("Epoch")
     ax1.set_ylabel("Learning Rate", color=COLORS[0])
@@ -294,8 +339,7 @@ def plot_lr_schedule(histories: list[dict[str, Any]], output_dir: Path) -> None:
     ax2.set_ylabel("Val Loss", color=COLORS[1])
     ax2.tick_params(axis="y", labelcolor=COLORS[1])
 
-    fig.suptitle("Transformer LR Schedule", y=1.02)
-    fig.tight_layout()
+    fig.suptitle("Transformer LR Schedule")
     _save_fig(fig, output_dir, "lr_schedule")
 
 
@@ -320,28 +364,27 @@ def plot_model_comparison(
         best_ssim.append(max(ssim_vals) if ssim_vals else 0)
         best_rmse.append(min(rmse_vals) if rmse_vals else 0)
 
-    fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+    fig, axes = plt.subplots(1, 3, figsize=(12, 4), constrained_layout=True)
     x = np.arange(len(names))
     w = 0.6
 
-    axes[0].bar(x, best_psnr, w, color=COLORS[0])
+    axes[0].bar(x, best_psnr, w, color=COLORS[0], edgecolor="#333333")
     axes[0].set_xticks(x)
     axes[0].set_xticklabels(names)
     axes[0].set_ylabel("PSNR (dB)")
     axes[0].set_title("Best PSNR")
 
-    axes[1].bar(x, best_ssim, w, color=COLORS[1])
+    axes[1].bar(x, best_ssim, w, color=COLORS[1], edgecolor="#333333")
     axes[1].set_xticks(x)
     axes[1].set_xticklabels(names)
     axes[1].set_ylabel("SSIM")
     axes[1].set_title("Best SSIM")
 
-    axes[2].bar(x, best_rmse, w, color=COLORS[2])
+    axes[2].bar(x, best_rmse, w, color=COLORS[2], edgecolor="#333333")
     axes[2].set_xticks(x)
     axes[2].set_xticklabels(names)
     axes[2].set_ylabel("RMSE")
     axes[2].set_title("Best RMSE (lower is better)")
 
-    fig.suptitle("Model Comparison", y=1.02)
-    fig.tight_layout()
+    fig.suptitle("Model Comparison")
     _save_fig(fig, output_dir, "model_comparison")

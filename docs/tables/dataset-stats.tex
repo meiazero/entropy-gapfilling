@@ -1,17 +1,17 @@
 \begin{table*}[t]
  \centering
- \caption{Dataset statistics per satellite sensor. All patches are $64 \times 64$ pixels with 4 spectral bands.}
+ \caption{Dataset statistics per satellite sensor. All patches are $64 \times 64$ pixels with 4 spectral bands (B2, B3, B4, B8). Data split: 80\% train, 10\% validation, 10\% test.}
  \label{tab:dataset-stats}
- \begin{tabular}{lrrrr}
+ \begin{tabular}{lrrrrr}
  \toprule
- Sensor & Bands & Resolution & \#Patches (test) & Gap fraction\\
+ Sensor & Bands & Resolution & \#Patches & \#Patches (test) & Gap fraction\\
  \midrule
- Sentinel-2 & 4 & 10\,m & -- & --\\
- Landsat-8 & 4 & 30\,m & -- & --\\
- Landsat-9 & 4 & 30\,m & -- & --\\
- MODIS & 4 & 500\,m & -- & --\\
+ Sentinel-2 & 4 & 10\,m  & 73\,984 & 7\,399 & $\approx$10\%\\
+ Landsat-8  & 4 & 30\,m  & 1\,936  & 195    & $\approx$10\%\\
+ Landsat-9  & 4 & 30\,m  & 1\,936  & 195    & $\approx$10\%\\
+ MODIS      & 4 & 500\,m & 60      & 6      & $\approx$10\%\\
  \midrule
- \textbf{Total} & -- & -- & -- & --\\
+ \textbf{Total} & -- & -- & \textbf{77\,916} & \textbf{7\,795} & $\approx$10\%\\
  \bottomrule
  \end{tabular}
 \end{table*}

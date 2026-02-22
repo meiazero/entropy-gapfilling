@@ -39,7 +39,61 @@ FIGSIZE_GRID = (7.0, 8.0)
 DPI = 300
 FONT_SIZE = 8
 
-STYLE_PARAMS = {
+# Shared boxplot keyword arguments (reference: fig3)
+_BOXPLOT_KW: dict[str, object] = {
+    "fliersize": 6,
+    "linewidth": 1.2,
+    "showmeans": True,
+    "boxprops": {
+        "edgecolor": "#333333",
+        "linewidth": 1.2,
+    },
+    "whiskerprops": {
+        "color": "#333333",
+        "linewidth": 1.0,
+    },
+    "capprops": {
+        "color": "#333333",
+        "linewidth": 1.0,
+    },
+    "medianprops": {
+        "color": "#ff7f0e",
+        "linewidth": 1.0,
+    },
+    "meanprops": {
+        "marker": "x",
+        "markeredgecolor": "#333333",
+        "markersize": 5,
+    },
+    "flierprops": {
+        "markeredgecolor": "#d62728",
+        "markerfacecolor": "#d62728",
+        "markersize": 6,
+    },
+}
+
+# Shared legend keyword arguments
+_LEGEND_KW: dict[str, object] = {
+    "loc": "best",
+    "frameon": True,
+    "framealpha": 0.85,
+    "fontsize": FONT_SIZE - 1,
+}
+
+# Shared scatter keyword arguments
+_SCATTER_KW: dict[str, object] = {
+    "s": 12,
+    "alpha": 0.7,
+    "edgecolor": "white",
+    "linewidth": 0.3,
+    "rasterized": True,
+}
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_STYLE_PATH = _PROJECT_ROOT / "images" / "style.mplstyle"
+
+# Publication font-size overrides applied on top of the .mplstyle file
+_PUB_FONT_OVERRIDES = {
     "font.size": FONT_SIZE,
     "axes.titlesize": FONT_SIZE + 1,
     "axes.labelsize": FONT_SIZE,
@@ -54,6 +108,29 @@ STYLE_PARAMS = {
 
 
 _SETTINGS: dict[str, bool] = {"png_only": False}
+
+_PATCH_SPLITS: dict[int, str] = {}
+
+
+def _load_patch_splits() -> dict[int, str]:
+    """Load patch_id -> split mapping from the manifest (cached)."""
+    if _PATCH_SPLITS:
+        return _PATCH_SPLITS
+
+    manifest_path = _PROJECT_ROOT / "preprocessed" / "manifest.csv"
+    if not manifest_path.exists():
+        return _PATCH_SPLITS
+
+    df = pd.read_csv(manifest_path, usecols=["patch_id", "split"])
+    for _, row in df.iterrows():
+        _PATCH_SPLITS[int(row["patch_id"])] = str(row["split"])
+    return _PATCH_SPLITS
+
+
+def _patch_split(patch_id: int) -> str:
+    """Return the split for a given patch_id, defaulting to 'train'."""
+    splits = _load_patch_splits()
+    return splits.get(patch_id, "train")
 
 
 def _collect_numeric_stems(base_dir: Path, pattern: str) -> set[int]:
@@ -83,6 +160,19 @@ def _available_recon_patch_ids(
     return _collect_numeric_stems(recon_dir, "*.png")
 
 
+def _has_preprocessed_clean(
+    preprocessed: Path,
+    satellite: str,
+    patch_id: int,
+) -> bool:
+    """Check whether the preprocessed clean/mask files exist for a patch."""
+    split = _patch_split(patch_id)
+    base = preprocessed / split / satellite
+    clean = base / f"{patch_id:07d}_clean.npy"
+    mask = base / f"{patch_id:07d}_mask.npy"
+    return clean.exists() and mask.exists()
+
+
 def _pick_entropy_representatives(
     df: pd.DataFrame,
     percentiles: dict[str, float],
@@ -103,8 +193,9 @@ def _load_clean_and_mask(
     satellite: str,
     patch_id: int,
 ) -> tuple[np.ndarray, np.ndarray] | None:
-    clean_path = preprocessed / "test" / satellite / f"{patch_id:07d}_clean.npy"
-    mask_path = preprocessed / "test" / satellite / f"{patch_id:07d}_mask.npy"
+    split = _patch_split(patch_id)
+    clean_path = preprocessed / split / satellite / f"{patch_id:07d}_clean.npy"
+    mask_path = preprocessed / split / satellite / f"{patch_id:07d}_mask.npy"
     if not clean_path.exists() or not mask_path.exists():
         return None
 
@@ -210,14 +301,15 @@ def _render_fig6_row(
     patch_metrics: pd.DataFrame,
     label: str,
 ) -> None:
-    clean_path = preprocessed / "test" / sat / f"{patch_id:07d}_clean.npy"
+    split = _patch_split(patch_id)
+    clean_path = preprocessed / split / sat / f"{patch_id:07d}_clean.npy"
     degraded_path = (
         preprocessed
-        / "test"
+        / split
         / sat
         / f"{patch_id:07d}_degraded_{noise_level}.npy"
     )
-    mask_path = preprocessed / "test" / sat / f"{patch_id:07d}_mask.npy"
+    mask_path = preprocessed / split / sat / f"{patch_id:07d}_mask.npy"
 
     if not clean_path.exists() or not degraded_path.exists():
         log.warning("Patch files not found for patch_id=%d", patch_id)
@@ -300,14 +392,16 @@ def _load_recon_array(
 
 def _save_figure(fig: plt.Figure, output_dir: Path, name: str) -> None:
     """Save figure in configured formats (PNG always, PDF unless --png-only)."""
-    fig.savefig(output_dir / f"{name}.png")
+    fig.savefig(output_dir / f"{name}.png", dpi=DPI, bbox_inches="tight")
     if not _SETTINGS["png_only"]:
-        fig.savefig(output_dir / f"{name}.pdf")
+        fig.savefig(output_dir / f"{name}.pdf", bbox_inches="tight")
 
 
 def _setup_style() -> None:
-    plt.rcParams.update(STYLE_PARAMS)
-    sns.set_palette("colorblind")
+    if _STYLE_PATH.exists():
+        plt.style.use(str(_STYLE_PATH))
+    plt.rcParams.update(_PUB_FONT_OVERRIDES)
+    sns.set_palette("Set2")
 
 
 def fig1_entropy_examples(results_dir: Path, output_dir: Path) -> None:
@@ -316,22 +410,25 @@ def fig1_entropy_examples(results_dir: Path, output_dir: Path) -> None:
 
     log.info("Figure 1: entropy map examples (computed on-the-fly)")
 
-    project_root = Path(__file__).resolve().parent.parent
-    preprocessed = project_root / "preprocessed"
+    preprocessed = _PROJECT_ROOT / "preprocessed"
 
     satellites = ["sentinel2", "landsat8"]
     window_sizes = [7, 15, 31]
 
-    # Find which satellites actually have data
-    available_sats = [
-        sat
-        for sat in satellites
-        if (preprocessed / "test" / sat).exists()
-        and list((preprocessed / "test" / sat).glob("*_clean.npy"))
-    ]
+    # Find which satellites actually have data (check all splits)
+    _splits = ("test", "val", "train")
+    available_sats: list[str] = []
+    _sat_split: dict[str, str] = {}
+    for sat in satellites:
+        for split in _splits:
+            sat_dir = preprocessed / split / sat
+            if sat_dir.exists() and list(sat_dir.glob("*_clean.npy")):
+                available_sats.append(sat)
+                _sat_split[sat] = split
+                break
 
     if not available_sats:
-        log.warning("No preprocessed test data found. Skipping fig1.")
+        log.warning("No preprocessed data found. Skipping fig1.")
         return
 
     nrows = len(available_sats)
@@ -344,12 +441,12 @@ def fig1_entropy_examples(results_dir: Path, output_dir: Path) -> None:
         ncols,
         figsize=(fig_width, fig_height),
         squeeze=False,
-        constrained_layout=True,
     )
-    fig.suptitle("Local Shannon Entropy at Multiple Scales")
 
     for row_idx, sat in enumerate(available_sats):
-        clean_files = sorted((preprocessed / "test" / sat).glob("*_clean.npy"))
+        clean_files = sorted(
+            (preprocessed / _sat_split[sat] / sat).glob("*_clean.npy")
+        )
         if not clean_files:
             continue
         # Use first available patch
@@ -358,11 +455,14 @@ def fig1_entropy_examples(results_dir: Path, output_dir: Path) -> None:
         for col_idx, ws in enumerate(window_sizes):
             ax = axes[row_idx, col_idx]
             ent = shannon_entropy(clean, ws)
-            im = ax.imshow(ent, cmap="magma")
+            im = ax.imshow(ent, cmap="RdYlBu_r")
             plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
             ax.set_title(f"{sat} - {ws}x{ws}")
+            if col_idx == 0:
+                ax.set_ylabel("Entropy")
             ax.axis("off")
 
+    plt.tight_layout()
     _save_figure(fig, output_dir, "fig1_entropy_examples")
     plt.close(fig)
     log.info("Saved fig1_entropy_examples")
@@ -377,12 +477,13 @@ def fig2_entropy_vs_psnr(results_dir: Path, output_dir: Path) -> None:
     ncols = min(5, n_methods)
     nrows = (n_methods + ncols - 1) // ncols
 
+    palette = sns.color_palette("Set2", n_methods)
+
     fig, axes = plt.subplots(
         nrows,
         ncols,
         figsize=(ncols * 2.5, nrows * 2.5),
         squeeze=False,
-        constrained_layout=True,
     )
     axes_flat = axes.flatten()
 
@@ -397,19 +498,18 @@ def fig2_entropy_vs_psnr(results_dir: Path, output_dir: Path) -> None:
             data=mdf,
             x="entropy_7",
             y="psnr",
-            s=1,
-            alpha=0.3,
-            rasterized=True,
+            color=palette[idx % len(palette)],
             ax=ax,
+            **_SCATTER_KW,
         )
         ax.set_xlabel("Entropy (7x7)")
         ax.set_ylabel("PSNR (dB)")
         ax.set_title(method)
 
-    # Hide unused axes
     for idx in range(n_methods, len(axes_flat)):
         axes_flat[idx].set_visible(False)
 
+    plt.tight_layout()
     _save_figure(fig, output_dir, "fig2_entropy_vs_psnr")
     plt.close(fig)
     log.info("Saved fig2_entropy_vs_psnr")
@@ -443,16 +543,16 @@ def fig3_psnr_by_entropy_bin(results_dir: Path, output_dir: Path) -> None:
         y="psnr",
         hue="entropy_bin",
         hue_order=["low", "medium", "high"],
+        palette="Set2",
         ax=ax,
-        fliersize=0.5,
-        linewidth=0.5,
+        **_BOXPLOT_KW,
     )
     ax.set_xlabel("Method")
     ax.set_ylabel("PSNR (dB)")
     ax.tick_params(axis="x", rotation=45)
-    ax.legend(title="Entropy Bin", loc="upper right")
+    ax.legend(title="Entropy Bin", **_LEGEND_KW)
 
-    fig.tight_layout()
+    plt.tight_layout()
     _save_figure(fig, output_dir, "fig3_psnr_by_entropy_bin")
     plt.close(fig)
     log.info("Saved fig3_psnr_by_entropy_bin")
@@ -482,9 +582,11 @@ def fig4_psnr_by_noise(results_dir: Path, output_dir: Path) -> None:
             data=valid,
             x="method",
             y="psnr",
+            hue="method",
+            palette="Set2",
+            legend=False,
             ax=ax,
-            fliersize=0.5,
-            linewidth=0.5,
+            **_BOXPLOT_KW,
         )
     else:
         sns.boxplot(
@@ -493,17 +595,17 @@ def fig4_psnr_by_noise(results_dir: Path, output_dir: Path) -> None:
             y="psnr",
             hue="noise_level",
             hue_order=hue_order,
+            palette="Set2",
             ax=ax,
-            fliersize=0.5,
-            linewidth=0.5,
+            **_BOXPLOT_KW,
         )
     ax.set_xlabel("Method")
     ax.set_ylabel("PSNR (dB)")
     ax.tick_params(axis="x", rotation=45)
     if len(hue_order) > 1:
-        ax.legend(title="Noise (dB)", loc="upper right")
+        ax.legend(title="Noise (dB)", **_LEGEND_KW)
 
-    fig.tight_layout()
+    plt.tight_layout()
     _save_figure(fig, output_dir, "fig4_psnr_by_noise")
     plt.close(fig)
     log.info("Saved fig4_psnr_by_noise")
@@ -522,8 +624,7 @@ def fig5_lisa_clusters(results_dir: Path, output_dir: Path) -> None:
     log.info("Figure 5: LISA clusters (on-the-fly computation)")
 
     df = load_results(results_dir)
-    project_root = Path(__file__).resolve().parent.parent
-    preprocessed = project_root / "preprocessed"
+    preprocessed = _PROJECT_ROOT / "preprocessed"
     recon_dir = results_dir / "reconstruction_images"
     arrays_dir = results_dir / "reconstruction_arrays"
 
@@ -541,6 +642,19 @@ def fig5_lisa_clusters(results_dir: Path, output_dir: Path) -> None:
     valid = valid[valid["patch_id"].isin(avail_ids)]
     if valid.empty:
         log.info("No patches with reconstruction data for fig5")
+        return
+
+    # Constrain to patches that have preprocessed clean/mask files
+    valid = valid[
+        valid.apply(
+            lambda r: _has_preprocessed_clean(
+                preprocessed, str(r["satellite"]), int(r["patch_id"])
+            ),
+            axis=1,
+        )
+    ]
+    if valid.empty:
+        log.info("No patches with preprocessed files for fig5")
         return
 
     percentiles = {"P10": 0.10, "P50": 0.50, "P90": 0.90}
@@ -563,7 +677,10 @@ def fig5_lisa_clusters(results_dir: Path, output_dir: Path) -> None:
     nrows = len(representatives)
     ncols = 1 + len(selected_methods)  # error_map(best) + LISA per method
     fig, axes = plt.subplots(
-        nrows, ncols, figsize=(ncols * 2.5, nrows * 2.5), squeeze=False
+        nrows,
+        ncols,
+        figsize=(ncols * 2.5, nrows * 2.5),
+        squeeze=False,
     )
 
     for row_idx, (label, patch_id, satellite) in enumerate(representatives):
@@ -589,11 +706,13 @@ def fig5_lisa_clusters(results_dir: Path, output_dir: Path) -> None:
         handles=legend_patches,
         loc="lower center",
         ncol=5,
-        fontsize=FONT_SIZE - 1,
-        frameon=False,
+        frameon=_LEGEND_KW["frameon"],
+        framealpha=_LEGEND_KW["framealpha"],
+        fontsize=_LEGEND_KW["fontsize"],
     )
 
-    fig.tight_layout(rect=[0, 0.06, 1, 1])
+    plt.tight_layout()
+    fig.subplots_adjust(bottom=0.08)
     _save_figure(fig, output_dir, "fig5_lisa_clusters")
     plt.close(fig)
     log.info("Saved fig5_lisa_clusters")
@@ -608,8 +727,7 @@ def fig6_visual_examples(results_dir: Path, output_dir: Path) -> None:
     """
     df = load_results(results_dir)
 
-    project_root = Path(__file__).resolve().parent.parent
-    preprocessed = project_root / "preprocessed"
+    preprocessed = _PROJECT_ROOT / "preprocessed"
     recon_dir = results_dir / "reconstruction_images"
     arrays_dir = results_dir / "reconstruction_arrays"
 
@@ -650,6 +768,20 @@ def fig6_visual_examples(results_dir: Path, output_dir: Path) -> None:
             )
             continue
 
+        # Constrain to patches that have preprocessed clean/mask files
+        sat_df = sat_df[
+            sat_df["patch_id"].apply(
+                lambda pid, sat=sat: _has_preprocessed_clean(
+                    preprocessed,
+                    sat,
+                    int(pid),
+                )
+            )
+        ]
+        if sat_df.empty:
+            log.warning("No patches with preprocessed files for fig6 (%s)", sat)
+            continue
+
         percentiles = {
             "P10 (low)": 0.10,
             "P50 (median)": 0.50,
@@ -670,7 +802,6 @@ def fig6_visual_examples(results_dir: Path, output_dir: Path) -> None:
             ncols,
             figsize=(ncols * 1.8, nrows * 2.0),
             squeeze=False,
-            constrained_layout=True,
         )
 
         for row_idx, (label, patch_id, noise_level) in enumerate(
@@ -695,6 +826,7 @@ def fig6_visual_examples(results_dir: Path, output_dir: Path) -> None:
                 label,
             )
 
+        plt.tight_layout()
         _save_figure(fig, output_dir, f"fig6_visual_examples_{sat}")
         plt.close(fig)
         log.info("Saved fig6_visual_examples_%s", sat)
@@ -753,17 +885,19 @@ def fig7_correlation_heatmap(results_dir: Path, output_dir: Path) -> None:
             pivot,
             annot=True,
             fmt=".2f",
-            cmap="RdBu_r",
+            cmap="RdYlBu_r",
             center=0,
             ax=ax,
-            annot_kws={"size": 6},
+            annot_kws={"size": FONT_SIZE - 2},
             vmin=-1,
             vmax=1,
         )
-        ax.set_title(f"Spearman rho: Entropy vs {mcol.upper()}")
+        ax.set_title(f"Spearman $\\rho$: Entropy vs {mcol.upper()}")
         ax.set_ylabel("")
+        ax.tick_params(axis="x", rotation=45)
+        ax.tick_params(axis="y", rotation=0)
 
-        fig.tight_layout()
+        plt.tight_layout()
         _save_figure(fig, output_dir, f"fig7_corr_heatmap_{mcol}")
         plt.close(fig)
 

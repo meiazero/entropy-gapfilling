@@ -1,27 +1,15 @@
-\begin{table}[t]
- \centering
- \footnotesize
- \caption{Mean \gls{PSNR} (dB) with bootstrap 95\% \gls{CI} for
- \gls{DL} architectures and top-3 classical methods. Bold indicates
- the best method per noise level.}
- \label{tab:dl-results}
- \begin{tabular}{llcc}
- \toprule
- & Method
- & $\mathbf{x}$ ($\infty$\,dB)
- & $\mathbf{x}_{20\mathrm{dB}}$ \\
- \midrule
- \multirow{5}{*}{\rotatebox[origin=c]{90}{\scriptsize DL}}
- & AE    & \TODO{--} & \TODO{--} \\
- & VAE   & \TODO{--} & \TODO{--} \\
- & GAN   & \TODO{--} & \TODO{--} \\
- & U-Net & \TODO{--} & \TODO{--} \\
- & ViT   & \TODO{--} & \TODO{--} \\
- \midrule
- \multirow{3}{*}{\rotatebox[origin=c]{90}{\scriptsize Classical}}
- & \TODO{Method 1} & \TODO{--} & \TODO{--} \\
- & \TODO{Method 2} & \TODO{--} & \TODO{--} \\
- & \TODO{Method 3} & \TODO{--} & \TODO{--} \\
- \bottomrule
- \end{tabular}
+\begin{table}[htbp]
+\centering
+\caption{Performance comparison: classical interpolation vs.\ deep learning methods.}
+\label{tab:dl_comparison}
+\footnotesize
+\begin{tabular}{llccc}
+\toprule
+Type & Method & PSNR & SSIM & RMSE \\
+\midrule
+Classical & bilinear & \textbf{23.451} & \textbf{0.656} & \textbf{0.075} \\
+ & nearest & \underline{22.378} & \underline{0.615} & \underline{0.085} \\
+ & bicubic & $21.222$ & $0.573$ & $0.096$ \\
+\bottomrule
+\end{tabular}
 \end{table}

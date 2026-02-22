@@ -1,0 +1,27 @@
+\begin{table}[htbp]
+\centering
+\caption{Mean PSNR (dB) $\pm$ 95\% CI stratified by entropy tercile (31$\times$31 window).}
+\label{tab:psnr-entropy-tercile-31}
+\footnotesize
+\begin{tabular}{lccc}
+\toprule
+Method & Low Entropy & Medium Entropy & High Entropy \\
+\midrule
+bicubic & $17.13_{\pm 1.43}$ & $18.55_{\pm 2.47}$ & $19.22_{\pm 1.56}$ \\
+bilinear & $19.50_{\pm 1.51}$ & $20.65_{\pm 2.40}$ & $22.34_{\pm 1.91}$ \\
+dct & $15.39_{\pm 1.12}$ & $16.21_{\pm 1.50}$ & $17.72_{\pm 1.18}$ \\
+exemplar_based & $20.86_{\pm 1.50}$ & $21.46_{\pm 2.33}$ & \textbf{$23.44_{\pm 1.32}$} \\
+idw & $16.19_{\pm 1.34}$ & $17.44_{\pm 1.97}$ & $18.39_{\pm 1.68}$ \\
+kriging & $20.53_{\pm 1.50}$ & $21.28_{\pm 2.16}$ & $23.30_{\pm 1.66}$ \\
+l1_dct & $15.39_{\pm 1.12}$ & $16.21_{\pm 1.50}$ & $17.72_{\pm 1.18}$ \\
+l1_wavelet & $8.98_{\pm 1.23}$ & $11.82_{\pm 1.56}$ & $12.70_{\pm 1.16}$ \\
+lanczos & $18.41_{\pm 1.39}$ & $18.73_{\pm 2.16}$ & $20.26_{\pm 1.24}$ \\
+nearest & $18.60_{\pm 1.44}$ & $18.68_{\pm 2.16}$ & $20.61_{\pm 1.32}$ \\
+non_local & $12.70_{\pm 1.43}$ & $14.29_{\pm 1.97}$ & $15.18_{\pm 1.80}$ \\
+rbf & \underline{$20.86_{\pm 1.45}$} & \underline{$21.47_{\pm 2.30}$} & \underline{$23.38_{\pm 1.26}$} \\
+spline & \textbf{$20.86_{\pm 1.45}$} & \textbf{$21.47_{\pm 2.30}$} & $23.38_{\pm 1.26}$ \\
+tv & $14.83_{\pm 1.05}$ & $16.18_{\pm 1.70}$ & $17.23_{\pm 1.29}$ \\
+wavelet & $15.93_{\pm 1.20}$ & $17.45_{\pm 1.85}$ & $16.97_{\pm 1.58}$ \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -1,32 +1,27 @@
-\begin{table}[t]
- \centering
- \small
- \caption{%
- Mean PSNR (dB) $\pm$ 95\% CI by method and noise level.
- Best per column in \textbf{bold}; second-best \underline{underlined}.
- All pairwise differences are significant ($p < 0.05$, Bonferroni) unless
- marked \textsuperscript{ns}.
- }
- \label{tab:psnr-method-noise}
- \begin{tabular}{lcccc}
- \toprule
- Method & $\mathrm{SNR}{=}\infty$ & 40\,dB & 30\,dB & 20\,dB\\
- \midrule
- Nearest & -- & -- & -- & --\\
- Bilinear & -- & -- & -- & --\\
- Bicubic & -- & -- & -- & --\\
- Lanczos & -- & -- & -- & --\\
- IDW & -- & -- & -- & --\\
- RBF & -- & -- & -- & --\\
- Thin-plate spline & -- & -- & -- & --\\
- Kriging & -- & -- & -- & --\\
- DCT-ISTA & -- & -- & -- & --\\
- Wavelet-ISTA & -- & -- & -- & --\\
- TV & -- & -- & -- & --\\
- $\ell_1$-DCT & -- & -- & -- & --\\
- $\ell_1$-Wavelet & -- & -- & -- & --\\
- Non-local means & -- & -- & -- & --\\
- Exemplar-based & -- & -- & -- & --\\
- \bottomrule
- \end{tabular}
+\begin{table}[htbp]
+\centering
+\caption{Mean PSNR (dB) $\pm$ 95\% CI per method and noise level.}
+\label{tab:psnr-method-noise}
+\footnotesize
+\begin{tabular}{lc}
+\toprule
+Method & No noise \\
+\midrule
+bicubic & $19.80_{\pm 2.29}$ \\
+bilinear & $21.05_{\pm 2.44}$ \\
+dct & $16.39_{\pm 1.57}$ \\
+exemplar_based & $22.59_{\pm 2.24}$ \\
+idw & $17.30_{\pm 2.00}$ \\
+kriging & $21.84_{\pm 2.22}$ \\
+l1_dct & $16.39_{\pm 1.57}$ \\
+l1_wavelet & $11.11_{\pm 1.72}$ \\
+lanczos & $19.47_{\pm 2.07}$ \\
+nearest & $19.57_{\pm 2.10}$ \\
+non_local & $13.97_{\pm 2.06}$ \\
+rbf & \underline{$22.71_{\pm 2.18}$} \\
+spline & \textbf{$22.71_{\pm 2.18}$} \\
+tv & $16.02_{\pm 1.68}$ \\
+wavelet & $16.81_{\pm 1.85}$ \\
+\bottomrule
+\end{tabular}
 \end{table}

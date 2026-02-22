@@ -40,6 +40,7 @@ class ExperimentConfig:
     satellites: list[str]
     entropy_windows: list[int]
     max_patches: int | None
+    workers: int | None
     output_dir: str
     methods: list[MethodConfig]
     metrics: list[str]
@@ -109,6 +110,12 @@ def _validate_experiment_section(exp: Any) -> None:
     _validate_list_of(exp["noise_levels"], str, "noise_levels")
     _validate_list_of(exp["satellites"], str, "satellites")
     _validate_list_of(exp["entropy_windows"], int, "entropy_windows")
+
+    if exp.get("workers") is not None and (
+        not isinstance(exp["workers"], int) or exp["workers"] < 1
+    ):
+        msg = "experiment.workers must be a positive integer"
+        raise ConfigError(msg)
 
 
 def _validate_methods_section(methods_raw: Any) -> None:
@@ -202,6 +209,7 @@ def load_config(path: str | Path) -> ExperimentConfig:
         satellites=exp["satellites"],
         entropy_windows=exp["entropy_windows"],
         max_patches=exp.get("max_patches"),
+        workers=exp.get("workers"),
         output_dir=exp.get("output_dir", "results/"),
         methods=methods,
         metrics=raw.get("metrics", ["psnr", "ssim", "rmse", "sam"]),

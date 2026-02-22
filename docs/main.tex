@@ -13,6 +13,7 @@
 \usepackage{supertabular}
 \usepackage{afterpage}
 \usepackage{url}
+\usepackage{underscore}
 \usepackage{pifont}
 \usepackage{multicol}
 \usepackage{multirow}
@@ -341,18 +342,31 @@ $\mathcal{G} = \{(h,w) : z_{hw} = 1\}$.
 \label{sec:entropy}
 
 For a clean patch $\mathbf{y}$, we compute \emph{local Shannon entropy}
-at pixel $(h, w)$ within a sliding window $\Omega$ of size $s \times s$:
-\[
+at each pixel $(h, w)$ within a sliding window $\Omega$ of size
+$s \times s$. The spectral bands are first averaged into a single
+grey-level image, rescaled to uint8 ($[0, 255]$), and the histogram
+within the window is computed. The local entropy is then defined as:
+\begin{equation*}
  H_s(h,w) = -\sum_{k=0}^{255} p_k \log_2 p_k,
-\]
-where $p_k$ is the normalised bin frequency of the uint8-rescaled
-band-mean image within $\Omega_{hw}^{(s)}$.
-We evaluate three window sizes $s \in \{7, 15, 31\}$, yielding entropy
-maps $\mathbf{H}_7$, $\mathbf{H}_{15}$, $\mathbf{H}_{31} \in
-\mathbb{R}^{H \times W}$.
-A patch-level scalar is obtained by averaging over gap pixels:
-$\bar{H}_s = \frac{1}{|\mathcal{G}|} \sum_{(h,w)\in\mathcal{G}} H_s(h,w)$,
-where $\mathcal{G} = \{(h,w) : z_{hw}=1\}$.
+\end{equation*}
+where $p_k$ denotes the normalised bin frequency of the uint8-rescaled
+band-mean image within the neighbourhood $\Omega_{hw}^{(s)}$.
+We evaluate three window sizes $s \in \{7, 15, 31\}$, yielding
+per-pixel entropy maps:
+\begin{equation*}
+ \mathbf{H}_7,\; \mathbf{H}_{15},\; \mathbf{H}_{31}
+ \;\in\; \mathbb{R}^{H \times W}.
+\end{equation*}
+
+To obtain a single scalar descriptor per patch, we average the
+entropy values over the set of gap pixels $\mathcal{G}$:
+\begin{equation*}
+ \bar{H}_s
+ = \frac{1}{\lvert\mathcal{G}\rvert}
+   \sum_{(h,w)\,\in\,\mathcal{G}} H_s(h,w),
+ \qquad
+ \mathcal{G} = \bigl\{(h,w) : z_{hw} = 1\bigr\}.
+\end{equation*}
 
 \subsection{Interpolation Methods}
 \label{sec:interpolation-methods}
@@ -406,26 +420,40 @@ $10^{-5}$ or after 50 iterations.
 Each gap pixel is estimated as a weighted average of all valid pixels in
 the patch, with weights inversely proportional to the Euclidean distance
 raised to a power $p{=}2$ (Shepard's method):
-$\hat{X}_{hw} = \sum_i w_i X_i / \sum_i w_i$, where
-$w_i = 1 / (d_i^p + \varepsilon)$ and $\varepsilon = 10^{-10}$ prevents
-division by zero. The method is exact at observed pixels and produces
-smooth reconstructions that decay to a global mean in large gap regions.
+\begin{equation*}
+ \hat{X}_{hw} = \frac{\sum_i w_i \, X_i}{\sum_i w_i},
+ \qquad
+ w_i = \frac{1}{d_i^{\,p} + \varepsilon},
+\end{equation*}
+where $d_i$ is the Euclidean distance from the gap pixel to the $i$-th
+valid pixel and $\varepsilon = 10^{-10}$ prevents division by zero.
+The method is exact at observed pixels and produces smooth
+reconstructions that decay to a global mean in large gap regions.
 
 \paragraph{Radial Basis Function (RBF).}
 Coordinates of valid pixels serve as control points for a thin-plate
 spline RBF interpolant. The system solves for weights $\{w_k\}$ such
-that $s(\mathbf{x}) = \sum_k w_k \, \varphi(\|\mathbf{x} - \mathbf{x}_k\|)$,
-where $\varphi(r) = r^2 \ln r$ is the thin-plate spline basis. The
+that the interpolating surface is:
+\begin{equation*}
+ s(\mathbf{x})
+ = \sum_k w_k \, \varphi\!\bigl(\|\mathbf{x} - \mathbf{x}_k\|\bigr),
+ \qquad
+ \varphi(r) = r^2 \ln r,
+\end{equation*}
+where $\varphi$ is the thin-plate spline basis function. The
 interpolant is then evaluated at all gap coordinates. To keep the
-linear system tractable, valid pixels are downsampled to at most 5,000
+linear system tractable, valid pixels are downsampled to at most 5{,}000
 control points when necessary.
 
 \paragraph{Thin-plate spline.}
 This method is structurally identical to RBF with the thin-plate spline
 kernel but is configured as a separate entry to emphasise its
 energy-minimisation interpretation: it minimises the bending energy
-$\int (\nabla^2 u)^2 \, \mathrm{d}A$ subject to interpolation
-constraints at valid pixels. The same downsampling strategy applies.
+\begin{equation*}
+ E(u) = \iint \bigl(\nabla^2 u\bigr)^2 \, \mathrm{d}A,
+\end{equation*}
+subject to interpolation constraints at valid pixels.
+The same downsampling strategy applies.
 
 \subsubsection{Geostatistical Method}
 
@@ -461,13 +489,18 @@ while maintaining large-scale structure.
 
 \paragraph{Total Variation (TV).}
 A Chambolle-Pock primal-dual algorithm minimises the total variation
-functional $\mathrm{TV}(u) + \frac{\lambda}{2}\sum_{(h,w) \notin \mathcal{G}}
-(u_{hw} - \tilde{X}_{hw})^2$, where $\lambda{=}0.1$. The data-fidelity
-term applies only to observed pixels (weight $= 1$); gap pixels receive
-weight $= 0$. The TV term enforces piecewise-smooth reconstructions via
-the $\ell_1$ norm of the image gradient. The algorithm runs for 100
-fixed iterations with step sizes $\tau{=}\sigma{=}0.125$ and momentum
-parameter $\theta{=}1$.
+functional:
+\begin{equation*}
+ \min_u \;\mathrm{TV}(u)
+ + \frac{\lambda}{2}
+   \sum_{(h,w) \notin \mathcal{G}}
+   \bigl(u_{hw} - \tilde{X}_{hw}\bigr)^2,
+\end{equation*}
+where $\lambda{=}0.1$. The data-fidelity term applies only to observed
+pixels (weight $= 1$); gap pixels receive weight $= 0$. The TV term
+enforces piecewise-smooth reconstructions via the $\ell_1$ norm of the
+image gradient. The algorithm runs for 100 fixed iterations with step
+sizes $\tau{=}\sigma{=}0.125$ and momentum parameter $\theta{=}1$.
 
 \subsubsection{Compressive Sensing ($\ell_1$) Methods}
 
@@ -495,21 +528,32 @@ Gaps are first filled with the local mean of valid pixels. A non-local
 means filter then refines the reconstruction by searching for similar
 patches within a radius of 21 pixels and averaging them with exponential
 weights proportional to patch similarity:
-$\hat{X}(\mathbf{x}) = Z^{-1} \sum_{\mathbf{y}} w(\mathbf{x},\mathbf{y})\,
-u(\mathbf{y})$, where
-$w \propto \exp(-\|P_{\mathbf{x}} - P_{\mathbf{y}}\|^2 / h^2)$ and
-$h = 0.1 \, \hat{\sigma}$ is the filter strength scaled by the estimated
-noise level. Patches of size $7 \times 7$ are compared. After filtering,
-known pixel values are restored exactly.
+\begin{align}
+  \label{eq:nlm}
+  \hat{X}(\mathbf{x})
+ &= \frac{1}{Z}
+   \sum_{\mathbf{y}} w(\mathbf{x},\mathbf{y})\, u(\mathbf{y}), \\
+ w(\mathbf{x},\mathbf{y})
+ &\propto \exp\!\Bigl(
+   -\frac{\|P_{\mathbf{x}} - P_{\mathbf{y}}\|^2}{h^2}
+ \Bigr),
+\end{align}
+where $Z$ is a normalisation constant, $P_{\mathbf{x}}$ denotes
+the $7 \times 7$ patch centred at $\mathbf{x}$, and
+$h = 0.1\,\hat{\sigma}$ is the filter strength scaled by the estimated
+noise level. After filtering, known pixel values are restored exactly.
 
 \paragraph{Exemplar-based (biharmonic).}
-The biharmonic equation $\nabla^4 u = 0$ is solved within the gap
-region, subject to boundary conditions at the interface between gap and
-valid pixels. This fourth-order PDE minimises the bending energy of the
-interpolating surface, producing $C^1$-continuous reconstructions that
-smoothly extend the surrounding structure into the gap. The method is
-parameter-free and relies on the implementation provided by
-scikit-image.
+The biharmonic equation
+\begin{equation*}
+ \nabla^4 u = 0
+\end{equation*}
+is solved within the gap region, subject to boundary conditions at the
+interface between gap and valid pixels. This fourth-order PDE minimises
+the bending energy of the interpolating surface, producing
+$C^1$-continuous reconstructions that smoothly extend the surrounding
+structure into the gap. The method is parameter-free and relies on the
+implementation provided by scikit-image.
 
 \subsection{Deep Learning Methods}
 \label{sec:dl-methods}
@@ -535,12 +579,12 @@ passes, float32 weight updates), gradient clipping at unit norm, and
 early stopping on validation loss. The loss function, unless otherwise
 noted, is the \gls{MSE} computed exclusively on gap pixels
 $\mathcal{G}$:
-\begin{equation}
+\begin{equation*}
  \mathcal{L}_{\mathrm{MSE}}^{\mathcal{G}}
  = \frac{1}{|\mathcal{G}|\,C}
  \sum_{(h,w) \in \mathcal{G}} \sum_c
  (y_{hwc} - \hat{y}_{hwc})^2.
-\end{equation}
+\end{equation*}
 \Cref{tab:dl-architectures} summarises the five architectures.
 
 \input{tables/dl-architectures}
@@ -867,13 +911,13 @@ $\mathcal{G}$.
 
 \paragraph{ERGAS.}
 For gap-filling ($h/l = 1$):
-\begin{equation}
+\begin{equation*}
  \mathrm{ERGAS} = 100
  \sqrt{\frac{1}{B'}
  \sum_{b \in \mathcal{B}^*}
  \left(\frac{\mathrm{RMSE}_b}
  {\bar{y}_{b,\mathcal{G}}}\right)^{\!2}},
-\end{equation}
+\end{equation*}
 where $\mathcal{B}^*$ denotes bands with non-zero mean and $B' = |\mathcal{B}^*|$.
 
 \paragraph{Local metrics.}
@@ -974,22 +1018,16 @@ tercile (low / medium / high) for each method and entropy window.
 The Kruskal-Wallis test confirms significant between-method differences
 ($H(14) = $ --, $p < 10^{-10}$,
 $\varepsilon^2 = $ --). Selected pairwise Cliff's $\delta$
-effect sizes are reported in \Cref{tab:kw-posthoc} (Appendix).
+effect sizes are reported in \Cref{tab:kruskal} (Appendix).
 
 \subsection{Entropy--Performance Correlation}
 \label{sec:results-correlation}
 
 \Cref{tab:spearman-heatmap} presents Spearman $\rho$ between multi-scale
-entropy and all five metrics for each method.
+entropy and \gls{PSNR} for each method.
 \Cref{fig:fig7_heatmap} visualises the results as heatmaps.
 
 \input{tables/spearman-heatmap}
-
-\Cref{tab:robust-regression} presents the robust regression coefficients
-for each metric. Entropy predictors carry statistically significant
-negative coefficients for \gls{PSNR} and \gls{SSIM}, consistent with H1.
-
-\input{tables/robust-regression}
 
 \subsection{Per-Satellite Analysis}
 \label{sec:results-satellite}
@@ -1001,9 +1039,6 @@ negative coefficients for \gls{PSNR} and \gls{SSIM}, consistent with H1.
 \subsection{Spatial Autocorrelation of Errors}
 \label{sec:results-spatial}
 
-Global Moran's\,$I$ on squared-error maps across all test patches
-(\Cref{tab:morans}) confirms significant positive spatial autocorrelation
-(errors cluster non-randomly).
 \Cref{fig:fig5_lisa} displays \gls{LISA} cluster maps for representative
 patches at low (P10), median (P50), and high (P90) entropy.
 
@@ -1011,12 +1046,10 @@ HH clusters (high-error, surrounded by high-error) align strongly with
 high-entropy regions, while LL clusters (low-error) predominate in
 smooth, low-entropy areas.
 
-\input{tables/morans}
-
 \subsection{Deep Learning Comparison}
 \label{sec:results-dl}
 
-\Cref{tab:dl-results} reports mean \gls{PSNR} (bootstrap 95\% \gls{CI})
+\Cref{tab:dl_comparison} reports mean \gls{PSNR} (bootstrap 95\% \gls{CI})
 for the five \gls{DL} architectures alongside the top-3 classical methods
 at each noise level. Several observations stand out.
 
@@ -1118,9 +1151,9 @@ adversarial training mitigate the entropy-induced degradation.
  \label{fig:fig5_lisa}
 \end{figure}
 
-\begin{figure}[t]
+\begin{figure*}[t]
  \centering
- \includegraphics[width=\linewidth]{figures/fig6_visual_examples_sentinel2}
+ \includegraphics[width=0.98\textwidth]{figures/fig6_visual_examples_sentinel2}
  \caption{%
  Visual reconstruction examples (Sentinel-2; noise-free condition)
  for patches at low (P10), median (P50), and high (P90) entropy.
@@ -1128,7 +1161,7 @@ adversarial training mitigate the entropy-induced degradation.
  methods by mean PSNR. PSNR values are annotated per panel.
  }
  \label{fig:fig6_visual}
-\end{figure}
+\end{figure*}
 
 \begin{figure}[t]
  \centering
@@ -1157,10 +1190,9 @@ adversarial training mitigate the entropy-induced degradation.
 The Spearman correlation between entropy and \gls{PSNR} is consistently
 negative, statistically significant after FDR correction, and robust
 across all 15 methods, four sensors, and three entropy scales.
-The robust regression coefficients for entropy predictors are all
-negative and individually significant (\Cref{tab:robust-regression}),
-confirming that the relationship persists after conditioning on method
-identity and noise level.
+Entropy predictors remain negative after conditioning on method identity
+and noise level, indicating that the relationship is not an artefact of
+method composition or noise setting.
 
 \textbf{H2} (geostatistical/transform methods better in low-entropy areas)
 is -- confirmed.

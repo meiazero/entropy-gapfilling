@@ -71,17 +71,53 @@ TEX_SRC      := docs/main.tex
 BUILD_DIR    := docs/dist
 JOB_NAME     := draft
 RESULTS_DIR  ?= results/paper_results
+QUICK_DIR    ?= results/quick_validation
+DL_PLOTS_DIR ?= $(PLOT_DIR)
+
+# Directories whose tables/ and figures/ sub-dirs are copied to docs/.
+# Later entries overwrite earlier ones when filenames collide, so put the
+# authoritative source (paper_results) last.
+_ASSET_DIRS := $(QUICK_DIR) $(RESULTS_DIR)
 
 .PHONY: paper-assets
-paper-assets: ## Copy generated tables and figures from results/ to docs/
-	@printf "\033[34m==>\033[0m Copying tables from $(RESULTS_DIR)/tables/ to docs/tables/\n"
+paper-assets: paper-normalize-tables ## Copy generated tables and figures from results/ to docs/
 	@mkdir -p docs/tables docs/figures
-	@cp -v $(RESULTS_DIR)/tables/*.tex docs/tables/ 2>/dev/null || \
-		printf "\033[33mWARN\033[0m no .tex files found in $(RESULTS_DIR)/tables/\n"
-	@printf "\033[34m==>\033[0m Copying figures from $(RESULTS_DIR)/figures/ to docs/figures/\n"
-	@cp -v $(RESULTS_DIR)/figures/*.pdf docs/figures/ 2>/dev/null || true
-	@cp -v $(RESULTS_DIR)/figures/*.png docs/figures/ 2>/dev/null || \
-		printf "\033[33mWARN\033[0m no figure files found in $(RESULTS_DIR)/figures/\n"
+	@_found_tables=0; _found_figures=0; \
+	for src in $(_ASSET_DIRS); do \
+		if [ -d "$$src/tables" ]; then \
+			printf "\033[34m==>\033[0m Copying tables from $$src/tables/\n"; \
+			cp -v "$$src"/tables/*.tex docs/tables/ 2>/dev/null && _found_tables=1 || true; \
+		fi; \
+		if [ -d "$$src/figures" ]; then \
+			printf "\033[34m==>\033[0m Copying figures from $$src/figures/\n"; \
+			cp -v "$$src"/figures/*.pdf docs/figures/ 2>/dev/null || true; \
+			cp -v "$$src"/figures/*.png docs/figures/ 2>/dev/null && _found_figures=1 || true; \
+		fi; \
+	done; \
+	if [ -d "$(DL_PLOTS_DIR)" ]; then \
+		printf "\033[34m==>\033[0m Copying DL training plots from $(DL_PLOTS_DIR)/\n"; \
+		cp -v "$(DL_PLOTS_DIR)"/*.pdf docs/figures/ 2>/dev/null || true; \
+		cp -v "$(DL_PLOTS_DIR)"/*.png docs/figures/ 2>/dev/null && _found_figures=1 || true; \
+	fi; \
+	[ "$$_found_tables" = "1" ] || printf "\033[33mWARN\033[0m no .tex table files found in any source\n"; \
+	[ "$$_found_figures" = "1" ] || printf "\033[33mWARN\033[0m no figure files found in any source\n"
+
+.PHONY: paper-normalize-tables
+paper-normalize-tables: ## Normalize table filenames to match docs/main.tex inputs
+	@mkdir -p docs/tables
+	@for pair in \
+		table1_methods.tex:methods.tex \
+		table2_overall.tex:psnr-method-noise.tex \
+		table3_entropy_15.tex:psnr-entropy-tercile.tex \
+		table4_correlation.tex:spearman-heatmap.tex \
+		table6_regression_psnr.tex:robust-regression.tex \
+		table7_satellite.tex:psnr-satellite.tex \
+		table8_dl_comparison.tex:dl-results.tex; do \
+		from=$${pair%%:*}; to=$${pair##*:}; \
+		if [ -f "docs/tables/$$from" ]; then \
+			mv -f "docs/tables/$$from" "docs/tables/$$to"; \
+		fi; \
+	done
 
 .PHONY: paper
 paper: paper-assets ## Compile docs/main.tex -> docs/dist/draft.pdf (via latexmk)

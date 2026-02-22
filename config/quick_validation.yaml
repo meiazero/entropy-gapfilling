@@ -1,10 +1,10 @@
 experiment:
   name: "quick_validation"
-  seeds: [42]
-  noise_levels: ["inf"]
-  satellites: ["sentinel2"]
+  seeds: [70]
+  noise_levels: ["inf", "40", "30", "20"]
+  satellites: ["sentinel2", "landsat8", "landsat9", "modis"]
   entropy_windows: [7, 15, 31]
-  max_patches: 50
+  max_patches: 5
   output_dir: "results/"
 
 methods:
@@ -12,5 +12,22 @@ methods:
     - { name: "nearest" }
     - { name: "bilinear" }
     - { name: "bicubic" }
+    - { name: "lanczos", params: { a: 3 } }
+  kernel:
+    - { name: "idw", params: { power: 2.0 } }
+    - { name: "rbf", params: { kernel: "thin_plate_spline" } }
+    - { name: "spline" }
+  geostatistical:
+    - { name: "kriging" }
+  transform:
+    - { name: "dct" }
+    - { name: "wavelet" }
+    - { name: "tv", params: { max_iterations: 100 } }
+  compressive:
+    - { name: "l1_dct" }
+    - { name: "l1_wavelet" }
+  patch_based:
+    - { name: "non_local" }
+    - { name: "exemplar_based" }
 
-metrics: ["psnr", "ssim", "rmse", "sam"]
+metrics: ["psnr", "ssim", "rmse", "sam", "ergas"]
