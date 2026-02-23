@@ -202,7 +202,7 @@ UNET_LR       ?= 1e-3
 UNET_WD       ?= 1e-4
 UNET_PATIENCE ?= 12
 
-# --- Transformer hyperparameters ----------------------------------------------
+# --- ViT hyperparameters ------------------------------------------------------
 TF_EPOCHS   ?= 2
 TF_BATCH    ?= 32
 TF_LR       ?= 1e-4
@@ -288,68 +288,29 @@ dl-train-unet: dl-preprocess ## Train U-Net (skip connections + residual blocks)
 		--patience     $(UNET_PATIENCE)          \
 		$(_DEVICE_ARG)
 
-.PHONY: dl-train-transformer
-dl-train-transformer: dl-preprocess ## Train MAE-style Transformer
-	@printf "\033[34m==>\033[0m Training Transformer | epochs=$(TF_EPOCHS) lr=$(TF_LR) wd=$(TF_WD) satellite=$(SATELLITE)\n"
-	@uv run python -m dl_models.transformer.train \
-		--manifest     $(MANIFEST)                    \
-		--output       $(CKPT_DIR)/transformer_best.pth \
-		--satellite    $(SATELLITE)                   \
-		--epochs       $(TF_EPOCHS)                   \
-		--batch-size   $(TF_BATCH)                    \
-		--lr           $(TF_LR)                       \
-		--weight-decay $(TF_WD)                       \
-		--patience     $(TF_PATIENCE)                 \
+.PHONY: dl-train-vit
+dl-train-vit: dl-preprocess ## Train MAE-style ViT
+	@printf "\033[34m==>\033[0m Training ViT | epochs=$(TF_EPOCHS) lr=$(TF_LR) wd=$(TF_WD) satellite=$(SATELLITE)\n"
+	@uv run python -m dl_models.vit.train \
+		--manifest     $(MANIFEST)              \
+		--output       $(CKPT_DIR)/vit_best.pth \
+		--satellite    $(SATELLITE)             \
+		--epochs       $(TF_EPOCHS)             \
+		--batch-size   $(TF_BATCH)              \
+		--lr           $(TF_LR)                 \
+		--weight-decay $(TF_WD)                 \
+		--patience     $(TF_PATIENCE)           \
 		$(_DEVICE_ARG)
 
-.PHONY: dl-train-unet-jax
-dl-train-unet-jax: dl-preprocess ## Train U-Net JAX/Flax (experimental)
-	@printf "\033[34m==>\033[0m Training UNet (JAX) | epochs=$(UNET_EPOCHS) lr=$(UNET_LR) satellite=$(SATELLITE)\n"
-	@uv run python -m dl_models.unet_jax.train \
-		--manifest     $(MANIFEST)                          \
-		--output       $(CKPT_DIR)/unet_jax_best.msgpack    \
-		--satellite    $(SATELLITE)                          \
-		--epochs       $(UNET_EPOCHS)                        \
-		--batch-size   $(UNET_BATCH)                         \
-		--lr           $(UNET_LR)                             \
-		--weight-decay $(UNET_WD)                             \
-		--patience     $(UNET_PATIENCE)
-
 .PHONY: dl-train-all
-dl-train-all: dl-train-ae dl-train-vae dl-train-gan dl-train-unet dl-train-transformer dl-train-unet-jax ## Train all 6 models sequentially
+dl-train-all: dl-train-ae dl-train-vae dl-train-gan dl-train-unet dl-train-vit ## Train all 5 models sequentially
 
 # =============================================================================
 ##@ Deep Learning - Evaluation (test split)
 # =============================================================================
 
-.PHONY: dl-eval-ae
-dl-eval-ae: ## Evaluate AE on test split (requires dl-train-ae)
-	$(call _check_ckpt,$(CKPT_DIR)/ae_best.pth,dl-train-ae)
-	@printf "\033[34m==>\033[0m Evaluating AE  ->  $(EVAL_DIR)/ae_inpainting/results.csv\n"
-	@uv run python -m dl_models.evaluate \
-		--model               ae                      \
-		--checkpoint          $(CKPT_DIR)/ae_best.pth \
-		--manifest            $(MANIFEST)             \
-		--satellite           $(SATELLITE)            \
-		--output              $(EVAL_DIR)             \
-		--save-reconstructions $(SAVE_RECON)          \
-		$(_DEVICE_ARG)
-
-.PHONY: dl-eval-vae
-dl-eval-vae: ## Evaluate VAE on test split (requires dl-train-vae)
-	$(call _check_ckpt,$(CKPT_DIR)/vae_best.pth,dl-train-vae)
-	@printf "\033[34m==>\033[0m Evaluating VAE  ->  $(EVAL_DIR)/vae_inpainting/results.csv\n"
-	@uv run python -m dl_models.evaluate \
-		--model               vae                      \
-		--checkpoint          $(CKPT_DIR)/vae_best.pth \
-		--manifest            $(MANIFEST)              \
-		--satellite           $(SATELLITE)             \
-		--output              $(EVAL_DIR)              \
-		--save-reconstructions $(SAVE_RECON)           \
-		$(_DEVICE_ARG)
-
-.PHONY: dl-eval-gan
-dl-eval-gan: ## Evaluate GAN on test split (requires dl-train-gan)
+.PHONY: dl-eval-all
+dl-eval-all: dl-eval-ae dl-eval-vae dl-eval-gan dl-eval-unet dl-eval-vit ## Evaluate all 5 models on test split
 	$(call _check_ckpt,$(CKPT_DIR)/gan_best.pth,dl-train-gan)
 	@printf "\033[34m==>\033[0m Evaluating GAN  ->  $(EVAL_DIR)/gan_inpainting/results.csv\n"
 	@uv run python -m dl_models.evaluate \
@@ -374,33 +335,18 @@ dl-eval-unet: ## Evaluate U-Net on test split (requires dl-train-unet)
 		--save-reconstructions $(SAVE_RECON)            \
 		$(_DEVICE_ARG)
 
-.PHONY: dl-eval-transformer
-dl-eval-transformer: ## Evaluate Transformer on test split (requires dl-train-transformer)
-	$(call _check_ckpt,$(CKPT_DIR)/transformer_best.pth,dl-train-transformer)
-	@printf "\033[34m==>\033[0m Evaluating Transformer  ->  $(EVAL_DIR)/transformer_inpainting/results.csv\n"
+.PHONY: dl-eval-vit
+dl-eval-vit: ## Evaluate ViT on test split (requires dl-train-vit)
+	$(call _check_ckpt,$(CKPT_DIR)/vit_best.pth,dl-train-vit)
+	@printf "\033[34m==>\033[0m Evaluating ViT  ->  $(EVAL_DIR)/vit_inpainting/results.csv\n"
 	@uv run python -m dl_models.evaluate \
-		--model               transformer                      \
-		--checkpoint          $(CKPT_DIR)/transformer_best.pth \
-		--manifest            $(MANIFEST)                      \
-		--satellite           $(SATELLITE)                     \
-		--output              $(EVAL_DIR)                      \
-		--save-reconstructions $(SAVE_RECON)                   \
+		--model               vit                      \
+		--checkpoint          $(CKPT_DIR)/vit_best.pth \
+		--manifest            $(MANIFEST)             \
+		--satellite           $(SATELLITE)            \
+		--output              $(EVAL_DIR)             \
+		--save-reconstructions $(SAVE_RECON)          \
 		$(_DEVICE_ARG)
-
-.PHONY: dl-eval-unet-jax
-dl-eval-unet-jax: ## Evaluate U-Net JAX on test split (requires dl-train-unet-jax)
-	$(call _check_ckpt,$(CKPT_DIR)/unet_jax_best.msgpack,dl-train-unet-jax)
-	@printf "\033[34m==>\033[0m Evaluating UNet (JAX)  ->  $(EVAL_DIR)/unet_jax_inpainting/results.csv\n"
-	@uv run python -m dl_models.evaluate \
-		--model               unet_jax                          \
-		--checkpoint          $(CKPT_DIR)/unet_jax_best.msgpack \
-		--manifest            $(MANIFEST)                       \
-		--satellite           $(SATELLITE)                      \
-		--output              $(EVAL_DIR)                       \
-		--save-reconstructions $(SAVE_RECON)
-
-.PHONY: dl-eval-all
-dl-eval-all: dl-eval-ae dl-eval-vae dl-eval-gan dl-eval-unet dl-eval-transformer dl-eval-unet-jax ## Evaluate all 6 models on test split
 
 # =============================================================================
 ##@ Deep Learning - Testing & Plots

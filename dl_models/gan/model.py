@@ -101,7 +101,6 @@ class _PatchDiscriminator(nn.Module):
             nn.BatchNorm2d(256),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(256, 1, 4, stride=2, padding=1),
-            nn.Sigmoid(),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

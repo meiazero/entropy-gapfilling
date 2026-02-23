@@ -122,7 +122,7 @@ def main() -> None:
 
     # Mixed precision
     use_amp = device.type == "cuda"
-    scaler = torch.amp.GradScaler(device.type, enabled=use_amp)
+    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
 
     best_val_loss = float("inf")
 

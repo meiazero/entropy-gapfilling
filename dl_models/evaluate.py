@@ -11,7 +11,7 @@ Usage:
         --manifest preprocessed/manifest.csv \
         --output results/dl_eval/
 
-Available models: ae, vae, gan, unet, transformer
+Available models: ae, vae, gan, unet, vit
 """
 
 from __future__ import annotations
@@ -41,8 +41,7 @@ MODEL_REGISTRY: dict[str, tuple[str, str]] = {
     "vae": ("dl_models.vae.model", "VAEInpainting"),
     "gan": ("dl_models.gan.model", "GANInpainting"),
     "unet": ("dl_models.unet.model", "UNetInpainting"),
-    "transformer": ("dl_models.transformer.model", "TransformerInpainting"),
-    "unet_jax": ("dl_models.unet_jax.model", "UNetInpaintingJAX"),
+    "vit": ("dl_models.vit.model", "ViTInpainting"),
 }
 
 

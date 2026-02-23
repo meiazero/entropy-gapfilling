@@ -106,10 +106,10 @@ class _ViTInpaintingNet(nn.Module):
         return torch.sigmoid(pixels)
 
 
-class TransformerInpainting(BaseDLMethod):
+class ViTInpainting(BaseDLMethod):
     """ViT-style Transformer for gap-filling."""
 
-    name = "transformer_inpainting"
+    name = "vit_inpainting"
 
     def __init__(
         self,

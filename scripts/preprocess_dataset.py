@@ -6,9 +6,9 @@ convention (1=gap, 0=valid). Transposes images from rasterio's (C, H, W) to
 (H, W, C) layout expected by BaseMethod._apply_channelwise().
 
 When ``--config`` is given, simulates PatchDataset's deterministic selection
-across all experiment seeds and preprocesses only the union of needed patches.
-The per-seed selections are saved to ``patch_selections.json`` so the
-experiment runner can use them directly.
+across all experiment seeds and writes the per-seed selections to
+``patch_selections.json``. The preprocessing step always targets the shared
+manifest so classical and DL pipelines use the same NPY dataset.
 
 Usage:
     uv run python scripts/preprocess_dataset.py
@@ -42,7 +42,7 @@ from pdi_pipeline.logging_utils import get_project_root, setup_logging
 setup_logging()
 log = logging.getLogger(__name__)
 
-DEFAULT_DATA_ROOT = Path("/opt/datasets/satellite-images")
+DEFAULT_DATA_ROOT = Path("/home/emanuel/Projects/castanhao-dataset")
 MANIFEST_NAME = "manifest.csv"
 
 PROJECT_ROOT = get_project_root()
@@ -529,17 +529,15 @@ def _apply_config_selection(
         cfg.max_patches,
     )
 
-    before = len(df)
     filtered = df[df["satellite"].isin(cfg.satellites)].reset_index(drop=True)
     log.info(
-        "Filtered satellites %s: %d -> %d patches",
+        "Selection satellites %s: %d patches",
         cfg.satellites,
-        before,
         len(filtered),
     )
 
     if cfg.max_patches is None:
-        return filtered
+        return df
 
     selections = _simulate_selection(
         filtered,
@@ -552,21 +550,17 @@ def _apply_config_selection(
         for patch_ids in sat_sel.values():
             union_ids.update(patch_ids)
 
-    before = len(filtered)
-    filtered = filtered[filtered["patch_id"].isin(union_ids)].reset_index(
-        drop=True
-    )
     log.info(
         "Patch selection: %d unique patches across %d seeds"
         " (from %d candidates)",
         len(union_ids),
         len(cfg.seeds),
-        before,
+        len(filtered),
     )
 
     output_dir.mkdir(parents=True, exist_ok=True)
     _save_patch_selections(selections, output_dir)
-    return filtered
+    return df
 
 
 def _parallel_process_rows(

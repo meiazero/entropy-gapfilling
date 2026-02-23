@@ -13,6 +13,11 @@ import torch
 from skimage.metrics import structural_similarity
 
 _MSE_FLOOR = 1e-12
+_PIXEL_ACC_THRESHOLDS = {
+    "002": 0.02,
+    "005": 0.05,
+    "01": 0.10,
+}
 
 
 def _gap_diff(
@@ -149,6 +154,66 @@ def compute_all(
     }
 
 
+def _to_numpy_batches(
+    pred_batch: torch.Tensor,
+    target_batch: torch.Tensor,
+    mask_batch: torch.Tensor,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    pred_np = pred_batch.detach().cpu().permute(0, 2, 3, 1).numpy()
+    target_np = target_batch.detach().cpu().permute(0, 2, 3, 1).numpy()
+    mask_np = mask_batch.detach().cpu().numpy()
+    return pred_np, target_np, mask_np
+
+
+def _prepare_sample(
+    pred: np.ndarray,
+    target: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    if pred.shape[2] == 1:
+        return pred[:, :, 0], target[:, :, 0]
+    return pred, target
+
+
+def _update_pixel_acc(
+    pixel_acc: dict[str, list[float]],
+    diff: np.ndarray,
+    gap: np.ndarray,
+) -> None:
+    if diff.ndim == 3:
+        diff = np.mean(diff, axis=2)
+    for key, tau in _PIXEL_ACC_THRESHOLDS.items():
+        pixel_acc[key].append(float(np.mean(diff[gap] <= tau)))
+
+
+def _accumulate_sample_metrics(
+    pred: np.ndarray,
+    target: np.ndarray,
+    mask: np.ndarray,
+    psnr_vals: list[float],
+    ssim_vals: list[float],
+    rmse_vals: list[float],
+    pixel_acc: dict[str, list[float]],
+    ssim_count: int,
+    max_ssim_samples: int,
+) -> int:
+    pred, target = _prepare_sample(pred, target)
+    psnr_vals.append(psnr(target, pred, mask))
+    rmse_vals.append(rmse(target, pred, mask))
+
+    gap = mask > 0.5
+    if np.any(gap):
+        diff = np.abs(target - pred)
+        _update_pixel_acc(pixel_acc, diff, gap)
+    else:
+        for key in pixel_acc:
+            pixel_acc[key].append(1.0)
+
+    if ssim_count < max_ssim_samples:
+        ssim_vals.append(ssim(target, pred, mask))
+        return ssim_count + 1
+    return ssim_count
+
+
 def compute_validation_metrics(
     preds: list[torch.Tensor],
     targets: list[torch.Tensor],
@@ -167,36 +232,37 @@ def compute_validation_metrics(
         max_ssim_samples: Cap for SSIM computation (performance).
 
     Returns:
-        Dict with val_psnr, val_ssim, and val_rmse.
+        Dict with val_psnr, val_ssim, val_rmse, val_pixel_acc_*,
+        and val_f1_* for multiple error thresholds.
     """
     psnr_vals: list[float] = []
     ssim_vals: list[float] = []
     rmse_vals: list[float] = []
+    pixel_acc: dict[str, list[float]] = {
+        key: [] for key in _PIXEL_ACC_THRESHOLDS
+    }
 
     ssim_count = 0
 
     for pred_batch, target_batch, mask_batch in zip(
         preds, targets, masks, strict=True
     ):
-        pred_np = pred_batch.detach().cpu().permute(0, 2, 3, 1).numpy()
-        target_np = target_batch.detach().cpu().permute(0, 2, 3, 1).numpy()
-        mask_np = mask_batch.detach().cpu().numpy()
+        pred_np, target_np, mask_np = _to_numpy_batches(
+            pred_batch, target_batch, mask_batch
+        )
         b = pred_np.shape[0]
         for i in range(b):
-            p = pred_np[i]
-            t = target_np[i]
-            m = mask_np[i]
-
-            if p.shape[2] == 1:
-                p = p[:, :, 0]
-                t = t[:, :, 0]
-
-            psnr_vals.append(psnr(t, p, m))
-            rmse_vals.append(rmse(t, p, m))
-
-            if ssim_count < max_ssim_samples:
-                ssim_vals.append(ssim(t, p, m))
-                ssim_count += 1
+            ssim_count = _accumulate_sample_metrics(
+                pred_np[i],
+                target_np[i],
+                mask_np[i],
+                psnr_vals,
+                ssim_vals,
+                rmse_vals,
+                pixel_acc,
+                ssim_count,
+                max_ssim_samples,
+            )
 
     result: dict[str, float] = {}
 
@@ -208,5 +274,10 @@ def compute_validation_metrics(
 
     result["val_ssim"] = float(np.mean(ssim_vals)) if ssim_vals else 0.0
     result["val_rmse"] = float(np.mean(rmse_vals)) if rmse_vals else 0.0
+
+    for key, values in pixel_acc.items():
+        acc = float(np.mean(values)) if values else 0.0
+        result[f"val_pixel_acc_{key}"] = acc
+        result[f"val_f1_{key}"] = 2 * acc / (1 + acc) if (1 + acc) > 0 else 0.0
 
     return result

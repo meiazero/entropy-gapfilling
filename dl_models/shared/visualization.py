@@ -308,8 +308,8 @@ def plot_vae_decomposition(
 
 
 def plot_lr_schedule(histories: list[dict[str, Any]], output_dir: Path) -> None:
-    """Transformer-only: LR over epochs with val_loss dual y-axis."""
-    tf_hists = [h for h in histories if h["model_name"] == "transformer"]
+    """ViT-only: LR over epochs with val_loss dual y-axis."""
+    tf_hists = [h for h in histories if h["model_name"] == "vit"]
     if not tf_hists:
         return
 
@@ -339,7 +339,7 @@ def plot_lr_schedule(histories: list[dict[str, Any]], output_dir: Path) -> None:
     ax2.set_ylabel("Val Loss", color=COLORS[1])
     ax2.tick_params(axis="y", labelcolor=COLORS[1])
 
-    fig.suptitle("Transformer LR Schedule")
+    fig.suptitle("ViT LR Schedule")
     _save_fig(fig, output_dir, "lr_schedule")
 
 

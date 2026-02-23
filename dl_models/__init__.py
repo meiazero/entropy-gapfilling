@@ -8,8 +8,7 @@ Subpackages:
     vae/          Variational Autoencoder
     gan/          GAN with UNet generator + PatchGAN discriminator
     unet/         U-Net with skip connections and residual blocks
-    unet_jax/     U-Net in JAX/Flax (experimental port)
-    transformer/  MAE-style Transformer
+    vit/          MAE-style ViT
 
 Shared infrastructure (shared/):
     base.py          BaseDLMethod abstract class (no pdi_pipeline dependency)

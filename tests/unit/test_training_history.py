@@ -43,11 +43,11 @@ class TestTrainingHistory:
         assert history.path == tmp_path / "gan_history.json"
 
     def test_json_valid(self, tmp_path: Path) -> None:
-        history = TrainingHistory("transformer", tmp_path)
+        history = TrainingHistory("vit", tmp_path)
         history.record({"epoch": 1, "lr": 1e-4})
 
         data = json.loads(history.path.read_text())
-        assert data["model_name"] == "transformer"
+        assert data["model_name"] == "vit"
         assert isinstance(data["epochs"], list)
         assert data["epochs"][0]["lr"] == 1e-4
 

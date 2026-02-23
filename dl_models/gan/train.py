@@ -118,13 +118,13 @@ def main() -> None:
     opt_g = torch.optim.Adam(gen.parameters(), lr=args.lr, betas=(0.5, 0.999))
     opt_d = torch.optim.Adam(disc.parameters(), lr=args.lr, betas=(0.5, 0.999))
 
-    bce = torch.nn.BCELoss()
+    bce = torch.nn.BCEWithLogitsLoss()
     gap_l1 = GapPixelLoss(mode="l1")
     early_stop = EarlyStopping(patience=args.patience)
 
     use_amp = device.type == "cuda"
-    scaler_g = torch.amp.GradScaler(device.type, enabled=use_amp)
-    scaler_d = torch.amp.GradScaler(device.type, enabled=use_amp)
+    scaler_g = torch.cuda.amp.GradScaler(enabled=use_amp)
+    scaler_d = torch.cuda.amp.GradScaler(enabled=use_amp)
 
     best_val_loss = float("inf")
 
@@ -198,13 +198,16 @@ def main() -> None:
             global_step += 1
             if step % 100 == 0 or step == n_batches:
                 log.info(
-                    "  [%d/%d] step %d/%d  g_loss=%.6f  d_loss=%.6f",
+                    "  [%d/%d] step %d/%d  g_loss=%.6f  d_loss=%.6f  "
+                    "g_adv=%.6f  g_recon=%.6f",
                     epoch,
                     args.epochs,
                     step,
                     n_batches,
                     g_loss.item(),
                     d_loss.item(),
+                    g_adv.item(),
+                    g_recon.item(),
                 )
             if global_step % 500 == 0:
                 periodic_path = checkpoints_dir / f"gan_step_{global_step}.pth"
@@ -247,15 +250,31 @@ def main() -> None:
         metrics = compute_validation_metrics(val_preds, val_targets, val_masks)
 
         log.info(
-            "Epoch %d/%d  g_loss=%.6f  d_loss=%.6f  val_loss=%.6f"
-            "  psnr=%.2f  ssim=%.4f",
+            "Epoch %d/%d  g_loss=%.6f  d_loss=%.6f  g_adv=%.6f  "
+            "g_recon=%.6f  val_loss=%.6f",
             epoch,
             args.epochs,
             g_loss_avg,
             d_loss_avg,
+            g_adv_avg,
+            g_recon_avg,
             val_loss,
+        )
+        log.info(
+            "Val metrics  psnr=%.2f  ssim=%.4f  rmse=%.6f  "
+            "acc_002=%.4f  acc_005=%.4f  acc_01=%.4f",
             metrics["val_psnr"],
             metrics["val_ssim"],
+            metrics["val_rmse"],
+            metrics["val_pixel_acc_002"],
+            metrics["val_pixel_acc_005"],
+            metrics["val_pixel_acc_01"],
+        )
+        log.info(
+            "Val metrics  f1_002=%.4f  f1_005=%.4f  f1_01=%.4f",
+            metrics["val_f1_002"],
+            metrics["val_f1_005"],
+            metrics["val_f1_01"],
         )
 
         history.record({

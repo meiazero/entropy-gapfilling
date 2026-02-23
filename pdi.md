@@ -18,7 +18,7 @@ Avaliar e comparar procedimentos de processamento de imagem para preenchimento d
 4. Métodos de transformadas/regularização (DCT, wavelets, TV inpainting).
 5. Métodos patch-based (exemplar-based, non-local).
 6. Métodos de compressive sensing (L1 em wavelet/DCT).
-7. Baselines de aprendizado profundo (AE, VAE, GAN, Transformer) - avaliados separadamente.
+7. Baselines de aprendizado profundo (AE, VAE, GAN, ViT) - avaliados separadamente.
 
 ## Base de Dados
 
@@ -103,7 +103,7 @@ Os targets do `make` usam defaults rápidos (2 epochs) para validação:
 
 ```bash
 make dl-train-vae        # treina VAE com 2 epochs
-make dl-train-all        # treina todos os 6 modelos sequencialmente
+make dl-train-all        # treina todos os 5 modelos sequencialmente
 make dl-eval-all         # avalia todos no test split
 ```
 
@@ -140,19 +140,13 @@ uv run python -m dl_models.unet.train \
     --epochs 60 --batch-size 32 --lr 1e-3 \
     --weight-decay 1e-4 --patience 12
 
-# Transformer (MAE-style)
-uv run python -m dl_models.transformer.train \
+# ViT (MAE-style)
+uv run python -m dl_models.vit.train \
     --manifest preprocessed/manifest.csv --satellite sentinel2 \
-    --output dl_models/checkpoints/transformer_best.pt \
+    --output dl_models/checkpoints/vit_best.pt \
     --epochs 100 --batch-size 32 --lr 1e-4 \
     --weight-decay 0.05 --patience 15
 
-# U-Net JAX/Flax (experimental)
-uv run python -m dl_models.unet_jax.train \
-    --manifest preprocessed/manifest.csv --satellite sentinel2 \
-    --output dl_models/checkpoints/unet_jax_best.msgpack \
-    --epochs 60 --batch-size 32 --lr 1e-3 \
-    --weight-decay 1e-4 --patience 12
 ```
 
 ### Avaliação
@@ -166,6 +160,5 @@ uv run python -m dl_models.evaluate \
     --satellite sentinel2 \
     --output results/dl_eval
 
-# Modelos disponíveis: ae, vae, gan, unet, transformer, unet_jax
-# Para unet_jax usar checkpoint .msgpack
+# Modelos disponíveis: ae, vae, gan, unet, vit
 ```

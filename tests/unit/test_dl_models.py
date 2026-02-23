@@ -11,9 +11,9 @@ import pytest
 
 from dl_models.ae.model import AEInpainting
 from dl_models.gan.model import GANInpainting
-from dl_models.transformer.model import TransformerInpainting
 from dl_models.unet.model import UNetInpainting
 from dl_models.vae.model import VAEInpainting
+from dl_models.vit.model import ViTInpainting
 
 
 @pytest.fixture()
@@ -38,7 +38,7 @@ ALL_MODELS = [
     VAEInpainting,
     GANInpainting,
     UNetInpainting,
-    TransformerInpainting,
+    ViTInpainting,
 ]
 
 MODEL_NAMES = [
@@ -46,7 +46,7 @@ MODEL_NAMES = [
     "vae_inpainting",
     "gan_inpainting",
     "unet_inpainting",
-    "transformer_inpainting",
+    "vit_inpainting",
 ]
 
 

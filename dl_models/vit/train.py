@@ -1,9 +1,9 @@
-"""Training script for the Transformer inpainting model.
+"""Training script for the ViT inpainting model.
 
 Usage:
-    uv run python -m dl_models.transformer.train \
+    uv run python -m dl_models.vit.train \
         --manifest preprocessed/manifest.csv \
-        --output results/transformer/checkpoints/transformer_best.pth
+        --output results/vit/checkpoints/vit_best.pth
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from dl_models.shared.trainer import (
     save_checkpoint,
     setup_file_logging,
 )
-from dl_models.transformer.model import _ViTInpaintingNet
+from dl_models.vit.model import _ViTInpaintingNet
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,14 +36,12 @@ log = logging.getLogger(__name__)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Train Transformer inpainting model."
-    )
+    parser = argparse.ArgumentParser(description="Train ViT inpainting model.")
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("results/transformer/checkpoints/transformer_best.pth"),
+        default=Path("results/vit/checkpoints/vit_best.pth"),
     )
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--batch-size", type=int, default=32)
@@ -61,7 +59,7 @@ def main() -> None:
         results_dir = args.output.parent
     checkpoints_dir = args.output.parent
 
-    setup_file_logging(results_dir / "transformer_train.log")
+    setup_file_logging(results_dir / "vit_train.log")
 
     device = torch.device(
         args.device
@@ -126,12 +124,12 @@ def main() -> None:
     early_stop = EarlyStopping(patience=args.patience)
 
     use_amp = device.type == "cuda"
-    scaler = torch.amp.GradScaler(device.type, enabled=use_amp)
+    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
 
     best_val_loss = float("inf")
 
     history = TrainingHistory(
-        "transformer",
+        "vit",
         results_dir,
         metadata={
             "epochs": args.epochs,
@@ -176,9 +174,7 @@ def main() -> None:
                     loss.item(),
                 )
             if global_step % 500 == 0:
-                periodic_path = (
-                    checkpoints_dir / f"transformer_step_{global_step}.pth"
-                )
+                periodic_path = checkpoints_dir / f"vit_step_{global_step}.pth"
                 save_checkpoint(
                     periodic_path,
                     model,
