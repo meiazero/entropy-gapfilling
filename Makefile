@@ -55,19 +55,20 @@ test: ## Run full test suite with coverage
 # =============================================================================
 
 .PHONY: experiment
-experiment: ## Run full paper experiment (preprocess + run)
-	@echo "Preprocessing dataset for paper_results"
-	@uv run python scripts/preprocess_dataset.py --config config/paper_results.yaml --resume
+experiment: preprocess-all ## Run full paper experiment (preprocess + run)
 	@echo "Running full experiment (paper_results.yaml)"
 	@uv run python scripts/run_experiment.py --config config/paper_results.yaml --save-entropy-top-k 5
 	@echo "Generating figures and tables for paper_results"
 	@uv run python scripts/generate_figures.py --results results/paper_results
 	@uv run python scripts/generate_tables.py --results results/paper_results
 
+.PHONY: preprocess-all
+preprocess-all: ## Preprocess full dataset to NPY (shared for all workflows)
+	@echo "Preprocessing full dataset (shared NPY cache)"
+	@uv run python scripts/preprocess_dataset.py --resume
+
 .PHONY: experiment-quick
-experiment-quick: ## Run quick validation (50 patches, 1 seed)
-	@echo "Preprocessing dataset for quick_validation"
-	@uv run python scripts/preprocess_dataset.py --config config/quick_validation.yaml --resume
+experiment-quick: preprocess-all ## Run quick validation (50 patches, 1 seed)
 	@echo "Running quick validation experiment"
 	@uv run python scripts/run_experiment.py --quick --save-entropy-top-k 5
 	@echo "Generating figures and tables for quick_validation"
@@ -220,20 +221,11 @@ define _check_ckpt
 endef
 
 # =============================================================================
-##@ Deep Learning - Preprocessing
-# =============================================================================
-
-.PHONY: dl-preprocess
-dl-preprocess: ## Preprocess satellite patches to NPY format (resume-safe)
-	@printf "\033[34m==>\033[0m Preprocessing patches (resume-safe)\n"
-	@uv run python scripts/preprocess_dataset.py --resume
-
-# =============================================================================
 ##@ Deep Learning - Training
 # =============================================================================
 
 .PHONY: dl-train-ae
-dl-train-ae: dl-preprocess ## Train Autoencoder (AE)
+dl-train-ae: preprocess-all ## Train Autoencoder (AE)
 	@printf "\033[34m==>\033[0m Training AE | epochs=$(AE_EPOCHS) lr=$(AE_LR) batch=$(AE_BATCH) satellite=$(SATELLITE)\n"
 	@uv run python -m dl_models.ae.train \
 		--manifest   $(MANIFEST)             \
@@ -246,7 +238,7 @@ dl-train-ae: dl-preprocess ## Train Autoencoder (AE)
 		$(_DEVICE_ARG)
 
 .PHONY: dl-train-vae
-dl-train-vae: dl-preprocess ## Train Variational Autoencoder (VAE)
+dl-train-vae: preprocess-all ## Train Variational Autoencoder (VAE)
 	@printf "\033[34m==>\033[0m Training VAE | epochs=$(VAE_EPOCHS) lr=$(VAE_LR) beta=$(VAE_BETA) satellite=$(SATELLITE)\n"
 	@uv run python -m dl_models.vae.train \
 		--manifest   $(MANIFEST)              \
@@ -260,7 +252,7 @@ dl-train-vae: dl-preprocess ## Train Variational Autoencoder (VAE)
 		$(_DEVICE_ARG)
 
 .PHONY: dl-train-gan
-dl-train-gan: dl-preprocess ## Train GAN (UNet generator + PatchGAN discriminator)
+dl-train-gan: preprocess-all ## Train GAN (UNet generator + PatchGAN discriminator)
 	@printf "\033[34m==>\033[0m Training GAN | epochs=$(GAN_EPOCHS) lr=$(GAN_LR) lambda_l1=$(GAN_LAMBDA_L1) satellite=$(SATELLITE)\n"
 	@uv run python -m dl_models.gan.train \
 		--manifest    $(MANIFEST)              \
@@ -275,7 +267,7 @@ dl-train-gan: dl-preprocess ## Train GAN (UNet generator + PatchGAN discriminato
 		$(_DEVICE_ARG)
 
 .PHONY: dl-train-unet
-dl-train-unet: dl-preprocess ## Train U-Net (skip connections + residual blocks)
+dl-train-unet: preprocess-all ## Train U-Net (skip connections + residual blocks)
 	@printf "\033[34m==>\033[0m Training UNet | epochs=$(UNET_EPOCHS) lr=$(UNET_LR) wd=$(UNET_WD) satellite=$(SATELLITE)\n"
 	@uv run python -m dl_models.unet.train \
 		--manifest     $(MANIFEST)               \
@@ -289,7 +281,7 @@ dl-train-unet: dl-preprocess ## Train U-Net (skip connections + residual blocks)
 		$(_DEVICE_ARG)
 
 .PHONY: dl-train-vit
-dl-train-vit: dl-preprocess ## Train MAE-style ViT
+dl-train-vit: preprocess-all ## Train MAE-style ViT
 	@printf "\033[34m==>\033[0m Training ViT | epochs=$(TF_EPOCHS) lr=$(TF_LR) wd=$(TF_WD) satellite=$(SATELLITE)\n"
 	@uv run python -m dl_models.vit.train \
 		--manifest     $(MANIFEST)              \
