@@ -162,3 +162,100 @@ uv run python -m dl_models.evaluate \
 
 # Modelos disponíveis: ae, vae, gan, unet, vit
 ```
+
+## Cluster (Slurm) Quickstart
+
+This project requires Python >= 3.12. On the cluster, the most reliable
+path is the `miniconda3/py312_25.1.1` module.
+
+### 1) Load modules and create the environment (one time)
+
+```bash
+module load miniconda3/py312_25.1.1
+module load cuda/12.6.2
+
+conda create -n pdi312 python=3.12 -y
+conda activate pdi312
+```
+
+### 1.1) Bootstrap the full environment (one time, recommended)
+
+This creates the `pdi312` environment, installs dependencies, and replaces
+CPU-only PyTorch with a CUDA-enabled wheel.
+
+```bash
+bash scripts/slurm/setup_env.sh /path/to/pdi_models_v5
+```
+
+### 2) Install project dependencies
+
+```bash
+cd /path/to/pdi_models_v5
+pip install -e .
+```
+
+If you skipped the bootstrap script, install CUDA-enabled PyTorch after the
+sync so GPU is available:
+
+```bash
+pip install --upgrade --force-reinstall \
+    torch torchvision --index-url https://download.pytorch.org/whl/cu121
+```
+
+### 3) Set dataset location
+
+```bash
+export PDI_DATA_ROOT=/path/to/dataset
+```
+
+### 4) Preprocess once (shared for all workflows)
+
+Use the Slurm job (recommended) or run the script directly:
+
+```bash
+sbatch scripts/slurm/preprocess.sbatch
+```
+
+```bash
+python scripts/preprocess_dataset.py --resume
+```
+
+### 5) Submit a hello CUDA job (GPU availability test)
+
+```bash
+sbatch scripts/slurm/hello_cuda.sbatch
+```
+
+Use the output to confirm:
+
+- Python version in the job
+- CUDA driver version and GPU model
+- Whether `torch` can import and `cuda.is_available()` is true
+
+If `torch` is missing or CUDA is unavailable, run the bootstrap script:
+
+```bash
+bash scripts/slurm/setup_env.sh /path/to/pdi_models_v5
+```
+
+### 6) Train all DL models on GPU (Slurm)
+
+```bash
+sbatch scripts/slurm/train_all.sbatch
+```
+
+The job runs with `python` directly and does not require `make`.
+
+### 7) View Slurm output and job status
+
+```bash
+squeue -u $USER
+cat slurm_pdi-hello-cuda_<JOB_ID>.out
+cat slurm_pdi-hello-cuda_<JOB_ID>.err
+```
+
+You can also use:
+
+```bash
+sacct -j <JOB_ID> --format=JobID,State,Elapsed,MaxRSS
+```

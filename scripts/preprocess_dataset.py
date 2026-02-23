@@ -42,7 +42,7 @@ from pdi_pipeline.logging_utils import get_project_root, setup_logging
 setup_logging()
 log = logging.getLogger(__name__)
 
-DEFAULT_DATA_ROOT = Path("/home/emanuel/Projects/castanhao-dataset")
+DEFAULT_DATA_ROOT = Path("/opt/datasets/satellite-images")
 MANIFEST_NAME = "manifest.csv"
 
 PROJECT_ROOT = get_project_root()
