@@ -1,10 +1,10 @@
 experiment:
   name: "quick_validation"
-  seeds: [70]
+  seeds: [78]
   noise_levels: ["inf", "40", "30", "20"]
   satellites: ["sentinel2", "landsat8", "landsat9", "modis"]
   entropy_windows: [7, 15, 31]
-  max_patches: 5
+  max_patches: 2
   output_dir: "results/"
 
 methods:
@@ -35,7 +35,7 @@ metrics: ["psnr", "ssim", "rmse", "sam", "ergas"]
 grid_search:
   output_dir: "results/grid_search/classical"
   experiment_overrides:
-    max_patches: 100
+    max_patches: 2
     metrics: ["psnr", "ssim", "rmse", "sam", "ergas"]
   methods:
     idw:
@@ -54,26 +54,26 @@ grid_search:
       h_rel: [0.8, 1.0]
     exemplar: {}
 
-dl_grid_search:
-  manifest: preprocessed/manifest.csv
-  output_dir: "results/grid_search/dl"
-  device: null
-  satellite: sentinel2
-  num_workers: null
-  max_patches: null
-  common:
-    epochs: [50]
-    batch_size: [16, 32]
-    lr: [0.001, 0.0005]
-    patience: [10]
-  models:
-    ae: {}
-    unet:
-      weight_decay: [0.0001, 0.0005]
-    vae:
-      beta: [0.001, 0.005]
-    gan:
-      lambda_l1: [10.0]
-      lambda_adv: [0.1, 0.2]
-    vit:
-      weight_decay: [0.05]
+# dl_grid_search:
+#   manifest: preprocessed/manifest.csv
+#   output_dir: "results/grid_search/dl"
+#   device: null
+#   satellite: sentinel2
+#   num_workers: null
+#   max_patches: null
+#   common:
+#     epochs: [50]
+#     batch_size: [16, 32]
+#     lr: [0.001, 0.0005]
+#     patience: [10]
+#   models:
+#     ae: {}
+#     unet:
+#       weight_decay: [0.0001, 0.0005]
+#     vae:
+#       beta: [0.001, 0.005]
+#     gan:
+#       lambda_l1: [10.0]
+#       lambda_adv: [0.1, 0.2]
+#     vit:
+#       weight_decay: [0.05]

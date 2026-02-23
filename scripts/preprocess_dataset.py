@@ -457,15 +457,21 @@ def _simulate_selection(
 def _save_patch_selections(
     selections: dict[str, dict[int, list[int]]],
     output_dir: Path,
+    metadata: dict[str, object] | None = None,
 ) -> None:
     """Save per-seed patch selections to JSON for the experiment runner."""
     serializable = {
         sat: {str(seed): ids for seed, ids in seed_map.items()}
         for sat, seed_map in selections.items()
     }
+    payload: dict[str, object]
+    if metadata is None:
+        payload = serializable
+    else:
+        payload = {"metadata": metadata, "selections": serializable}
     path = output_dir / "patch_selections.json"
     with path.open("w") as fh:
-        json.dump(serializable, fh, indent=2)
+        json.dump(payload, fh, indent=2)
     log.info("Patch selections saved to: %s", path)
 
 
@@ -559,7 +565,13 @@ def _apply_config_selection(
     )
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    _save_patch_selections(selections, output_dir)
+    metadata = {
+        "config": cfg.name,
+        "satellites": cfg.satellites,
+        "seeds": cfg.seeds,
+        "max_patches": cfg.max_patches,
+    }
+    _save_patch_selections(selections, output_dir, metadata)
     return df
 
 
@@ -676,6 +688,24 @@ def main(argv: list[str] | None = None) -> None:
 
     manifest_df = pd.DataFrame(manifest_rows)
     manifest_path = output_dir / MANIFEST_NAME
+
+    if manifest_path.exists():
+        existing_df = pd.read_csv(manifest_path)
+        extra_cols = [
+            col for col in existing_df.columns if col not in manifest_df.columns
+        ]
+        if extra_cols:
+            manifest_df = manifest_df.merge(
+                existing_df[["patch_id", *extra_cols]],
+                on="patch_id",
+                how="left",
+            )
+            log.info(
+                "Preserved %d extra manifest columns: %s",
+                len(extra_cols),
+                extra_cols,
+            )
+
     manifest_df.to_csv(manifest_path, index=False)
 
     log.info("--- Summary ---")

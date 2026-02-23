@@ -139,6 +139,106 @@ def _ensure_entropy_precomputed(
     return "ran"
 
 
+def _selected_patch_ids(
+    selected_by_sat: dict[str, list[int]],
+) -> set[int]:
+    selected_ids: set[int] = set()
+    for patch_ids in selected_by_sat.values():
+        selected_ids.update(int(pid) for pid in patch_ids)
+    return selected_ids
+
+
+def _ensure_entropy_columns(
+    manifest_df: pd.DataFrame,
+    entropy_windows: list[int],
+) -> list[str]:
+    entropy_cols = [f"mean_entropy_{ws}" for ws in entropy_windows]
+    for col in entropy_cols:
+        if col not in manifest_df.columns:
+            manifest_df[col] = float("nan")
+    return entropy_cols
+
+
+def _entropy_already_present(
+    manifest_df: pd.DataFrame,
+    mask: pd.Series,
+    entropy_cols: list[str],
+) -> bool:
+    if not mask.any():
+        return False
+    subset = manifest_df.loc[mask, entropy_cols]
+    return subset.notna().all().all()
+
+
+def _compute_entropy_for_rows(
+    manifest_df: pd.DataFrame,
+    mask: pd.Series,
+    preprocessed_dir: Path,
+    entropy_windows: list[int],
+) -> int:
+    from pdi_pipeline.entropy import shannon_entropy
+
+    n_updated = 0
+    for idx, row in manifest_df.loc[mask].iterrows():
+        clean_path = preprocessed_dir / str(row["clean_path"])
+        if not clean_path.exists():
+            log.warning("Clean patch not found: %s", clean_path)
+            continue
+
+        clean = np.load(clean_path).astype(np.float32)
+        updated = False
+        for ws in entropy_windows:
+            col = f"mean_entropy_{ws}"
+            if pd.notna(manifest_df.at[idx, col]):
+                continue
+            ent = shannon_entropy(clean, window_size=ws)
+            manifest_df.at[idx, col] = float(np.mean(ent))
+            updated = True
+
+        if updated:
+            n_updated += 1
+    return n_updated
+
+
+def _ensure_entropy_for_selection(
+    preprocessed_dir: Path,
+    entropy_windows: list[int],
+    selected_by_sat: dict[str, list[int]],
+) -> str:
+    manifest_path = preprocessed_dir / "manifest.csv"
+    if not manifest_path.exists():
+        log.error("Manifest not found: %s", manifest_path)
+        return "missing"
+
+    selected_ids = _selected_patch_ids(selected_by_sat)
+
+    if not selected_ids:
+        log.info("No selected patch IDs - skipping entropy precompute")
+        return "skipped"
+
+    manifest_df = pd.read_csv(manifest_path)
+    entropy_cols = _ensure_entropy_columns(manifest_df, entropy_windows)
+
+    mask = manifest_df["patch_id"].isin(selected_ids)
+    if not mask.any():
+        log.warning("Selected patch IDs not found in manifest")
+        manifest_df.to_csv(manifest_path, index=False)
+        return "skipped"
+
+    if _entropy_already_present(manifest_df, mask, entropy_cols):
+        return "complete"
+
+    n_updated = _compute_entropy_for_rows(
+        manifest_df,
+        mask,
+        preprocessed_dir,
+        entropy_windows,
+    )
+
+    manifest_df.to_csv(manifest_path, index=False)
+    return "ran" if n_updated else "complete"
+
+
 def _save_checkpoint(rows: list[dict[str, Any]], output_path: Path) -> None:
     """Append rows to the CSV file in O(len(rows)) time."""
     if not rows:
@@ -150,22 +250,75 @@ def _save_checkpoint(rows: list[dict[str, Any]], output_path: Path) -> None:
     new_df.to_csv(csv_path, mode="a", header=write_header, index=False)
 
 
+def _selection_metadata_matches(
+    metadata: dict[str, object],
+    config: ExperimentConfig,
+) -> bool:
+    expected_sats = set(config.satellites or [])
+    expected_seeds = set(config.seeds)
+
+    sats = set(metadata.get("satellites", []))
+    seeds = set(metadata.get("seeds", []))
+    max_patches = metadata.get("max_patches")
+
+    if sats and sats != expected_sats:
+        return False
+    if seeds and seeds != expected_seeds:
+        return False
+    return not ("max_patches" in metadata and max_patches != config.max_patches)
+
+
+def _selection_matches_config(
+    selections: dict[str, dict[str, list[int]]],
+    config: ExperimentConfig,
+) -> bool:
+    expected_sats = set(config.satellites or [])
+    expected_seeds = set(config.seeds)
+
+    sats = set(selections.keys())
+    if sats != expected_sats:
+        return False
+
+    seeds = set()
+    for seed_map in selections.values():
+        seeds.update(int(seed) for seed in seed_map)
+
+    return seeds == expected_seeds
+
+
 def _load_patch_selections(
     preprocessed_dir: Path,
+    config: ExperimentConfig,
 ) -> dict[str, dict[int, list[int]]] | None:
     """Load pre-computed patch selections from JSON.
 
-    Returns ``{satellite: {seed: [patch_ids]}}`` or None if not found.
+    Returns ``{satellite: {seed: [patch_ids]}}`` or None if not found
+    or if the selections do not match the active config.
     """
     path = preprocessed_dir / "patch_selections.json"
     if not path.exists():
         return None
     with path.open() as fh:
         raw = json.load(fh)
+
+    if isinstance(raw, dict) and "selections" in raw:
+        selections_raw = raw.get("selections", {})
+        metadata = raw.get("metadata")
+        if isinstance(metadata, dict) and not _selection_metadata_matches(
+            metadata, config
+        ):
+            log.info("Ignoring patch_selections.json (metadata mismatch).")
+            return None
+    else:
+        selections_raw = raw
+        if not _selection_matches_config(selections_raw, config):
+            log.info("Ignoring patch_selections.json (config mismatch).")
+            return None
+
     # Convert string keys back to int
     return {
         sat: {int(seed): ids for seed, ids in seed_map.items()}
-        for sat, seed_map in raw.items()
+        for sat, seed_map in selections_raw.items()
     }
 
 
@@ -1095,32 +1248,39 @@ def run_experiment(
 
     # Load pre-computed patch selections (written by preprocess_dataset.py)
     preprocessed_dir = manifest_path.parent
-    selections = _load_patch_selections(preprocessed_dir)
+    selections = _load_patch_selections(preprocessed_dir, config)
     if selections is not None:
         log.info(
             "Using pre-computed patch selections from patch_selections.json"
         )
-
-    log.info(
-        "Entropy precompute: start (windows=%s)",
-        config.entropy_windows,
-    )
-    entropy_status = _ensure_entropy_precomputed(
-        preprocessed_dir,
-        config.entropy_windows,
-    )
-    if entropy_status == "ran":
-        log.info("Entropy precompute: completed")
-    elif entropy_status == "complete":
-        log.info("Entropy precompute: already complete")
-    else:
-        log.info("Entropy precompute: skipped")
 
     selected_by_sat, seed_map = _build_patch_plan(
         manifest_path,
         config,
         selections,
     )
+
+    log.info(
+        "Entropy precompute: start (windows=%s)",
+        config.entropy_windows,
+    )
+    if config.max_patches is not None and selected_by_sat is not None:
+        entropy_status = _ensure_entropy_for_selection(
+            preprocessed_dir,
+            config.entropy_windows,
+            selected_by_sat,
+        )
+    else:
+        entropy_status = _ensure_entropy_precomputed(
+            preprocessed_dir,
+            config.entropy_windows,
+        )
+    if entropy_status == "ran":
+        log.info("Entropy precompute: completed")
+    elif entropy_status == "complete":
+        log.info("Entropy precompute: already complete")
+    else:
+        log.info("Entropy precompute: skipped")
 
     methods = config.methods
     total_work = _compute_total_work(manifest_path, config, selected_by_sat)
