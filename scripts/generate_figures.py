@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import math
 from pathlib import Path
 
 import matplotlib
@@ -20,6 +21,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from matplotlib.axes import Axes
 
 from pdi_pipeline.aggregation import (
     load_results,
@@ -397,6 +399,87 @@ def _save_figure(fig: plt.Figure, output_dir: Path, name: str) -> None:
         fig.savefig(output_dir / f"{name}.pdf", bbox_inches="tight")
 
 
+def _choose_entropy_column(df: pd.DataFrame) -> tuple[str, int] | None:
+    if "entropy_7" in df.columns:
+        return "entropy_7", 7
+    if "entropy_15" in df.columns:
+        return "entropy_15", 15
+
+    entropy_cols = sorted(c for c in df.columns if c.startswith("entropy_"))
+    if not entropy_cols:
+        return None
+
+    entropy_col = entropy_cols[0]
+    try:
+        window_size = int(entropy_col.split("_")[-1])
+    except ValueError:
+        window_size = 0
+    return entropy_col, window_size
+
+
+def _scatter_grid(
+    n_items: int, min_cols: int = 2, max_cols: int = 4
+) -> tuple[int, int]:
+    if n_items <= 0:
+        return 1, 1
+    cols = min(max_cols, max(min_cols, math.ceil(math.sqrt(n_items))))
+    rows = math.ceil(n_items / cols)
+    if rows / cols > 1.35 and cols < max_cols:
+        cols += 1
+        rows = math.ceil(n_items / cols)
+    return rows, cols
+
+
+def _add_entropy_psnr_fit(
+    ax: Axes, mdf: pd.DataFrame, entropy_col: str
+) -> None:
+    if len(mdf) < 3:
+        return
+
+    x_vals = mdf[entropy_col].to_numpy()
+    y_vals = mdf["psnr"].to_numpy()
+
+    beta, alpha = np.polyfit(x_vals, y_vals, 1)
+    y_pred = beta * x_vals + alpha
+    ss_res = float(np.sum((y_vals - y_pred) ** 2))
+    ss_tot = float(np.sum((y_vals - np.mean(y_vals)) ** 2))
+    r2 = 1.0 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
+    n = len(y_vals)
+    r2_adj = 1.0 - (1.0 - r2) * (n - 1) / (n - 2) if n > 2 else r2
+
+    sns.regplot(
+        data=mdf,
+        x=entropy_col,
+        y="psnr",
+        scatter=False,
+        ci=None,
+        ax=ax,
+        color="#555555",
+        line_kws={"linewidth": 1.0, "linestyle": "--", "label": "Fit"},
+    )
+
+    stats_text = (
+        f"y = {alpha:.2f} + {beta:.2f}x\n"
+        f"$r^2$ = {r2:.3f}\n"
+        f"$r^2_{{adj}}$ = {r2_adj:.3f}\n"
+        f"$\\beta$ = {beta:.2f}"
+    )
+    ax.text(
+        0.03,
+        0.97,
+        stats_text,
+        transform=ax.transAxes,
+        va="top",
+        ha="left",
+        fontsize=FONT_SIZE - 2,
+        bbox={
+            "boxstyle": "round,pad=0.2",
+            "facecolor": "white",
+            "alpha": 0.75,
+        },
+    )
+
+
 def _setup_style() -> None:
     if _STYLE_PATH.exists():
         plt.style.use(str(_STYLE_PATH))
@@ -472,44 +555,61 @@ def fig2_entropy_vs_psnr(results_dir: Path, output_dir: Path) -> None:
     """Fig 2: Scatterplot of entropy vs PSNR per method."""
     df = load_results(results_dir)
 
+    chosen = _choose_entropy_column(df)
+    if chosen is None:
+        log.warning("No entropy columns for fig2")
+        return
+    entropy_col, ws = chosen
+
     methods = sorted(df["method"].unique())
     n_methods = len(methods)
-    ncols = min(5, n_methods)
-    nrows = (n_methods + ncols - 1) // ncols
+
+    nrows, ncols = _scatter_grid(n_methods)
 
     palette = sns.color_palette("Set2", n_methods)
 
     fig, axes = plt.subplots(
         nrows,
         ncols,
-        figsize=(ncols * 2.5, nrows * 2.5),
+        figsize=(ncols * 2.2, nrows * 1.6),
         squeeze=False,
+        constrained_layout=True,
     )
     axes_flat = axes.flatten()
 
     for idx, method in enumerate(methods):
         ax = axes_flat[idx]
-        mdf = df.loc[df["method"] == method, ["entropy_7", "psnr"]].dropna()
+        mdf = df.loc[df["method"] == method, [entropy_col, "psnr"]].dropna()
         if mdf.empty:
             ax.set_title(method)
             continue
 
         sns.scatterplot(
             data=mdf,
-            x="entropy_7",
+            x=entropy_col,
             y="psnr",
             color=palette[idx % len(palette)],
             ax=ax,
+            label="Data",
             **_SCATTER_KW,
         )
-        ax.set_xlabel("Entropy (7x7)")
+
+        _add_entropy_psnr_fit(ax, mdf, entropy_col)
+
+        ax.set_xlabel(f"Entropy ({ws}x{ws})")
         ax.set_ylabel("PSNR (dB)")
         ax.set_title(method)
+        ax.grid(True, alpha=0.2, linewidth=0.5)
+        ax.legend(
+            loc="upper right",
+            frameon=True,
+            framealpha=0.85,
+            fontsize=FONT_SIZE - 2,
+        )
 
     for idx in range(n_methods, len(axes_flat)):
         axes_flat[idx].set_visible(False)
 
-    plt.tight_layout()
     _save_figure(fig, output_dir, "fig2_entropy_vs_psnr")
     plt.close(fig)
     log.info("Saved fig2_entropy_vs_psnr")
@@ -758,7 +858,12 @@ def fig6_visual_examples(results_dir: Path, output_dir: Path) -> None:
         log.warning("No methods with PSNR data for fig6")
         return
 
-    satellites = sorted(valid["satellite"].unique())
+    satellites = [
+        s for s in sorted(valid["satellite"].unique()) if s == "sentinel2"
+    ]
+    if not satellites:
+        log.warning("No Sentinel-2 data available for fig6")
+        return
 
     for sat in satellites:
         sat_df = valid_with_recon[valid_with_recon["satellite"] == sat]
@@ -841,8 +946,7 @@ def fig7_correlation_heatmap(results_dir: Path, output_dir: Path) -> None:
     df = load_results(results_dir)
 
     entropy_cols = [c for c in df.columns if c.startswith("entropy_")]
-    metric_cols = ["psnr", "ssim", "rmse", "sam"]
-    metric_cols = [c for c in metric_cols if c in df.columns]
+    metric_cols = [c for c in ["psnr"] if c in df.columns]
 
     if not entropy_cols or not metric_cols:
         log.warning("Missing entropy or metric columns for fig7")

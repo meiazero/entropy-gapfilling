@@ -78,7 +78,17 @@ PPGETI, Federal University of Cear\'a, Fortaleza, Cear\'a, Brazil.
 
 \begin{abstract}
 \textbf{Abstract}
-\noindent WIP
+\noindent We study gap filling in satellite imagery and quantify how
+scene complexity affects reconstruction quality. Using 15 classical
+interpolation methods (and selected deep models for comparison), we
+evaluate PSNR/SSIM/RMSE/SAM across noise levels, sensors, and entropy
+scales. Spearman analyses and robust regression show a consistent
+negative relationship between local Shannon entropy and PSNR, indicating
+that higher texture complexity degrades quality across methods. Spatial
+autocorrelation (Moran's $I$ and LISA) reveals structured error clusters
+that align with high-entropy regions. The results provide practical
+guidance for method selection and benchmarking under varying scene
+complexity.
 
 \end{abstract}
 
@@ -1018,13 +1028,13 @@ tercile (low / medium / high) for each method and entropy window.
 The Kruskal-Wallis test confirms significant between-method differences
 ($H(14) = $ --, $p < 10^{-10}$,
 $\varepsilon^2 = $ --). Selected pairwise Cliff's $\delta$
-effect sizes are reported in \Cref{tab:kruskal} (Appendix).
+effect sizes are omitted here for brevity.
 
 \subsection{Entropy--Performance Correlation}
 \label{sec:results-correlation}
 
 \Cref{tab:spearman-heatmap} presents Spearman $\rho$ between multi-scale
-entropy and \gls{PSNR} for each method.
+entropy and \gls{PSNR} for representative methods (one per family).
 \Cref{fig:fig7_heatmap} visualises the results as heatmaps.
 
 \input{tables/spearman-heatmap}
@@ -1111,8 +1121,8 @@ adversarial training mitigate the entropy-induced degradation.
  \caption{%
  Scatter plots of mean patch entropy (7$\times$7 window) vs.\ \gls{PSNR}
  for all 15 methods. Each point represents one (patch, seed) evaluation.
- Regression lines from robust Huber-T model are overlaid.
- Spearman $\rho$ and FDR-corrected $p$-values are annotated per panel.
+ Regression lines and fit statistics (equation, $r^2$, $r^2_{adj}$,
+ and slope) are annotated per panel.
  }
  \label{fig:fig2_scatter}
 \end{figure}
@@ -1166,8 +1176,6 @@ adversarial training mitigate the entropy-induced degradation.
 \begin{figure}[t]
  \centering
  \includegraphics[width=\linewidth]{figures/fig7_corr_heatmap_psnr}
- % Additional metric variants produced by generate_figures.py:
- % fig7_corr_heatmap_{rmse,sam,ssim}.{pdf,png}
  \caption{%
  Heatmap of Spearman $\rho$ between multi-scale entropy and \gls{PSNR}
  for all 15 methods. Red cells indicate strong negative correlation

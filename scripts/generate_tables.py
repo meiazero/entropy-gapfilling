@@ -366,9 +366,14 @@ def table2_overall_results(df: pd.DataFrame, output_dir: Path) -> None:
 
 def table3_entropy_stratified(df: pd.DataFrame, output_dir: Path) -> None:
     """Table 3: Mean PSNR per method x entropy bin."""
-    entropy_windows = [c for c in df.columns if c.startswith("entropy_")]
-    if not entropy_windows:
+    if "entropy_15" in df.columns:
+        entropy_windows = ["entropy_15"]
+    elif "entropy_7" in df.columns:
         entropy_windows = ["entropy_7"]
+    else:
+        entropy_windows = [c for c in df.columns if c.startswith("entropy_")]
+        if not entropy_windows:
+            entropy_windows = ["entropy_7"]
 
     bins = ["low", "medium", "high"]
 
@@ -406,12 +411,7 @@ def table3_entropy_stratified(df: pd.DataFrame, output_dir: Path) -> None:
             ),
             body,
         )
-        filename = (
-            "psnr-entropy-tercile.tex"
-            if ws == "15"
-            else f"table3_entropy_{ws}.tex"
-        )
-        _write_tex(tex, output_dir / filename)
+        _write_tex(tex, output_dir / "psnr-entropy-tercile.tex")
 
 
 def table4_correlation(df: pd.DataFrame, output_dir: Path) -> None:
@@ -708,14 +708,6 @@ def _make_table_dispatch(
         4: (
             "correlation",
             lambda: table4_correlation(df, output_dir),
-        ),
-        5: (
-            "kruskal_wallis",
-            lambda: table5_kruskal_wallis(df, output_dir),
-        ),
-        6: (
-            "regression",
-            lambda: table6_regression(df, output_dir),
         ),
         7: (
             "satellite",
