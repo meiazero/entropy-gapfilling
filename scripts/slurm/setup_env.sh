@@ -28,7 +28,7 @@ cd "$REPO_DIR"
 python -m pip install -e .
 
 # Ensure CUDA-enabled PyTorch is installed for GPU training.
-python -m pip install --upgrade --force-reinstall \
+python -m pip install --upgrade \
   torch torchvision --index-url https://download.pytorch.org/whl/cu121
 
 python - <<'PY'
