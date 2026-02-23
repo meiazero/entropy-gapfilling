@@ -21,23 +21,31 @@ if [[ "${CONDA_DEFAULT_ENV:-}" != "${ENV_NAME}" ]]; then
 fi
 
 export PIP_NO_USER=1
+export PIP_USER=0
+export PYTHONNOUSERSITE=1
 
 python -m pip install --upgrade pip
 
 cd "$REPO_DIR"
 python -m pip install -e .
 
-# Ensure CUDA-enabled PyTorch is installed for GPU training.
-python -m pip install --upgrade \
-  torch torchvision --index-url https://download.pytorch.org/whl/cu121
+# Ensure CUDA-enabled PyTorch is installed for GPU training and matches
+# project constraints.
+python -m pip install --upgrade --force-reinstall \
+    "torch==2.3.1+cu121" \
+    "torchvision==0.18.1+cu121" \
+    --index-url https://download.pytorch.org/whl/cu121
 
 python - <<'PY'
 import torch
 
 print("Python:", torch.__version__)
-print("CUDA available:", torch.cuda.is_available())
-if torch.cuda.is_available():
+cuda_ok = torch.cuda.is_available()
+print("CUDA available:", cuda_ok)
+if cuda_ok:
     print("GPU:", torch.cuda.get_device_name(0))
+else:
+    print("WARNING: CUDA is not available in this session.")
 PY
 
 echo "Environment ready: $(python --version)"
