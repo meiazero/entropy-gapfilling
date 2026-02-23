@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SOURCE_DIR="/opt/datasets/satellite-images"
+SOURCE_DIR="."
 OUTPUT_DIR="."
-ARCHIVE_NAME="dataset"
+ARCHIVE_NAME="preprocessed_npy"
 FORMAT="zip"
 
 usage() {
@@ -11,15 +11,15 @@ usage() {
 Usage: package_dataset.sh [options]
 
 Options:
-  -s, --source DIR     Source dataset directory (default: /opt/datasets/satellite-images)
+  -s, --source DIR     Source preprocessed NPY directory (default: .)
   -o, --output DIR     Output directory for the archive (default: .)
-  -n, --name NAME      Base archive name without extension (default: dataset)
+  -n, --name NAME      Base archive name without extension (default: preprocessed_npy)
   -f, --format FORMAT  Archive format: tar.gz or zip (default: zip)
   -h, --help           Show this help and exit
 
 Examples:
   ./scripts/package_dataset.sh
-  ./scripts/package_dataset.sh -s /opt/datasets/satellite-images -o /tmp -n satellite_dataset
+  ./scripts/package_dataset.sh -s ./preprocessed -o /tmp -n preprocessed_npy
   ./scripts/package_dataset.sh -f tar.gz
 EOF
 }
