@@ -16,6 +16,14 @@ module load cuda/12.6.2
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate pdi312
 
+# Prevent pip from reading or writing to the user home directory.
+# Without these, ~/.local/lib/python3.12 is added to sys.path and a
+# conflicting torch version installed there (e.g. 2.5.x) would shadow the
+# pinned 2.3.x inside the conda env.
+export PYTHONNOUSERSITE=1
+export PIP_NO_USER=1
+export PIP_USER=0
+
 REPO_DIR="${REPO_DIR:-$PWD}"
 cd "$REPO_DIR"
 
@@ -87,8 +95,10 @@ set -e
 
 case $TORCH_STATUS in
     10|11|12)
-        python -m pip install --upgrade --force-reinstall \
-            torch torchvision --index-url https://download.pytorch.org/whl/cu121
+        python -m pip install --upgrade \
+            "torch==2.3.1+cu121" \
+            "torchvision==0.18.1+cu121" \
+            --index-url https://download.pytorch.org/whl/cu121
         ;;
     0)
         ;;

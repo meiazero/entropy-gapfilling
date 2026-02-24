@@ -78,9 +78,10 @@ python -m pip install -e .
 # Install CUDA-enabled PyTorch.
 # pyproject.toml constrains torch>=2.2,<2.4, so 2.3.x is the latest allowed
 # release. Official PyTorch 2.3.x wheels are published against CUDA 12.1
-# (cu121). The CUDA 12.6 driver on this cluster is backward-compatible with
-# cu121 binaries, so no ABI mismatch occurs. The A100 (sm_80) is fully
-# supported by all CUDA 12.x toolchains.
+# (cu121). The NVIDIA driver on this cluster reports CUDA 12.4 (nvidia-smi),
+# so cu121 binaries are compatible (12.1 <= 12.4). The loaded CUDA toolkit is
+# 12.6.2 (nvcc), but the runtime constraint is determined by the driver (12.4).
+# The A100 (sm_80) is fully supported by all CUDA 12.x toolchains.
 python -m pip install --upgrade \
     "torch==2.3.1+cu121" \
     "torchvision==0.18.1+cu121" \

@@ -117,33 +117,33 @@ Comandos completos com hiperparâmetros de produção:
 # AE — Autoencoder
 uv run python -m dl_models.ae.train \
     --manifest preprocessed/manifest.csv --satellite sentinel2 \
-    --output dl_models/checkpoints/ae_best.pt \
+    --output dl_models/checkpoints/ae_best.pth \
     --epochs 50 --batch-size 32 --lr 1e-3 --patience 10
 
 # VAE — Variational Autoencoder
 uv run python -m dl_models.vae.train \
     --manifest preprocessed/manifest.csv --satellite sentinel2 \
-    --output dl_models/checkpoints/vae_best.pt \
+    --output dl_models/checkpoints/vae_best.pth \
     --epochs 60 --batch-size 32 --lr 1e-3 --beta 0.001 --patience 10
 
 # GAN — UNet Generator + PatchGAN Discriminator
 uv run python -m dl_models.gan.train \
     --manifest preprocessed/manifest.csv --satellite sentinel2 \
-    --output dl_models/checkpoints/gan_best.pt \
+    --output dl_models/checkpoints/gan_best.pth \
     --epochs 100 --batch-size 16 --lr 2e-4 \
     --lambda-l1 10.0 --lambda-adv 0.1 --patience 15
 
 # U-Net (PyTorch)
 uv run python -m dl_models.unet.train \
     --manifest preprocessed/manifest.csv --satellite sentinel2 \
-    --output dl_models/checkpoints/unet_best.pt \
+    --output dl_models/checkpoints/unet_best.pth \
     --epochs 60 --batch-size 32 --lr 1e-3 \
     --weight-decay 1e-4 --patience 12
 
 # ViT (MAE-style)
 uv run python -m dl_models.vit.train \
     --manifest preprocessed/manifest.csv --satellite sentinel2 \
-    --output dl_models/checkpoints/vit_best.pt \
+    --output dl_models/checkpoints/vit_best.pth \
     --epochs 100 --batch-size 32 --lr 1e-4 \
     --weight-decay 0.05 --patience 15
 
@@ -155,7 +155,7 @@ uv run python -m dl_models.vit.train \
 # Exemplo: avaliar U-Net no test split
 uv run python -m dl_models.evaluate \
     --model unet \
-    --checkpoint dl_models/checkpoints/unet_best.pt \
+    --checkpoint dl_models/checkpoints/unet_best.pth \
     --manifest preprocessed/manifest.csv \
     --satellite sentinel2 \
     --output results/dl_eval
@@ -165,55 +165,41 @@ uv run python -m dl_models.evaluate \
 
 ## Cluster (Slurm) Quickstart
 
-This project requires Python >= 3.12. The steps below assume a cluster
-running Rocky Linux 9.5 with NVIDIA A100 GPUs. Module names and partition
-labels vary per cluster - steps 0 and 1 show how to discover them.
+This project requires Python >= 3.12. The cluster configuration below has
+been validated on the target cluster (Rocky Linux 9.5, NVIDIA A100 80GB PCIe,
+NVIDIA driver 550.90.07 / CUDA 12.4, CUDA toolkit 12.6.2).
 
-### 0) Discover the cluster environment (first time only)
+Confirmed values:
 
-Before any setup, gather the available partition names and module names by
-submitting the diagnostic job:
+| Resource | Value |
+|----------|-------|
+| Partition (GPU) | `gpuq` |
+| Partition (CPU) | `cpuq` |
+| GRES | `gpu:a100:1` |
+| Conda module | `miniconda3/py312_25.1.1` |
+| CUDA module | `cuda/12.6.2` |
 
-```bash
-# Check available partitions and GRES before submitting.
-sinfo -o "%P %a %G"
-
-# Submit the diagnostic job (adjust -p and --gres if the defaults are wrong).
-sbatch scripts/slurm/hello_cuda.sbatch
-
-# Or override partition/GRES at submission time without editing the file:
-sbatch -p <partition> --gres=gpu:1 scripts/slurm/hello_cuda.sbatch
-```
-
-Inspect the output file once the job completes:
-
-```bash
-cat slurm_pdi-hello-cuda_<JOB_ID>.out
-```
-
-The output includes the available `miniconda3` and `cuda` module names
-(sections "Available modules - miniconda / anaconda" and
-"Available modules - CUDA"). Record the exact names - you will need them
-in the next step.
+If submitting to a different cluster, use `hello_cuda.sbatch` to rediscover
+the correct values (see "Diagnostics" section below).
 
 ### 1) Bootstrap the full environment (one time)
 
 `setup_env.sh` creates the `pdi312` conda environment, installs all
-dependencies, and installs a CUDA-enabled PyTorch wheel. Module names
-default to `miniconda3/py312_25.1.1` and `cuda/12.6.2`; override them via
-environment variables if the cluster uses different names:
+dependencies, and installs a CUDA-enabled PyTorch wheel (torch 2.3.1+cu121,
+compatible with the driver's CUDA 12.4 runtime). It also sets
+`PYTHONNOUSERSITE=1` to prevent `~/.local` packages from interfering.
 
 ```bash
-# With default module names:
 bash scripts/slurm/setup_env.sh /path/to/pdi_models_v5
-
-# With custom module names (discovered in step 0):
-CONDA_MODULE=miniconda3/24.x.y CUDA_MODULE=cuda/12.x.y \
-    bash scripts/slurm/setup_env.sh /path/to/pdi_models_v5
 ```
 
 Verify that the final output shows `CUDA available: True` and lists the
-expected GPU (e.g., `GPU 0: NVIDIA A100 80GB PCIe  (capability 8.0)`).
+expected GPU (`GPU 0: NVIDIA A100 80GB PCIe  (capability 8.0)`).
+
+> **Note on user-local pip packages**: if a different torch version exists in
+> `~/.local/lib/python3.12/site-packages` (e.g. from a previous install), it
+> will be shadowed by the conda env as long as `PYTHONNOUSERSITE=1` is set.
+> All job scripts in `scripts/slurm/` already export this variable.
 
 ### 2) Set dataset location
 
@@ -250,3 +236,21 @@ sacct -j <JOB_ID> --format=JobID,State,Elapsed,MaxRSS
 cat slurm_<job-name>_<JOB_ID>.out
 cat slurm_<job-name>_<JOB_ID>.err
 ```
+
+### Diagnostics (new cluster or broken environment)
+
+`hello_cuda.sbatch` is a diagnostic-only job that collects environment info
+without aborting on errors. Run it to rediscover module names, partition
+labels, GPU availability, and CUDA state:
+
+```bash
+# Verify partition name first:
+sinfo -o "%P %a %G"
+
+# Submit with confirmed values, or override at submission time:
+sbatch scripts/slurm/hello_cuda.sbatch
+sbatch -p <partition> --gres=gpu:1 scripts/slurm/hello_cuda.sbatch
+```
+
+The output file will contain sections for available modules, loaded modules,
+nvidia-smi GPU info, and PyTorch CUDA status.

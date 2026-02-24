@@ -303,6 +303,35 @@ dl-train-all: dl-train-ae dl-train-vae dl-train-gan dl-train-unet dl-train-vit #
 
 .PHONY: dl-eval-all
 dl-eval-all: dl-eval-ae dl-eval-vae dl-eval-gan dl-eval-unet dl-eval-vit ## Evaluate all 5 models on test split
+
+.PHONY: dl-eval-ae
+dl-eval-ae: ## Evaluate AE on test split (requires dl-train-ae)
+	$(call _check_ckpt,$(CKPT_DIR)/ae_best.pth,dl-train-ae)
+	@printf "\033[34m==>\033[0m Evaluating AE  ->  $(EVAL_DIR)/ae_inpainting/results.csv\n"
+	@uv run python -m dl_models.evaluate \
+		--model               ae                      \
+		--checkpoint          $(CKPT_DIR)/ae_best.pth \
+		--manifest            $(MANIFEST)             \
+		--satellite           $(SATELLITE)            \
+		--output              $(EVAL_DIR)             \
+		--save-reconstructions $(SAVE_RECON)          \
+		$(_DEVICE_ARG)
+
+.PHONY: dl-eval-vae
+dl-eval-vae: ## Evaluate VAE on test split (requires dl-train-vae)
+	$(call _check_ckpt,$(CKPT_DIR)/vae_best.pth,dl-train-vae)
+	@printf "\033[34m==>\033[0m Evaluating VAE  ->  $(EVAL_DIR)/vae_inpainting/results.csv\n"
+	@uv run python -m dl_models.evaluate \
+		--model               vae                      \
+		--checkpoint          $(CKPT_DIR)/vae_best.pth \
+		--manifest            $(MANIFEST)              \
+		--satellite           $(SATELLITE)             \
+		--output              $(EVAL_DIR)              \
+		--save-reconstructions $(SAVE_RECON)           \
+		$(_DEVICE_ARG)
+
+.PHONY: dl-eval-gan
+dl-eval-gan: ## Evaluate GAN on test split (requires dl-train-gan)
 	$(call _check_ckpt,$(CKPT_DIR)/gan_best.pth,dl-train-gan)
 	@printf "\033[34m==>\033[0m Evaluating GAN  ->  $(EVAL_DIR)/gan_inpainting/results.csv\n"
 	@uv run python -m dl_models.evaluate \
