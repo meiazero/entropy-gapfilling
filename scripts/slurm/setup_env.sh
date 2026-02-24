@@ -71,11 +71,15 @@ export PYTHONNOUSERSITE=1
 
 python -m pip install --upgrade pip
 
+# Pre-install the build backend so compute nodes (no internet) can use
+# --no-build-isolation without downloading hatchling at job runtime.
+python -m pip install hatchling
+
 # ---------------------------------------------------------------------------
 # Install project dependencies
 # ---------------------------------------------------------------------------
 cd "${REPO_DIR}"
-python -m pip install -e .
+python -m pip install --no-build-isolation -e .
 
 # Install CUDA-enabled PyTorch.
 # pyproject.toml constrains torch>=2.2,<2.4, so 2.3.x is the latest allowed

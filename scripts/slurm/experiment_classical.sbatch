@@ -36,7 +36,7 @@ echo "=== Environment ==="
 echo "Config: $CONFIG"
 python --version
 
-python -m pip install -e .
+python -m pip install --no-build-isolation -e .
 
 echo "=== Preprocessing (resume-safe) ==="
 DATA_ROOT_ARG=()

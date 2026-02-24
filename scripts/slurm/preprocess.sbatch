@@ -30,5 +30,5 @@ fi
 
 echo "=== Preprocess ==="
 python --version
-python -m pip install -e .
+python -m pip install --no-build-isolation -e .
 python scripts/preprocess_dataset.py --resume "${DATA_ROOT_ARG[@]}"

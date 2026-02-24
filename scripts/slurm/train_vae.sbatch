@@ -36,7 +36,7 @@ echo "Config: $CONFIG"
 python --version
 nvidia-smi
 
-python -m pip install -e .
+python -m pip install --no-build-isolation -e .
 
 set +e
 python -c "import torch; assert torch.cuda.is_available()"
