@@ -1,0 +1,27 @@
+\begin{table}[htbp]
+\centering
+\caption{Visão geral dos 15 métodos clássicos de preenchimento de lacunas avaliados.}
+\label{tab:methods}
+\footnotesize
+\begin{tabular}{lll}
+\toprule
+Categoria & Método & Parâmetros \\
+\midrule
+Espacial & Vizinho Mais Próximo & None \\
+ & Bilinear & None \\
+ & Bicúbico & None \\
+ & Lanczos (PG) & a=3 \\
+Kernel & IDW & p=2.0 \\
+ & RBF & kernel TPS \\
+ & Spline de Placa Fina & None \\
+Geoestatístico & Krigagem Ordinária & Variograma automático \\
+Transformada & DCT & iter=50, lam=0.05 \\
+ & Wavelet & db4, iter=50 \\
+ & Variação Total & iter=100 \\
+Compressivo & L1-DCT (CS) & iter=100 \\
+ & L1-Wavelet (CS) & iter=100 \\
+Baseado em Recortes & Médias Não-Locais & h=0.1, p=7, s=21 \\
+ & Baseado em Exemplar & p=9 \\
+\bottomrule
+\end{tabular}
+\end{table}

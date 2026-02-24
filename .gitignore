@@ -202,10 +202,6 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
-# Model checkpoints (generated)
-dl_models/checkpoints/
-results/**/checkpoints/
-results/**/checkpoints/*.pth
 
 # Cursor
 #  Cursor is an AI-powered code editor. `.cursorignore` specifies files/directories to
@@ -226,7 +222,6 @@ __marimo__/
 # Output folders
 outputs/
 outputs-*/
-results
 preprocessed/
 
 # Apache parquet
