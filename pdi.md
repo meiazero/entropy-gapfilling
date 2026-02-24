@@ -165,50 +165,63 @@ uv run python -m dl_models.evaluate \
 
 ## Cluster (Slurm) Quickstart
 
-This project requires Python >= 3.12. On the cluster, the most reliable
-path is the `miniconda3/py312_25.1.1` module.
+This project requires Python >= 3.12. The steps below assume a cluster
+running Rocky Linux 9.5 with NVIDIA A100 GPUs. Module names and partition
+labels vary per cluster - steps 0 and 1 show how to discover them.
 
-### 1) Load modules and create the environment (one time)
+### 0) Discover the cluster environment (first time only)
+
+Before any setup, gather the available partition names and module names by
+submitting the diagnostic job:
 
 ```bash
-module load miniconda3/py312_25.1.1
-module load cuda/12.6.2
+# Check available partitions and GRES before submitting.
+sinfo -o "%P %a %G"
 
-conda create -n pdi312 python=3.12 -y
-conda activate pdi312
+# Submit the diagnostic job (adjust -p and --gres if the defaults are wrong).
+sbatch scripts/slurm/hello_cuda.sbatch
+
+# Or override partition/GRES at submission time without editing the file:
+sbatch -p <partition> --gres=gpu:1 scripts/slurm/hello_cuda.sbatch
 ```
 
-### 1.1) Bootstrap the full environment (one time, recommended)
-
-This creates the `pdi312` environment, installs dependencies, and replaces
-CPU-only PyTorch with a CUDA-enabled wheel.
+Inspect the output file once the job completes:
 
 ```bash
+cat slurm_pdi-hello-cuda_<JOB_ID>.out
+```
+
+The output includes the available `miniconda3` and `cuda` module names
+(sections "Available modules - miniconda / anaconda" and
+"Available modules - CUDA"). Record the exact names - you will need them
+in the next step.
+
+### 1) Bootstrap the full environment (one time)
+
+`setup_env.sh` creates the `pdi312` conda environment, installs all
+dependencies, and installs a CUDA-enabled PyTorch wheel. Module names
+default to `miniconda3/py312_25.1.1` and `cuda/12.6.2`; override them via
+environment variables if the cluster uses different names:
+
+```bash
+# With default module names:
 bash scripts/slurm/setup_env.sh /path/to/pdi_models_v5
+
+# With custom module names (discovered in step 0):
+CONDA_MODULE=miniconda3/24.x.y CUDA_MODULE=cuda/12.x.y \
+    bash scripts/slurm/setup_env.sh /path/to/pdi_models_v5
 ```
 
-### 2) Install project dependencies
+Verify that the final output shows `CUDA available: True` and lists the
+expected GPU (e.g., `GPU 0: NVIDIA A100 80GB PCIe  (capability 8.0)`).
 
-```bash
-cd /path/to/pdi_models_v5
-pip install -e .
-```
-
-If you skipped the bootstrap script, install CUDA-enabled PyTorch after the
-sync so GPU is available:
-
-```bash
-pip install --upgrade --force-reinstall \
-    torch torchvision --index-url https://download.pytorch.org/whl/cu121
-```
-
-### 3) Set dataset location
+### 2) Set dataset location
 
 ```bash
 export PDI_DATA_ROOT=/path/to/dataset
 ```
 
-### 4) Preprocess once (shared for all workflows)
+### 3) Preprocess once (shared for all workflows)
 
 Use the Slurm job (recommended) or run the script directly:
 
@@ -220,25 +233,7 @@ sbatch scripts/slurm/preprocess.sbatch
 python scripts/preprocess_dataset.py --resume
 ```
 
-### 5) Submit a hello CUDA job (GPU availability test)
-
-```bash
-sbatch scripts/slurm/hello_cuda.sbatch
-```
-
-Use the output to confirm:
-
-- Python version in the job
-- CUDA driver version and GPU model
-- Whether `torch` can import and `cuda.is_available()` is true
-
-If `torch` is missing or CUDA is unavailable, run the bootstrap script:
-
-```bash
-bash scripts/slurm/setup_env.sh /path/to/pdi_models_v5
-```
-
-### 6) Train all DL models on GPU (Slurm)
+### 4) Train all DL models on GPU (Slurm)
 
 ```bash
 sbatch scripts/slurm/train_all.sbatch
@@ -246,16 +241,12 @@ sbatch scripts/slurm/train_all.sbatch
 
 The job runs with `python` directly and does not require `make`.
 
-### 7) View Slurm output and job status
+### 5) Monitor jobs and inspect output
 
 ```bash
 squeue -u $USER
-cat slurm_pdi-hello-cuda_<JOB_ID>.out
-cat slurm_pdi-hello-cuda_<JOB_ID>.err
-```
-
-You can also use:
-
-```bash
 sacct -j <JOB_ID> --format=JobID,State,Elapsed,MaxRSS
+
+cat slurm_<job-name>_<JOB_ID>.out
+cat slurm_<job-name>_<JOB_ID>.err
 ```
