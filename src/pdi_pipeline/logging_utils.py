@@ -101,7 +101,7 @@ class StreamProgress:
         iterable=None,
         desc: str = "Progress",
         total: int | None = None,
-        log_interval_s: float = 10.0,
+        log_interval_s: float = 1.0,
         logger: logging.Logger | None = None,
     ):
         self.iterable = iterable
