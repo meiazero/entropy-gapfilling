@@ -866,7 +866,10 @@ def fig6_visual_examples(results_dir: Path, output_dir: Path) -> None:
 
     # Top 4 methods by global mean PSNR (consistent across all rows)
     method_ranking = (
-        valid.groupby("method")["psnr"].mean().sort_values(ascending=False)
+        valid
+        .groupby("method", observed=True)["psnr"]
+        .mean()
+        .sort_values(ascending=False)
     )
     top_methods = method_ranking.head(4).index.tolist()
     n_show = len(top_methods)
