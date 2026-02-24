@@ -41,53 +41,53 @@ log = logging.getLogger(__name__)
 
 # Method metadata for Table 1
 METHOD_INFO = {
-    "nearest": ("Spatial", "Nearest Neighbor", "None", r"$O(HW)$"),
-    "bilinear": ("Spatial", "Bilinear", "None", r"$O(N \log N)$"),
-    "bicubic": ("Spatial", "Bicubic", "None", r"$O(N \log N)$"),
+    "nearest": ("Espacial", "Vizinho Mais Próximo", "None", r"$O(HW)$"),
+    "bilinear": ("Espacial", "Bilinear", "None", r"$O(N \log N)$"),
+    "bicubic": ("Espacial", "Bicúbico", "None", r"$O(N \log N)$"),
     "lanczos": (
-        "Spatial",
+        "Espacial",
         "Lanczos (PG)",
         "a=3",
         r"$O(HW \log HW)$",
     ),
     "idw": ("Kernel", "IDW", "p=2.0", r"$O(NK)$"),
-    "rbf": ("Kernel", "RBF", "TPS kernel", r"$O(N^3)$"),
-    "spline": ("Kernel", "Thin Plate Spline", "None", r"$O(N^3)$"),
+    "rbf": ("Kernel", "RBF", "kernel TPS", r"$O(N^3)$"),
+    "spline": ("Kernel", "Spline de Placa Fina", "None", r"$O(N^3)$"),
     "kriging": (
-        "Geostatistical",
-        "Ordinary Kriging",
-        "Auto variogram",
+        "Geoestatístico",
+        "Krigagem Ordinária",
+        "Variograma automático",
         r"$O(N^3)$",
     ),
     "dct": (
-        "Transform",
+        "Transformada",
         "DCT",
         "iter=50, lam=0.05",
         r"$O(HW \log HW)$",
     ),
-    "wavelet": ("Transform", "Wavelet", "db4, iter=50", r"$O(HW)$"),
-    "tv": ("Transform", "Total Variation", "iter=100", r"$O(HW)$"),
+    "wavelet": ("Transformada", "Wavelet", "db4, iter=50", r"$O(HW)$"),
+    "tv": ("Transformada", "Variação Total", "iter=100", r"$O(HW)$"),
     "cs_dct": (
-        "Compressive",
+        "Compressivo",
         "L1-DCT (CS)",
         "iter=100",
         r"$O(HW \log HW)$",
     ),
     "cs_wavelet": (
-        "Compressive",
+        "Compressivo",
         "L1-Wavelet (CS)",
         "iter=100",
         r"$O(HW)$",
     ),
     "non_local": (
-        "Patch-based",
-        "Non-Local Means",
+        "Baseado em Recortes",
+        "Médias Não-Locais",
         "h=0.1, p=7, s=21",
         r"$O(HW P^2)$",
     ),
     "exemplar_based": (
-        "Patch-based",
-        "Exemplar-Based",
+        "Baseado em Recortes",
+        "Baseado em Exemplar",
         "p=9",
         r"$O(HW P^2)$",
     ),
@@ -280,7 +280,7 @@ def _collect_dl_rows(
             "psnr": ok["psnr"].mean(),
             "ssim": ok["ssim"].mean(),
             "rmse": ok["rmse"].mean(),
-            "type": "Deep Learning",
+            "type": "Aprendizado Profundo",
         })
     return dl_rows
 
@@ -309,11 +309,12 @@ def table1_method_overview(df: pd.DataFrame, output_dir: Path) -> None:
     tex = _render_latex_table(
         LatexTableConfig(
             caption=(
-                "Overview of the 15 classical gap-filling methods evaluated."
+                "Visão geral dos 15 métodos clássicos de preenchimento de "
+                "lacunas avaliados."
             ),
             label="tab:methods",
             col_spec="lll",
-            header=(r"Category & Method & Parameters"),
+            header=(r"Categoria & Método & Parâmetros"),
         ),
         body,
     )
@@ -336,8 +337,8 @@ def table2_overall_results(df: pd.DataFrame, output_dir: Path) -> None:
     ]
 
     if present:
-        header = "Method & " + " & ".join(
-            f"{n} dB" if n != "inf" else "No noise" for n in present
+        header = "Método & " + " & ".join(
+            f"{n} dB" if n != "inf" else "Sem ruído" for n in present
         )
         rankings = _compute_group_rankings(
             noise_summary, "noise_level", present
@@ -352,8 +353,8 @@ def table2_overall_results(df: pd.DataFrame, output_dir: Path) -> None:
     tex = _render_latex_table(
         LatexTableConfig(
             caption=(
-                r"Mean PSNR (dB) $\pm$ 95\% CI per method "
-                "and noise level. Higher PSNR is better."
+                r"PSNR médio (dB) $\pm$ IC de 95\% por método "
+                r"e nível de ruído. Maior PSNR é melhor."
             ),
             label="tab:psnr-method-noise",
             col_spec="l" + "c" * len(present),
@@ -401,13 +402,15 @@ def table3_entropy_stratified(df: pd.DataFrame, output_dir: Path) -> None:
         tex = _render_latex_table(
             LatexTableConfig(
                 caption=(
-                    r"Mean PSNR (dB) $\pm$ 95\% CI stratified "
-                    rf"by entropy tercile "
-                    rf"({ws}$\times${ws} window). Higher PSNR is better."
+                    r"PSNR médio (dB) $\pm$ IC de 95\% estratificado "
+                    rf"por tercil de entropia "
+                    rf"(janela {ws}$\times${ws}). Maior PSNR é melhor."
                 ),
                 label=label,
                 col_spec="lccc",
-                header=("Method & Low Entropy & Medium Entropy & High Entropy"),
+                header=(
+                    "Método & Entropia Baixa & Entropia Média & Entropia Alta"
+                ),
             ),
             body,
         )
@@ -448,8 +451,8 @@ def table4_correlation(df: pd.DataFrame, output_dir: Path) -> None:
     tex = _render_latex_table(
         LatexTableConfig(
             caption=(
-                "Spearman correlation between entropy and PSNR. "
-                "Higher PSNR is better."
+                "Correlação de Spearman entre entropia e PSNR. "
+                "Maior PSNR é melhor."
             ),
             label="tab:spearman-heatmap",
             col_spec="l" + "c" * ncols,
@@ -485,15 +488,15 @@ def table5_kruskal_wallis(df: pd.DataFrame, output_dir: Path) -> None:
     tex = _render_latex_table(
         LatexTableConfig(
             caption=(
-                "Kruskal-Wallis test and significant pairwise "
-                "differences (Dunn post-hoc, "
-                "Bonferroni correction)."
+                "Teste de Kruskal-Wallis e diferenças par a par significativas "
+                "(pós-hoc de Dunn, "
+                "correção de Bonferroni)."
             ),
             label="tab:kruskal",
             col_spec="lcccc",
             header=(
-                r"Metric & H statistic & $p$-value "
-                r"& $\epsilon^2$ & Significant pairs"
+                r"Métrica & Estatística H & Valor de $p$ "
+                r"& $\epsilon^2$ & Pares significativos"
             ),
         ),
         body,
@@ -540,7 +543,7 @@ def table6_regression(df: pd.DataFrame, output_dir: Path) -> None:
             extra.append(r"\vspace{0.5em}")
             extra.append(r"\begin{tabular}{lr}")
             extra.append(r"\toprule")
-            extra.append(r"Variable & VIF \\")
+            extra.append(r"Variável & FIV \\")
             extra.append(r"\midrule")
             for vrow in result.vif.itertuples():
                 var = str(vrow.variable).replace("_", r"\_")
@@ -557,15 +560,15 @@ def table6_regression(df: pd.DataFrame, output_dir: Path) -> None:
         tex = _render_latex_table(
             LatexTableConfig(
                 caption=(
-                    f"Robust regression (RLM/HuberT) for {mu}. "
+                    f"Regressão robusta (RLM/HuberT) para {mu}. "
                     f"$R^2_{{adj}} = {result.r_squared_adj:.4f}$"
                     f", $n = {result.n}$."
                 ),
                 label=label,
                 col_spec="lrrrrr",
                 header=(
-                    r"Variable & $\beta$ & Std. Err. "
-                    r"& $z$ & $p$ & 95\% CI"
+                    r"Variável & $\beta$ & Erro Padrão "
+                    r"& $z$ & $p$ & IC 95\%"
                 ),
                 font_size=r"\tiny",
                 env="table*",
@@ -592,7 +595,7 @@ def table7_satellite(df: pd.DataFrame, output_dir: Path) -> None:
     methods = sorted(sat_summary["method"].unique())
     satellites = sorted(sat_summary["satellite"].unique())
 
-    header = "Method & " + " & ".join(s.replace("_", r"\_") for s in satellites)
+    header = "Método & " + " & ".join(s.replace("_", r"\_") for s in satellites)
     rankings = _compute_group_rankings(sat_summary, "satellite", satellites)
     body = _build_ranked_rows(
         sat_summary, "satellite", satellites, methods, rankings
@@ -601,8 +604,8 @@ def table7_satellite(df: pd.DataFrame, output_dir: Path) -> None:
     tex = _render_latex_table(
         LatexTableConfig(
             caption=(
-                r"Mean PSNR (dB) $\pm$ 95\% CI per method "
-                "and satellite sensor. Higher PSNR is better."
+                r"PSNR médio (dB) $\pm$ IC de 95\% por método "
+                r"e sensor de satélite. Maior PSNR é melhor."
             ),
             label="tab:psnr-satellite",
             col_spec="l" + "c" * len(satellites),
@@ -624,7 +627,7 @@ def table8_dl_comparison(
     classical_summary = (
         df.groupby("method")[["psnr", "ssim", "rmse"]].mean().reset_index()
     )
-    classical_summary["type"] = "Classical"
+    classical_summary["type"] = "Clássico"
 
     dl_base = (
         results_dir.parent / "dl_eval" if results_dir is not None else Path(".")
@@ -663,14 +666,14 @@ def table8_dl_comparison(
     tex = _render_latex_table(
         LatexTableConfig(
             caption=(
-                "Performance comparison: classical "
-                r"interpolation vs.\ deep learning methods. "
-                "Higher PSNR and SSIM are better; lower RMSE is better."
+                "Comparação de desempenho: interpolação clássica "
+                r"vs.\ métodos de aprendizado profundo. "
+                "Maior PSNR e SSIM são melhores; menor RMSE é melhor."
             ),
             label="tab:dl-results",
             col_spec="ll" + "c" * len(present),
             header=(
-                "Type & Method & " + " & ".join(m.upper() for m in present)
+                "Tipo & Método & " + " & ".join(m.upper() for m in present)
             ),
         ),
         body,

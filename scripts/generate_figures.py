@@ -267,8 +267,8 @@ def _render_fig5_row(
         error_map = _compute_error_map(clean, recon)
         if col_idx == 0:
             ax.imshow(error_map, cmap="hot")
-            ax.set_title(f"{method}\n(MSE)", fontsize=FONT_SIZE - 1)
-            ax.set_ylabel(f"{label}\npatch {patch_id}", fontsize=FONT_SIZE)
+            ax.set_title(f"{method}\n(EQM)", fontsize=FONT_SIZE - 1)
+            ax.set_ylabel(f"{label}\nrecorte {patch_id}", fontsize=FONT_SIZE)
             ax.axis("off")
             continue
 
@@ -281,7 +281,7 @@ def _render_fig5_row(
             ax.text(
                 0.5,
                 0.5,
-                "LISA failed",
+                "LISA falhou",
                 ha="center",
                 va="center",
                 transform=ax.transAxes,
@@ -326,12 +326,12 @@ def _render_fig6_row(
         mask = mask[:, :, 0]
 
     axes[row_idx, 0].imshow(to_display_rgb(clean))
-    axes[row_idx, 0].set_title("Clean", fontsize=FONT_SIZE)
+    axes[row_idx, 0].set_title("Limpa", fontsize=FONT_SIZE)
     axes[row_idx, 0].axis("off")
     axes[row_idx, 0].set_ylabel(label, fontsize=FONT_SIZE)
 
     axes[row_idx, 1].imshow(to_display_rgb(degraded))
-    axes[row_idx, 1].set_title("Degraded", fontsize=FONT_SIZE)
+    axes[row_idx, 1].set_title("Degradada", fontsize=FONT_SIZE)
     axes[row_idx, 1].axis("off")
 
     if mask is not None:
@@ -340,12 +340,12 @@ def _render_fig6_row(
         axes[row_idx, 2].text(
             0.5,
             0.5,
-            "N/A",
+            "N/D",
             ha="center",
             va="center",
             transform=axes[row_idx, 2].transAxes,
         )
-    axes[row_idx, 2].set_title("Mask", fontsize=FONT_SIZE)
+    axes[row_idx, 2].set_title("Máscara", fontsize=FONT_SIZE)
     axes[row_idx, 2].axis("off")
 
     for offset, method in enumerate(top_methods):
@@ -455,7 +455,7 @@ def _add_entropy_psnr_fit(
         ci=None,
         ax=ax,
         color="#555555",
-        line_kws={"linewidth": 1.0, "linestyle": "--", "label": "Fit"},
+        line_kws={"linewidth": 1.0, "linestyle": "--", "label": "Ajuste"},
     )
 
     stats_text = (
@@ -542,7 +542,7 @@ def fig1_entropy_examples(results_dir: Path, output_dir: Path) -> None:
             plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
             ax.set_title(f"{sat} - {ws}x{ws}")
             if col_idx == 0:
-                ax.set_ylabel("Entropy")
+                ax.set_ylabel("Entropia")
             ax.axis("off")
 
     plt.tight_layout()
@@ -590,13 +590,13 @@ def fig2_entropy_vs_psnr(results_dir: Path, output_dir: Path) -> None:
             y="psnr",
             color=palette[idx % len(palette)],
             ax=ax,
-            label="Data",
+            label="Dados",
             **_SCATTER_KW,
         )
 
         _add_entropy_psnr_fit(ax, mdf, entropy_col)
 
-        ax.set_xlabel(f"Entropy ({ws}x{ws})")
+        ax.set_xlabel(f"Entropia ({ws}x{ws})")
         ax.set_ylabel("PSNR (dB)")
         ax.set_title(method)
         ax.grid(True, alpha=0.2, linewidth=0.5)
@@ -632,7 +632,7 @@ def fig3_psnr_by_entropy_bin(results_dir: Path, output_dir: Path) -> None:
     valid["entropy_bin"] = pd.cut(
         valid["entropy_7"],
         bins=[-np.inf, t1, t2, np.inf],
-        labels=["low", "medium", "high"],
+        labels=["baixa", "média", "alta"],
         right=True,
     )
 
@@ -642,15 +642,15 @@ def fig3_psnr_by_entropy_bin(results_dir: Path, output_dir: Path) -> None:
         x="method",
         y="psnr",
         hue="entropy_bin",
-        hue_order=["low", "medium", "high"],
+        hue_order=["baixa", "média", "alta"],
         palette="Set2",
         ax=ax,
         **_BOXPLOT_KW,
     )
-    ax.set_xlabel("Method")
+    ax.set_xlabel("Método")
     ax.set_ylabel("PSNR (dB)")
     ax.tick_params(axis="x", rotation=45)
-    ax.legend(title="Entropy Bin", **_LEGEND_KW)
+    ax.legend(title="Faixa de Entropia", **_LEGEND_KW)
 
     plt.tight_layout()
     _save_figure(fig, output_dir, "fig3_psnr_by_entropy_bin")
@@ -699,11 +699,11 @@ def fig4_psnr_by_noise(results_dir: Path, output_dir: Path) -> None:
             ax=ax,
             **_BOXPLOT_KW,
         )
-    ax.set_xlabel("Method")
+    ax.set_xlabel("Método")
     ax.set_ylabel("PSNR (dB)")
     ax.tick_params(axis="x", rotation=45)
     if len(hue_order) > 1:
-        ax.legend(title="Noise (dB)", **_LEGEND_KW)
+        ax.legend(title="Ruído (dB)", **_LEGEND_KW)
 
     plt.tight_layout()
     _save_figure(fig, output_dir, "fig4_psnr_by_noise")
@@ -888,9 +888,9 @@ def fig6_visual_examples(results_dir: Path, output_dir: Path) -> None:
             continue
 
         percentiles = {
-            "P10 (low)": 0.10,
-            "P50 (median)": 0.50,
-            "P90 (high)": 0.90,
+            "P10 (baixa)": 0.10,
+            "P50 (mediana)": 0.50,
+            "P90 (alta)": 0.90,
         }
         representatives = _pick_entropy_representatives(
             sat_df,
@@ -996,7 +996,7 @@ def fig7_correlation_heatmap(results_dir: Path, output_dir: Path) -> None:
             vmin=-1,
             vmax=1,
         )
-        ax.set_title(f"Spearman $\\rho$: Entropy vs {mcol.upper()}")
+        ax.set_title(f"Spearman $\\rho$: Entropia vs {mcol.upper()}")
         ax.set_ylabel("")
         ax.tick_params(axis="x", rotation=45)
         ax.tick_params(axis="y", rotation=0)
