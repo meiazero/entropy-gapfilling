@@ -1149,7 +1149,11 @@ def _resolve_workers(
     if workers is None:
         workers = config.workers
     if workers is None:
-        workers = os.cpu_count() or 1
+        slurm_cpus = os.environ.get("SLURM_CPUS_PER_TASK")
+        if slurm_cpus is not None:
+            workers = int(slurm_cpus)
+        else:
+            workers = os.cpu_count() or 1
     if workers < 1:
         msg = f"Workers must be >= 1 (got {workers})"
         raise ValueError(msg)
