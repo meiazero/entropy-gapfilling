@@ -19,10 +19,13 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 
 from pdi_pipeline.entropy import shannon_entropy
-from pdi_pipeline.logging_utils import get_project_root, setup_logging
+from pdi_pipeline.logging_utils import (
+    StreamProgress,
+    get_project_root,
+    setup_logging,
+)
 
 setup_logging()
 log = logging.getLogger(__name__)
@@ -133,7 +136,7 @@ def main(argv: list[str] | None = None) -> None:
     # Track mean entropy values for manifest update
     entropy_means: dict[int, dict[str, float]] = {}
 
-    for row in tqdm(rows, desc="Computing entropy"):
+    for row in StreamProgress(rows, desc="Computing entropy"):
         result = _compute_patch_entropy(
             row,
             preprocessed_dir,

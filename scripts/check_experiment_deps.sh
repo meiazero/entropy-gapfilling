@@ -27,7 +27,7 @@ fi
 
 echo "Checking Python environment with uv..."
 uv run python - <<'PY'
-import importlib
+import importlib.util
 import sys
 
 if sys.version_info < (3, 12):
@@ -38,7 +38,6 @@ missing = [
     for name in (
         "numpy",
         "pandas",
-        "tqdm",
         "pdi_pipeline",
         "yaml",
     )

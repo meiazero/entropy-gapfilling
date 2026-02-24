@@ -23,7 +23,6 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 
 from pdi_pipeline.config import ExperimentConfig, load_config
 from pdi_pipeline.dataset import PatchDataset
@@ -33,6 +32,7 @@ from pdi_pipeline.experiment_artifacts import (
     write_entropy_extremes_manifest,
 )
 from pdi_pipeline.logging_utils import (
+    StreamProgress,
     get_project_root,
     setup_file_logging,
     setup_logging,
@@ -807,7 +807,7 @@ def _run_evaluation_loop(
     n_done = 0
     n_skipped = 0
 
-    with tqdm(total=total_work, desc="Experiment") as pbar:
+    with StreamProgress(total=total_work, desc="Experiment") as pbar:
         seed_default = config.seeds[0] if config.seeds else 0
         for noise_level in config.noise_levels:
             for sat in config.satellites:
@@ -1049,7 +1049,7 @@ def _run_evaluation_loop_parallel(
     max_workers = max(1, workers)
     chunksize = max(1, len(tasks) // max_workers // 4) if tasks else 1
 
-    with tqdm(total=total_work, desc="Experiment") as pbar:
+    with StreamProgress(total=total_work, desc="Experiment") as pbar:
         if n_skipped:
             pbar.update(n_skipped)
         with ProcessPoolExecutor(
