@@ -54,26 +54,42 @@ grid_search:
       h_rel: [0.8, 1.0]
     exemplar: {}
 
-# dl_grid_search:
-#   manifest: preprocessed/manifest.csv
-#   output_dir: "results/grid_search/dl"
-#   device: null
-#   satellite: sentinel2
-#   num_workers: null
-#   max_patches: null
-#   common:
-#     epochs: [50]
-#     batch_size: [16, 32]
-#     lr: [0.001, 0.0005]
-#     patience: [10]
-#   models:
-#     ae: {}
-#     unet:
-#       weight_decay: [0.0001, 0.0005]
-#     vae:
-#       beta: [0.001, 0.005]
-#     gan:
-#       lambda_l1: [10.0]
-#       lambda_adv: [0.1, 0.2]
-#     vit:
-#       weight_decay: [0.05]
+dl_training:
+  manifest: preprocessed/manifest.csv
+  output_dir: dl_models/checkpoints
+  satellite: sentinel2
+  device: cuda
+  num_workers: null
+  eval_after_train: true
+  max_patches: 2
+  models:
+    ae:
+      epochs: 2
+      batch_size: 4
+      lr: 1e-3
+      patience: 2
+    vae:
+      epochs: 2
+      batch_size: 4
+      lr: 1e-3
+      beta: 0.001
+      patience: 2
+    gan:
+      epochs: 2
+      batch_size: 4
+      lr: 2e-4
+      lambda_l1: 10.0
+      lambda_adv: 0.1
+      patience: 2
+    unet:
+      epochs: 2
+      batch_size: 4
+      lr: 1e-3
+      weight_decay: 1e-4
+      patience: 2
+    vit:
+      epochs: 2
+      batch_size: 4
+      lr: 1e-4
+      weight_decay: 0.05
+      patience: 2

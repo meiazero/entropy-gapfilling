@@ -77,3 +77,43 @@ dl_grid_search:
       lambda_adv: [0.1, 0.2]
     vit:
       weight_decay: [0.05]
+
+dl_training:
+  manifest: preprocessed/manifest.csv
+  output_dir: dl_models/checkpoints
+  satellite: sentinel2
+  device: cuda
+  num_workers: null
+  eval_after_train: true
+  max_patches: null
+  models:
+    ae:
+      epochs: 50
+      batch_size: 32
+      lr: 1e-3
+      patience: 10
+    vae:
+      epochs: 60
+      batch_size: 32
+      lr: 1e-3
+      beta: 0.001
+      patience: 10
+    gan:
+      epochs: 100
+      batch_size: 16
+      lr: 2e-4
+      lambda_l1: 10.0
+      lambda_adv: 0.1
+      patience: 15
+    unet:
+      epochs: 60
+      batch_size: 32
+      lr: 1e-3
+      weight_decay: 1e-4
+      patience: 12
+    vit:
+      epochs: 100
+      batch_size: 32
+      lr: 1e-4
+      weight_decay: 0.05
+      patience: 15

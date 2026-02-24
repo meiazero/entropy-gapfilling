@@ -255,33 +255,91 @@ python scripts/preprocess_dataset.py --resume
 A flag `--resume` permite retomar o processamento de onde parou caso o
 job seja interrompido.
 
-### 4) Treinar todos os modelos de DL na GPU (SLURM)
+### 4) Treinar modelos de DL na GPU (SLURM)
 
-Submeta o job de treinamento. Ele treina os 5 modelos (AE, VAE, GAN, U-Net,
-ViT) sequencialmente na mesma alocacao de GPU. O job usa a particao `gpuq`
-com 1 GPU A100, 16 CPUs, 64 GB de RAM e tempo limite de 72 horas:
+Cada modelo possui seu proprio sbatch com recursos SLURM ajustados e
+hiperparametros lidos do arquivo YAML (`config/paper_results.yaml` por
+padrao). Apos o treino, a avaliacao no test set roda automaticamente.
 
-```bash
-sbatch scripts/slurm/train_all.sbatch
-```
-
-O job executa `python` diretamente (nao depende do `make`). Os
-hiperparametros podem ser ajustados via variaveis de ambiente antes da
-submissao:
+Treinar um modelo individual:
 
 ```bash
-# Exemplo: alterar epochs e batch size do VAE
-VAE_EPOCHS=100 VAE_BATCH=16 sbatch scripts/slurm/train_all.sbatch
+# Submeter treino do AE (8h, 48G)
+sbatch scripts/slurm/train_ae.sbatch
+
+# Submeter treino do VAE (12h, 48G)
+sbatch scripts/slurm/train_vae.sbatch
+
+# Submeter treino do GAN (36h, 64G)
+sbatch scripts/slurm/train_gan.sbatch
+
+# Submeter treino do U-Net (16h, 48G)
+sbatch scripts/slurm/train_unet.sbatch
+
+# Submeter treino do ViT (36h, 64G)
+sbatch scripts/slurm/train_vit.sbatch
 ```
 
-Variaveis disponiveis: `AE_EPOCHS`, `AE_BATCH`, `AE_LR`, `AE_PATIENCE`,
-`VAE_EPOCHS`, `VAE_BATCH`, `VAE_LR`, `VAE_BETA`, `VAE_PATIENCE`,
-`GAN_EPOCHS`, `GAN_BATCH`, `GAN_LR`, `GAN_LAMBDA_L1`, `GAN_LAMBDA_ADV`,
-`GAN_PATIENCE`, `UNET_EPOCHS`, `UNET_BATCH`, `UNET_LR`, `UNET_WD`,
-`UNET_PATIENCE`, `VIT_EPOCHS`, `VIT_BATCH`, `VIT_LR`, `VIT_WD`,
-`VIT_PATIENCE`.
+Submeter todos os 5 modelos em paralelo (cada um roda em seu proprio job):
 
-### 5) Monitorar jobs e inspecionar saida
+```bash
+bash scripts/slurm/submit_all.sh
+```
+
+Usar um arquivo de configuracao diferente (por exemplo, validacao rapida com
+2 epochs):
+
+```bash
+PDI_CONFIG=config/quick_validation.yaml sbatch scripts/slurm/train_ae.sbatch
+PDI_CONFIG=config/quick_validation.yaml bash scripts/slurm/submit_all.sh
+```
+
+Os hiperparametros de cada modelo estao na secao `dl_training` do YAML. Para
+alterar, edite o arquivo de configuracao diretamente.
+
+> **Alternativa - treino sequencial:** o `train_all.sbatch` ainda esta
+> disponivel para treinar os 5 modelos em um unico job de 72h. Nesse caso,
+> os hiperparametros sao definidos via variaveis de ambiente bash:
+>
+> ```bash
+> sbatch scripts/slurm/train_all.sbatch
+> ```
+
+### 5) Executar experimento classico (SLURM)
+
+O experimento classico avalia os 15 metodos de interpolacao (nearest,
+bilinear, bicubic, Lanczos, IDW, RBF, spline, kriging, DCT, wavelet, TV,
+L1-DCT, L1-wavelet, non-local, exemplar-based) em todas as combinacoes de
+satelites, niveis de ruido e seeds definidos no YAML.
+
+Este job roda na particao `cpuq` (nao requer GPU) com 32 CPUs, 128 GB de
+RAM e tempo limite de 72 horas:
+
+```bash
+sbatch scripts/slurm/experiment_classical.sbatch
+```
+
+Para usar uma configuracao diferente:
+
+```bash
+PDI_CONFIG=config/quick_validation.yaml sbatch scripts/slurm/experiment_classical.sbatch
+```
+
+### 6) Validacao rapida (smoke test)
+
+Antes de submeter os jobs de producao, use os scripts de validacao rapida
+para verificar se o pipeline esta funcionando. Eles usam
+`config/quick_validation.yaml` (1 seed, 2 patches, 2 epochs para DL):
+
+```bash
+# Validacao rapida dos metodos classicos (~1h, CPU)
+sbatch scripts/slurm/experiment_classical_quick.sbatch
+
+# Validacao rapida de todos os 5 modelos DL (~1h, GPU)
+sbatch scripts/slurm/train_dl_quick.sbatch
+```
+
+### 7) Monitorar jobs e inspecionar saida
 
 ```bash
 # Listar jobs em execucao do usuario atual
