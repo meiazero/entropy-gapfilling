@@ -181,6 +181,26 @@ Valores confirmados:
 Se for submeter em um cluster diferente, use `hello_cuda.sbatch` para
 redescobrir os valores corretos (veja a secao "Diagnostico" abaixo).
 
+### Sequencia de reproducao
+
+Execute os passos abaixo em ordem. Os passos 1-3 sao pre-requisitos
+sequenciais - nao submeta os jobs de treinamento antes de o
+pre-processamento ter terminado com sucesso.
+
+```
+# Apos o login no no de login do cluster:
+
+[1] setup_env.sh          <- uma vez, aguardar completar
+[2] export PDI_DATA_ROOT  <- obrigatorio antes de qualquer job
+[3] preprocess.sbatch     <- uma vez, aguardar completar (squeue -u $USER)
+        |
+        +-- [4a] submit_all.sh              (todos os 5 modelos DL, paralelo)
+        +-- [4b] experiment_classical.sbatch (metodos classicos, independente)
+```
+
+Antes de rodar em producao, valide o pipeline com os smoke tests (passo 6
+abaixo). Eles usam 2 epochs e poucos patches e completam em ~1h.
+
 ### 1) Preparar o ambiente (executar apenas uma vez)
 
 O script `setup_env.sh` cria o ambiente conda `pdi312`, instala todas as
