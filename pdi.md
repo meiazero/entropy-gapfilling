@@ -189,8 +189,12 @@ dependencies, and installs a CUDA-enabled PyTorch wheel (torch 2.3.1+cu121,
 compatible with the driver's CUDA 12.4 runtime). It also sets
 `PYTHONNOUSERSITE=1` to prevent `~/.local` packages from interfering.
 
+Run the setup through `srun` so it executes on a GPU node (login nodes have
+no GPU, so `torch.cuda.is_available()` will return `False` there):
+
 ```bash
-bash scripts/slurm/setup_env.sh /path/to/pdi_models_v5
+srun -p gpuq --gres=gpu:a100:1 --mem=16G --cpus-per-task=4 --time=00:30:00 \
+    bash scripts/slurm/setup_env.sh "$(pwd)"
 ```
 
 Verify that the final output shows `CUDA available: True` and lists the
