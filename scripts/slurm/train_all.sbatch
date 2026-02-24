@@ -69,7 +69,6 @@ echo "=== Environment ==="
 python --version
 nvidia-smi
 
-python -m pip install --no-build-isolation -e .
 
 set +e
 python - <<'PY'

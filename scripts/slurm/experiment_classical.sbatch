@@ -36,7 +36,6 @@ echo "=== Environment ==="
 echo "Config: $CONFIG"
 python --version
 
-python -m pip install --no-build-isolation -e .
 
 echo "=== Preprocessing (resume-safe) ==="
 PREPROCESSED_DIR="${PDI_PREPROCESSED_DIR:-$REPO_DIR/preprocessed}"

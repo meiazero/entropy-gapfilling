@@ -69,17 +69,17 @@ fi
 export PIP_CONFIG_FILE=/dev/null
 export PYTHONNOUSERSITE=1
 
-python -m pip install --upgrade pip
+python -m pip install --upgrade pip uv
 
 # Pre-install the build backend so compute nodes (no internet) can use
 # --no-build-isolation without downloading hatchling at job runtime.
-python -m pip install hatchling editables
+uv pip install --system hatchling editables
 
 # ---------------------------------------------------------------------------
 # Install project dependencies
 # ---------------------------------------------------------------------------
 cd "${REPO_DIR}"
-python -m pip install --no-build-isolation -e .
+uv pip install --system --no-build-isolation -e .
 
 # Install CUDA-enabled PyTorch.
 # pyproject.toml constrains torch>=2.2,<2.4, so 2.3.x is the latest allowed
@@ -88,7 +88,7 @@ python -m pip install --no-build-isolation -e .
 # so cu121 binaries are compatible (12.1 <= 12.4). The loaded CUDA toolkit is
 # 12.6.2 (nvcc), but the runtime constraint is determined by the driver (12.4).
 # The A100 (sm_80) is fully supported by all CUDA 12.x toolchains.
-python -m pip install --upgrade \
+uv pip install --system --upgrade \
     "torch==2.3.1+cu121" \
     "torchvision==0.18.1+cu121" \
     --index-url https://download.pytorch.org/whl/cu121
