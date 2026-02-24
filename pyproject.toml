@@ -46,7 +46,6 @@ dependencies = [
      "statsmodels>=0.14.4",
      "torch>=2.2,<2.4",
      "torchvision>=0.17,<0.19",
-     "tqdm>=4.67.1",
 ]
 
 [project.urls]

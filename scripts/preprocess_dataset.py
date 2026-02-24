@@ -35,9 +35,12 @@ import numpy as np
 import pandas as pd
 import rasterio
 import rasterio.errors
-from tqdm import tqdm
 
-from pdi_pipeline.logging_utils import get_project_root, setup_logging
+from pdi_pipeline.logging_utils import (
+    StreamProgress,
+    get_project_root,
+    setup_logging,
+)
 
 setup_logging()
 log = logging.getLogger(__name__)
@@ -603,7 +606,7 @@ def _parallel_process_rows(
             ): row
             for row in rows_list
         }
-        for future in tqdm(
+        for future in StreamProgress(
             as_completed(futures), total=len(futures), desc="Preprocessing"
         ):
             row = futures[future]
