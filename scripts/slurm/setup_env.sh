@@ -40,10 +40,10 @@ module load "${CONDA_MODULE}" || {
 }
 
 module load "${CUDA_MODULE}" || {
-    echo "ERROR: Cannot load module '${CUDA_MODULE}'."
-    echo "       Run: module avail cuda"
-    echo "       Then re-run: CUDA_MODULE=<name> bash $0"
-    exit 1
+    echo "WARNING: Cannot load module '${CUDA_MODULE}' - continuing without CUDA."
+    echo "         GPU verification at the end will be skipped."
+    echo "         This is fine when running setup on a CPU node."
+    CUDA_MODULE=""
 }
 
 source "$(conda info --base)/etc/profile.d/conda.sh"
