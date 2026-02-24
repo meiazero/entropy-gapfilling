@@ -12,8 +12,8 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=48G
 #SBATCH --time=12:00:00
-#SBATCH -o slurm_%x_%j.out
-#SBATCH -e slurm_%x_%j.err
+#SBATCH -o logs/slurm_%x_%j.out
+#SBATCH -e logs/slurm_%x_%j.err
 
 set -euo pipefail
 

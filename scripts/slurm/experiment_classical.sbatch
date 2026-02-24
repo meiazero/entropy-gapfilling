@@ -14,8 +14,8 @@
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=128G
 #SBATCH --time=72:00:00
-#SBATCH -o slurm_%x_%j.out
-#SBATCH -e slurm_%x_%j.err
+#SBATCH -o logs/slurm_%x_%j.out
+#SBATCH -e logs/slurm_%x_%j.err
 
 set -euo pipefail
 
@@ -39,11 +39,16 @@ python --version
 python -m pip install --no-build-isolation -e .
 
 echo "=== Preprocessing (resume-safe) ==="
-DATA_ROOT_ARG=()
-if [[ -n "${PDI_DATA_ROOT:-}" ]]; then
-    DATA_ROOT_ARG=(--data-root "$PDI_DATA_ROOT")
+MANIFEST_PATH="$REPO_DIR/preprocessed/manifest.csv"
+if [[ -f "$MANIFEST_PATH" ]]; then
+    echo "Manifest already exists at $MANIFEST_PATH - skipping preprocessing."
+else
+    DATA_ROOT_ARG=()
+    if [[ -n "${PDI_DATA_ROOT:-}" ]]; then
+        DATA_ROOT_ARG=(--data-root "$PDI_DATA_ROOT")
+    fi
+    python scripts/preprocess_dataset.py --resume "${DATA_ROOT_ARG[@]}"
 fi
-python scripts/preprocess_dataset.py --resume "${DATA_ROOT_ARG[@]}"
 
 echo "=== Classical Experiment ==="
 python scripts/run_experiment.py --config "$CONFIG"
