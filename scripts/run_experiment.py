@@ -43,7 +43,10 @@ setup_logging()
 log = logging.getLogger(__name__)
 
 PROJECT_ROOT = get_project_root()
-DEFAULT_MANIFEST = PROJECT_ROOT / "preprocessed" / "manifest.csv"
+_DEFAULT_PREPROCESSED = Path(
+    os.environ.get("PDI_PREPROCESSED_DIR", str(PROJECT_ROOT / "preprocessed"))
+)
+DEFAULT_MANIFEST = _DEFAULT_PREPROCESSED / "manifest.csv"
 
 _WORKER_METHODS: dict[str, object] = {}
 

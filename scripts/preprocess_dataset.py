@@ -46,7 +46,9 @@ DEFAULT_DATA_ROOT = Path("/opt/datasets/satellite-images")
 MANIFEST_NAME = "manifest.csv"
 
 PROJECT_ROOT = get_project_root()
-DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "preprocessed"
+DEFAULT_OUTPUT_DIR = Path(
+    os.environ.get("PDI_PREPROCESSED_DIR", str(PROJECT_ROOT / "preprocessed"))
+)
 
 VARIANTS = [
     "clean",

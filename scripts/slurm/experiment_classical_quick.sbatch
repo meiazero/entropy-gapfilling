@@ -33,7 +33,8 @@ python --version
 python -m pip install --no-build-isolation -e .
 
 echo "=== Preprocessing (resume-safe) ==="
-MANIFEST_PATH="$REPO_DIR/preprocessed/manifest.csv"
+PREPROCESSED_DIR="${PDI_PREPROCESSED_DIR:-$REPO_DIR/preprocessed}"
+MANIFEST_PATH="$PREPROCESSED_DIR/manifest.csv"
 if [[ -f "$MANIFEST_PATH" ]]; then
     echo "Manifest already exists at $MANIFEST_PATH - skipping preprocessing."
 else
@@ -41,7 +42,7 @@ else
     if [[ -n "${PDI_DATA_ROOT:-}" ]]; then
         DATA_ROOT_ARG=(--data-root "$PDI_DATA_ROOT")
     fi
-    python scripts/preprocess_dataset.py --resume "${DATA_ROOT_ARG[@]}"
+    python scripts/preprocess_dataset.py --resume --output-dir "$PREPROCESSED_DIR" "${DATA_ROOT_ARG[@]}"
 fi
 
 echo "=== Classical Experiment (quick) ==="
