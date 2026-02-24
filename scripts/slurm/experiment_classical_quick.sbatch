@@ -46,3 +46,11 @@ fi
 
 echo "=== Classical Experiment (quick) ==="
 python scripts/run_experiment.py --config config/quick_validation.yaml
+
+RESULTS_DIR=$(python -c "from pdi_pipeline.config import load_config; c = load_config('config/quick_validation.yaml'); print(c.output_path)")
+
+echo "=== Generating Tables (results: $RESULTS_DIR) ==="
+python scripts/generate_tables.py --results "$RESULTS_DIR"
+
+echo "=== Generating Figures (results: $RESULTS_DIR) ==="
+python scripts/generate_figures.py --results "$RESULTS_DIR"

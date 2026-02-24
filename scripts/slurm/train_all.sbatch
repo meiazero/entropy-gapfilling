@@ -136,3 +136,12 @@ python -m dl_models.vit.train \
     --output "$CKPT_DIR/vit_best.pth" \
     --epochs "$VIT_EPOCHS" --batch-size "$VIT_BATCH" --lr "$VIT_LR" \
     --weight-decay "$VIT_WD" --patience "$VIT_PATIENCE" --device cuda
+
+DL_RESULTS_DIR=$(python -c "
+import pathlib
+ckpt_dir = pathlib.Path('$CKPT_DIR')
+print(ckpt_dir.parent if ckpt_dir.name == 'checkpoints' else ckpt_dir)
+")
+
+echo "=== Generating DL Figures (results: $DL_RESULTS_DIR) ==="
+python scripts/generate_figures.py --dl-results "$DL_RESULTS_DIR"

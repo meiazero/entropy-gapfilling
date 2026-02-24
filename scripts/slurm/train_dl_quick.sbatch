@@ -54,3 +54,14 @@ for model in ae vae gan unet vit; do
     echo "--- Training ${model} ---"
     python scripts/slurm/train_model.py --config "$CONFIG" --model "$model"
 done
+
+DL_RESULTS_DIR=$(python -c "
+import yaml, pathlib
+with open('$CONFIG') as f:
+    cfg = yaml.safe_load(f)
+ckpt_dir = pathlib.Path(cfg.get('dl_training', {}).get('output_dir', 'dl_models/checkpoints'))
+print(ckpt_dir.parent if ckpt_dir.name == 'checkpoints' else ckpt_dir)
+")
+
+echo "=== Generating DL Figures (results: $DL_RESULTS_DIR) ==="
+python scripts/generate_figures.py --dl-results "$DL_RESULTS_DIR"

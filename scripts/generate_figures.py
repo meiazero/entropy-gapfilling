@@ -1,17 +1,22 @@
 """Generate publication-quality figures from experiment results.
 
-Produces 9 figure types for the journal paper. All figures use
+Produces figure types for the journal paper. All figures use
 matplotlib + seaborn with consistent styling.
 
 Usage:
     uv run python scripts/generate_figures.py --results results/paper_results
     uv run python scripts/generate_figures.py \
         --results results/paper_results --figure 2
+    uv run python scripts/generate_figures.py \
+        --dl-results dl_models
+    uv run python scripts/generate_figures.py \
+        --results results/paper_results --dl-results dl_models
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import math
 from pathlib import Path
@@ -112,6 +117,8 @@ _PUB_FONT_OVERRIDES = {
 _SETTINGS: dict[str, bool] = {"png_only": False}
 
 _PATCH_SPLITS: dict[int, str] = {}
+
+DL_MODELS: tuple[str, ...] = ("ae", "vae", "gan", "unet", "vit")
 
 
 def _load_patch_splits() -> dict[int, str]:
@@ -390,6 +397,16 @@ def _load_recon_array(
     if png_path.exists():
         return plt.imread(str(png_path))[:, :, :3]
     return None
+
+
+def _load_dl_history(dl_results_dir: Path, model: str) -> dict | None:
+    """Load training history JSON for *model* from *dl_results_dir*."""
+    path = dl_results_dir / f"{model}_history.json"
+    if not path.exists():
+        log.debug("History not found: %s", path)
+        return None
+    with path.open() as fh:
+        return json.load(fh)
 
 
 def _save_figure(fig: plt.Figure, output_dir: Path, name: str) -> None:
@@ -1008,6 +1025,241 @@ def fig7_correlation_heatmap(results_dir: Path, output_dir: Path) -> None:
     log.info("Saved fig7_correlation_heatmap(s)")
 
 
+def fig_dl_loss_curves(dl_results_dir: Path, output_dir: Path) -> None:
+    """Fig DL-1: Train vs val loss curves per model."""
+    log.info("Figure DL-1: training loss curves")
+
+    histories = {m: _load_dl_history(dl_results_dir, m) for m in DL_MODELS}
+    available = {m: h for m, h in histories.items() if h and h.get("epochs")}
+    if not available:
+        log.warning(
+            "No DL training histories found. Skipping fig_dl_loss_curves."
+        )
+        return
+
+    n = len(available)
+    ncols = min(3, n)
+    nrows = math.ceil(n / ncols)
+
+    fig, axes = plt.subplots(
+        nrows,
+        ncols,
+        figsize=(ncols * 2.8, nrows * 2.2),
+        squeeze=False,
+        constrained_layout=True,
+    )
+    axes_flat = axes.flatten()
+
+    for idx, (model, hist) in enumerate(available.items()):
+        ax = axes_flat[idx]
+        epochs_data = hist["epochs"]
+        epochs = [e["epoch"] for e in epochs_data]
+        train_loss = [e.get("train_loss") for e in epochs_data]
+        val_loss = [e.get("val_loss") for e in epochs_data]
+
+        ax.plot(
+            epochs, train_loss, label="Treino", linewidth=1.2, color="#1f77b4"
+        )
+        ax.plot(
+            epochs,
+            val_loss,
+            label="Validação",
+            linewidth=1.2,
+            color="#ff7f0e",
+            linestyle="--",
+        )
+        ax.set_title(model.upper(), fontsize=FONT_SIZE + 1)
+        ax.set_xlabel("Época", fontsize=FONT_SIZE)
+        ax.set_ylabel("Perda", fontsize=FONT_SIZE)
+        ax.legend(fontsize=FONT_SIZE - 1)
+        ax.grid(True, alpha=0.3, linewidth=0.5)
+
+    for idx in range(n, len(axes_flat)):
+        axes_flat[idx].set_visible(False)
+
+    _save_figure(fig, output_dir, "fig_dl_loss_curves")
+    plt.close(fig)
+    log.info("Saved fig_dl_loss_curves")
+
+
+def fig_dl_val_metrics(dl_results_dir: Path, output_dir: Path) -> None:
+    """Fig DL-2: Validation PSNR, SSIM and RMSE comparison across models."""
+    log.info("Figure DL-2: validation metrics comparison")
+
+    histories = {m: _load_dl_history(dl_results_dir, m) for m in DL_MODELS}
+    available = {m: h for m, h in histories.items() if h and h.get("epochs")}
+    if not available:
+        log.warning(
+            "No DL training histories found. Skipping fig_dl_val_metrics."
+        )
+        return
+
+    metric_specs = [
+        ("val_psnr", "PSNR (dB)"),
+        ("val_ssim", "SSIM"),
+        ("val_rmse", "RMSE"),
+    ]
+    palette = sns.color_palette("Set2", len(available))
+
+    fig, axes = plt.subplots(
+        1,
+        3,
+        figsize=(7.0, 2.8),
+        constrained_layout=True,
+    )
+
+    for ax, (key, label) in zip(axes, metric_specs, strict=False):
+        for color, (model, hist) in zip(
+            palette, available.items(), strict=False
+        ):
+            epochs_data = hist["epochs"]
+            epochs = [e["epoch"] for e in epochs_data]
+            values = [e.get(key) for e in epochs_data]
+            if any(v is not None for v in values):
+                ax.plot(
+                    epochs,
+                    values,
+                    label=model.upper(),
+                    linewidth=1.2,
+                    color=color,
+                )
+        ax.set_xlabel("Época", fontsize=FONT_SIZE)
+        ax.set_ylabel(label, fontsize=FONT_SIZE)
+        ax.set_title(label, fontsize=FONT_SIZE + 1)
+        ax.grid(True, alpha=0.3, linewidth=0.5)
+
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(
+        handles,
+        labels,
+        loc="lower center",
+        ncol=len(available),
+        fontsize=FONT_SIZE - 1,
+        frameon=True,
+    )
+
+    _save_figure(fig, output_dir, "fig_dl_val_metrics")
+    plt.close(fig)
+    log.info("Saved fig_dl_val_metrics")
+
+
+def fig_dl_vae_components(dl_results_dir: Path, output_dir: Path) -> None:
+    """Fig DL-3: VAE loss decomposition (reconstruction + KL) over epochs."""
+    log.info("Figure DL-3: VAE loss components")
+
+    hist = _load_dl_history(dl_results_dir, "vae")
+    if hist is None or not hist.get("epochs"):
+        log.info("No VAE history found. Skipping fig_dl_vae_components.")
+        return
+
+    epochs_data = hist["epochs"]
+    if not any("train_recon_loss" in e for e in epochs_data):
+        log.info(
+            "VAE component keys not in history. Skipping fig_dl_vae_components."
+        )
+        return
+
+    epochs = [e["epoch"] for e in epochs_data]
+
+    fig, axes = plt.subplots(1, 2, figsize=(7.0, 2.8), constrained_layout=True)
+
+    train_recon = [e.get("train_recon_loss") for e in epochs_data]
+    val_recon = [e.get("val_recon_loss") for e in epochs_data]
+    axes[0].plot(
+        epochs, train_recon, label="Treino", linewidth=1.2, color="#1f77b4"
+    )
+    axes[0].plot(
+        epochs,
+        val_recon,
+        label="Validação",
+        linewidth=1.2,
+        color="#ff7f0e",
+        linestyle="--",
+    )
+    axes[0].set_title("Perda de Reconstrução (VAE)", fontsize=FONT_SIZE + 1)
+    axes[0].set_xlabel("Época", fontsize=FONT_SIZE)
+    axes[0].set_ylabel("Perda", fontsize=FONT_SIZE)
+    axes[0].legend(fontsize=FONT_SIZE - 1)
+    axes[0].grid(True, alpha=0.3, linewidth=0.5)
+
+    train_kl = [e.get("train_kl_loss") for e in epochs_data]
+    val_kl = [e.get("val_kl_loss") for e in epochs_data]
+    axes[1].plot(
+        epochs, train_kl, label="Treino", linewidth=1.2, color="#1f77b4"
+    )
+    axes[1].plot(
+        epochs,
+        val_kl,
+        label="Validação",
+        linewidth=1.2,
+        color="#ff7f0e",
+        linestyle="--",
+    )
+    axes[1].set_title("Divergência KL (VAE)", fontsize=FONT_SIZE + 1)
+    axes[1].set_xlabel("Época", fontsize=FONT_SIZE)
+    axes[1].set_ylabel("Perda", fontsize=FONT_SIZE)
+    axes[1].legend(fontsize=FONT_SIZE - 1)
+    axes[1].grid(True, alpha=0.3, linewidth=0.5)
+
+    _save_figure(fig, output_dir, "fig_dl_vae_components")
+    plt.close(fig)
+    log.info("Saved fig_dl_vae_components")
+
+
+def fig_dl_gan_components(dl_results_dir: Path, output_dir: Path) -> None:
+    """Fig DL-4: GAN generator and discriminator loss over epochs."""
+    log.info("Figure DL-4: GAN loss components")
+
+    hist = _load_dl_history(dl_results_dir, "gan")
+    if hist is None or not hist.get("epochs"):
+        log.info("No GAN history found. Skipping fig_dl_gan_components.")
+        return
+
+    epochs_data = hist["epochs"]
+    if not any("train_g_loss" in e for e in epochs_data):
+        log.info(
+            "GAN component keys not in history. Skipping fig_dl_gan_components."
+        )
+        return
+
+    epochs = [e["epoch"] for e in epochs_data]
+
+    fig, axes = plt.subplots(1, 3, figsize=(7.0, 2.8), constrained_layout=True)
+
+    g_loss = [e.get("train_g_loss") for e in epochs_data]
+    axes[0].plot(epochs, g_loss, linewidth=1.2, color="#2ca02c")
+    axes[0].set_title("Perda do Gerador", fontsize=FONT_SIZE + 1)
+    axes[0].set_xlabel("Época", fontsize=FONT_SIZE)
+    axes[0].set_ylabel("Perda", fontsize=FONT_SIZE)
+    axes[0].grid(True, alpha=0.3, linewidth=0.5)
+
+    d_loss = [e.get("train_d_loss") for e in epochs_data]
+    axes[1].plot(epochs, d_loss, linewidth=1.2, color="#d62728")
+    axes[1].set_title("Perda do Discriminador", fontsize=FONT_SIZE + 1)
+    axes[1].set_xlabel("Época", fontsize=FONT_SIZE)
+    axes[1].set_ylabel("Perda", fontsize=FONT_SIZE)
+    axes[1].grid(True, alpha=0.3, linewidth=0.5)
+
+    val_loss = [e.get("val_loss") for e in epochs_data]
+    axes[2].plot(epochs, val_loss, linewidth=1.2, color="#9467bd")
+    axes[2].set_title("Perda de Validação (G)", fontsize=FONT_SIZE + 1)
+    axes[2].set_xlabel("Época", fontsize=FONT_SIZE)
+    axes[2].set_ylabel("Perda", fontsize=FONT_SIZE)
+    axes[2].grid(True, alpha=0.3, linewidth=0.5)
+
+    _save_figure(fig, output_dir, "fig_dl_gan_components")
+    plt.close(fig)
+    log.info("Saved fig_dl_gan_components")
+
+
+ALL_DL_FIGURES = {
+    "loss_curves": fig_dl_loss_curves,
+    "val_metrics": fig_dl_val_metrics,
+    "vae_components": fig_dl_vae_components,
+    "gan_components": fig_dl_gan_components,
+}
+
+
 ALL_FIGURES = {
     1: fig1_entropy_examples,
     2: fig2_entropy_vs_psnr,
@@ -1026,8 +1278,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--results",
         type=Path,
-        required=True,
-        help="Path to experiment results directory.",
+        default=None,
+        help="Path to classical experiment results directory.",
+    )
+    parser.add_argument(
+        "--dl-results",
+        type=Path,
+        default=None,
+        help="Path to DL models directory containing *_history.json files.",
     )
     parser.add_argument(
         "--output",
@@ -1039,7 +1297,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--figure",
         type=int,
         default=None,
-        help="Generate only this figure number (1-7).",
+        help="Generate only this classical figure number (1-7).",
     )
     parser.add_argument(
         "--png-only",
@@ -1051,25 +1309,40 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
+
+    if args.results is None and args.dl_results is None:
+        log.error("Provide at least one of --results or --dl-results.")
+        return
+
     _SETTINGS["png_only"] = args.png_only
     _setup_style()
 
-    results_dir = args.results
-    output_dir = args.output or results_dir / "figures"
+    base_dir = args.results or args.dl_results
+    output_dir = args.output or base_dir / "figures"
     output_dir.mkdir(parents=True, exist_ok=True)
-    setup_file_logging(results_dir, name="figures")
+    setup_file_logging(base_dir, name="figures")
 
-    if args.figure is not None:
-        if args.figure not in ALL_FIGURES:
-            log.error("Invalid figure number: %d", args.figure)
-            return
-        ALL_FIGURES[args.figure](results_dir, output_dir)
-    else:
-        for num, func in ALL_FIGURES.items():
+    if args.results is not None:
+        results_dir = args.results
+        if args.figure is not None:
+            if args.figure not in ALL_FIGURES:
+                log.error("Invalid figure number: %d", args.figure)
+                return
+            ALL_FIGURES[args.figure](results_dir, output_dir)
+        else:
+            for num, func in ALL_FIGURES.items():
+                try:
+                    func(results_dir, output_dir)
+                except Exception:
+                    log.exception("Error generating figure %d", num)
+
+    if args.dl_results is not None:
+        dl_results_dir = args.dl_results
+        for name, func in ALL_DL_FIGURES.items():
             try:
-                func(results_dir, output_dir)
+                func(dl_results_dir, output_dir)
             except Exception:
-                log.exception("Error generating figure %d", num)
+                log.exception("Error generating DL figure %s", name)
 
     log.info("Figures saved to: %s", output_dir)
 
