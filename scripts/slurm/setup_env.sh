@@ -73,7 +73,7 @@ python -m pip install --upgrade pip
 
 # Pre-install the build backend so compute nodes (no internet) can use
 # --no-build-isolation without downloading hatchling at job runtime.
-python -m pip install hatchling
+python -m pip install hatchling editables
 
 # ---------------------------------------------------------------------------
 # Install project dependencies
