@@ -62,9 +62,11 @@ if [[ "${CONDA_DEFAULT_ENV:-}" != "${ENV_NAME}" ]]; then
     exit 1
 fi
 
-# Prevent pip from installing into the user home directory.
-export PIP_NO_USER=1
-export PIP_USER=0
+# Prevent pip from reading user config (which may contain 'user = true') and
+# prevent user site-packages from being added to sys.path.
+# PIP_CONFIG_FILE=/dev/null bypasses ~/.config/pip/pip.conf so pip installs
+# to the conda env's site-packages instead of ~/.local.
+export PIP_CONFIG_FILE=/dev/null
 export PYTHONNOUSERSITE=1
 
 python -m pip install --upgrade pip

@@ -15,10 +15,10 @@ module load cuda/12.6.2
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate pdi312
 
-# Prevent pip from reading or writing to the user home directory.
+# Prevent pip from reading user config (which may contain 'user = true') and
+# prevent user site-packages (~/.local) from being added to sys.path.
+export PIP_CONFIG_FILE=/dev/null
 export PYTHONNOUSERSITE=1
-export PIP_NO_USER=1
-export PIP_USER=0
 
 REPO_DIR="${REPO_DIR:-$PWD}"
 cd "$REPO_DIR"
