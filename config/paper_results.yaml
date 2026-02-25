@@ -34,7 +34,7 @@ metrics: ["psnr", "ssim", "rmse", "sam", "ergas"]
 
 dl_training:
   manifest: preprocessed/manifest.csv
-  output_dir: dl_models/checkpoints
+  output_dir: results/dl_models/checkpoints
   satellite: sentinel2
   device: cuda
   num_workers: null

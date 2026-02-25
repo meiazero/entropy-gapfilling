@@ -19,6 +19,7 @@ conda activate pdi312
 # prevent user site-packages (~/.local) from being added to sys.path.
 export PIP_CONFIG_FILE=/dev/null
 export PYTHONNOUSERSITE=1
+export PYTHONUNBUFFERED=1
 
 REPO_DIR="${REPO_DIR:-$PWD}"
 cd "$REPO_DIR"

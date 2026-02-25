@@ -148,6 +148,10 @@ paper-only: ## Compile paper without copying assets (use existing docs/ files)
 		-jobname=$(JOB_NAME) -outdir=$(abspath $(BUILD_DIR)) $(TEX_SRC)
 	@echo "Output: $(BUILD_DIR)/$(JOB_NAME).pdf"
 
+# Force unbuffered Python output so logs appear in real time in terminals
+# and SLURM captured files (equivalent to python -u).
+export PYTHONUNBUFFERED := 1
+
 # =============================================================================
 ##@ Deep Learning - Configuration
 # =============================================================================
@@ -159,14 +163,14 @@ paper-only: ## Compile paper without copying assets (use existing docs/ files)
 # MANIFEST    - path to the manifest CSV produced by preprocess_dataset.py
 # SATELLITE   - filter to a specific satellite (passed to --satellite)
 # DEVICE      - PyTorch device string; leave unset to let scripts auto-detect
-# CKPT_DIR    - directory where .pth checkpoints and *_history.json are written
+# CKPT_DIR    - directory where .pth checkpoints are written
 # EVAL_DIR    - root directory for evaluation results CSVs
 # PLOT_DIR    - directory for training-curve plots (PDF + PNG)
 # SAVE_RECON  - number of reconstructed arrays to save during eval (0 = none)
 
 MANIFEST    ?= preprocessed/manifest.csv
 SATELLITE   ?= sentinel2
-CKPT_DIR    ?= dl_models/checkpoints
+CKPT_DIR    ?= results/dl_models/checkpoints
 EVAL_DIR    ?= results/dl_eval
 PLOT_DIR    ?= results/dl_plots
 SAVE_RECON  ?= 0
@@ -382,9 +386,10 @@ dl-test: ## Run contract and utility unit tests for all DL models
 
 .PHONY: dl-plot
 dl-plot: ## Plot training curves from all available history JSON files
-	@HFILES=$$(ls $(CKPT_DIR)/*_history.json 2>/dev/null); \
+	@_DL_RESULTS_DIR=$$(dirname "$(CKPT_DIR)"); \
+	HFILES=$$(ls "$$_DL_RESULTS_DIR"/*_history.json 2>/dev/null); \
 	[ -n "$$HFILES" ] || { \
-		printf "\033[31mERROR\033[0m no history files found in $(CKPT_DIR). Train a model first.\n"; \
+		printf "\033[31mERROR\033[0m no history files found in $$_DL_RESULTS_DIR. Train a model first.\n"; \
 		exit 1; }; \
 	printf "\033[34m==>\033[0m Plotting training curves  ->  $(PLOT_DIR)\n"; \
 	uv run python -m dl_models.plot_training \

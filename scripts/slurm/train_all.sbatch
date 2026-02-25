@@ -21,6 +21,7 @@ conda activate pdi312
 # Without these, torch 2.5.x from ~/.local could shadow the pinned 2.3.x.
 export PIP_CONFIG_FILE=/dev/null
 export PYTHONNOUSERSITE=1
+export PYTHONUNBUFFERED=1
 
 REPO_DIR="${REPO_DIR:-$PWD}"
 cd "$REPO_DIR"
@@ -28,7 +29,7 @@ cd "$REPO_DIR"
 export PDI_DATA_ROOT="${PDI_DATA_ROOT:-}"
 SATELLITE="${SATELLITE:-sentinel2}"
 MANIFEST="${MANIFEST:-preprocessed/manifest.csv}"
-CKPT_DIR="${CKPT_DIR:-dl_models/checkpoints}"
+CKPT_DIR="${CKPT_DIR:-results/dl_models/checkpoints}"
 
 AE_EPOCHS="${AE_EPOCHS:-50}"
 VAE_EPOCHS="${VAE_EPOCHS:-60}"
