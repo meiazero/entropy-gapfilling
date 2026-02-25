@@ -1,10 +1,10 @@
 experiment:
   name: "quick_validation"
-  seeds: [78]
+  seeds: [128]
   noise_levels: ["inf", "40", "30", "20"]
   satellites: ["sentinel2", "landsat8", "landsat9", "modis"]
   entropy_windows: [7, 15, 31]
-  max_patches: 2
+  max_patches: 1
   output_dir: "results/"
 
 methods:
@@ -31,28 +31,6 @@ methods:
     - { name: "exemplar_based" }
 
 metrics: ["psnr", "ssim", "rmse", "sam", "ergas"]
-
-grid_search:
-  output_dir: "results/grid_search/classical"
-  experiment_overrides:
-    max_patches: 2
-    metrics: ["psnr", "ssim", "rmse", "sam", "ergas"]
-  methods:
-    idw:
-      power: [1.5, 2.0]
-      kernel_size: [null, 7]
-    rbf:
-      kernel: ["thin_plate_spline", "gaussian"]
-      epsilon: [0.5, 1.0]
-      smoothing: [0.0, 0.01]
-    kriging:
-      variogram_model: ["spherical", "gaussian"]
-      nlags: [6, 10]
-    non_local:
-      patch_size: [5, 7]
-      patch_distance: [6, 10]
-      h_rel: [0.8, 1.0]
-    exemplar: {}
 
 dl_training:
   manifest: preprocessed/manifest.csv

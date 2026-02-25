@@ -219,15 +219,22 @@ __marimo__/
 *.tiff
 *.tif
 
-# Output folders
+# Output folders - exclude heavy data, keep figures and tables for the paper
 outputs/
 outputs-*/
 preprocessed/
 
+# Results: exclude raw data and per-patch reconstruction thumbnails;
+# figures/ (PNG, PDF) and tables/ (TEX) are intentionally tracked.
+results/**/*.npy
+results/**/reconstruction_images/
+results/**/raw_results.csv
+results/**/entropy_extremes.json
+
 # Apache parquet
 *.parquet
 
-# CSV
+# CSV (raw data files; results/raw_results.csv excluded above explicitly)
 *.csv
 
 # LATEX

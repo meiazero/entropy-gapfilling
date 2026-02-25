@@ -625,7 +625,10 @@ def table8_dl_comparison(
 ) -> None:
     """Table 8: Classical vs. DL method comparison."""
     classical_summary = (
-        df.groupby("method")[["psnr", "ssim", "rmse"]].mean().reset_index()
+        df
+        .groupby("method", observed=True)[["psnr", "ssim", "rmse"]]
+        .mean()
+        .reset_index()
     )
     classical_summary["type"] = "Clássico"
 
