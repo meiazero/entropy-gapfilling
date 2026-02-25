@@ -2,9 +2,6 @@
 # ---------------------------------------------------------------------------
 # submit_all.sh - Submit the full DL pipeline as independent SLURM jobs.
 #
-# Dependency chain:
-#   preprocess -> [ae, vae, gan, unet, vit in parallel]
-#
 # Usage (from the repo root or login node):
 #   bash scripts/slurm/submit_all.sh
 #   PDI_CONFIG=config/quick_validation.yaml bash scripts/slurm/submit_all.sh
@@ -25,13 +22,30 @@ echo ""
 PREP_JID=$(REPO_DIR="$REPO_DIR" sbatch --parsable "$SCRIPT_DIR/preprocess.sbatch")
 echo "Submitted preprocess:  job $PREP_JID"
 
-for model in ae vae gan unet vit; do
-    JID=$(REPO_DIR="$REPO_DIR" PDI_CONFIG="$CONFIG" sbatch \
-        --parsable \
-        --dependency=afterok:"$PREP_JID" \
-        "$SCRIPT_DIR/train_${model}.sbatch")
-    echo "Submitted train-${model}: job $JID"
-done
+AE_JID=$(REPO_DIR="$REPO_DIR" PDI_CONFIG="$CONFIG" sbatch \
+    --parsable \
+    "$SCRIPT_DIR/train_ae.sbatch")
+echo "Submitted train-ae:    job $AE_JID"
+
+VAE_JID=$(REPO_DIR="$REPO_DIR" PDI_CONFIG="$CONFIG" sbatch \
+    --parsable \
+    "$SCRIPT_DIR/train_vae.sbatch")
+echo "Submitted train-vae:   job $VAE_JID"
+
+GAN_JID=$(REPO_DIR="$REPO_DIR" PDI_CONFIG="$CONFIG" sbatch \
+    --parsable \
+    "$SCRIPT_DIR/train_gan.sbatch")
+echo "Submitted train-gan:   job $GAN_JID"
+
+UNET_JID=$(REPO_DIR="$REPO_DIR" PDI_CONFIG="$CONFIG" sbatch \
+    --parsable \
+    "$SCRIPT_DIR/train_unet.sbatch")
+echo "Submitted train-unet:  job $UNET_JID"
+
+VIT_JID=$(REPO_DIR="$REPO_DIR" PDI_CONFIG="$CONFIG" sbatch \
+    --parsable \
+    "$SCRIPT_DIR/train_vit.sbatch")
+echo "Submitted train-vit:   job $VIT_JID"
 
 echo ""
 echo "Monitor with: squeue -u \$USER"

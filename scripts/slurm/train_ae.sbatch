@@ -63,3 +63,6 @@ print(ckpt_dir.parent if ckpt_dir.name == 'checkpoints' else ckpt_dir)
 
 echo "=== Generating DL Figures (results: $DL_RESULTS_DIR) ==="
 python scripts/generate_figures.py --dl-results "$DL_RESULTS_DIR"
+
+echo "=== Generating DL Tables (results: $DL_RESULTS_DIR) ==="
+python scripts/generate_tables.py --dl-results "$DL_RESULTS_DIR"

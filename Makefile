@@ -100,7 +100,10 @@ preview: preprocess-all ## Full preview: classical quick + all DL models quick +
 		--results results/quick_validation \
 		--dl-results "$$_DL_DIR" \
 		--png-only
-	@uv run python scripts/generate_tables.py --results results/quick_validation
+	@_DL_DIR=$$(dirname "$(CKPT_DIR)"); \
+	uv run python scripts/generate_tables.py \
+		--results results/quick_validation \
+		--dl-results "$$_DL_DIR"
 	@echo "Preview complete. Results in results/quick_validation/ and $(PLOT_DIR)/"
 
 # =============================================================================
@@ -427,5 +430,11 @@ dl-plot: ## Plot training curves from all available history JSON files
 ##@ Deep Learning - Meta
 # =============================================================================
 
+.PHONY: dl-tables
+dl-tables: ## Generate LaTeX tables from DL training history
+	@_DL_RESULTS_DIR=$$(dirname "$(CKPT_DIR)"); \
+	printf "\033[34m==>\033[0m Generating DL tables  ->  $$_DL_RESULTS_DIR/tables\n"; \
+	uv run python scripts/generate_tables.py --dl-results "$$_DL_RESULTS_DIR"
+
 .PHONY: dl-all
-dl-all: dl-train-all dl-eval-all dl-plot ## Full DL pipeline: train all -> eval all -> plot
+dl-all: dl-train-all dl-eval-all dl-plot dl-tables ## Full DL pipeline: train all -> eval all -> plot -> tables

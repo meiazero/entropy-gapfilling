@@ -75,3 +75,6 @@ fi
 
 echo "=== Generating DL Figures (results: $DL_RESULTS_DIR) ==="
 python scripts/generate_figures.py --dl-results "$DL_RESULTS_DIR"
+
+echo "=== Generating DL Tables (results: $DL_RESULTS_DIR) ==="
+python scripts/generate_tables.py --dl-results "$DL_RESULTS_DIR"
