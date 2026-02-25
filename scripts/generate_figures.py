@@ -1351,7 +1351,7 @@ def fig_dl_comparison_matrix(dl_results_dir: Path, output_dir: Path) -> None:
         for c_idx, col in enumerate(col_labels):
             raw = df.iloc[r_idx][col]
             if raw is None or (isinstance(raw, float) and np.isnan(raw)):
-                cell_text = "N/A"
+                cell_text = "N/D"
             elif col == "PSNR (dB)":
                 cell_text = f"{raw:.2f}"
             else:
@@ -1368,9 +1368,11 @@ def fig_dl_comparison_matrix(dl_results_dir: Path, output_dir: Path) -> None:
                 color=text_color,
             )
 
-    plt.colorbar(im, ax=ax, fraction=0.03, pad=0.03, label="Normalised score")
+    plt.colorbar(
+        im, ax=ax, fraction=0.03, pad=0.03, label="Pontuação normalizada"
+    )
     ax.set_title(
-        "Model comparison (last epoch)",
+        "Comparação de modelos (última época)",
         fontsize=FONT_SIZE + 1,
         pad=8,
     )
@@ -1391,9 +1393,9 @@ def fig_dl_f1_scores(dl_results_dir: Path, output_dir: Path) -> None:
         return
 
     thresholds = [
-        ("val_f1_002", "tau=0.02"),
-        ("val_f1_005", "tau=0.05"),
-        ("val_f1_01", "tau=0.10"),
+        ("val_f1_002", r"$\tau=0{,}02$"),
+        ("val_f1_005", r"$\tau=0{,}05$"),
+        ("val_f1_01", r"$\tau=0{,}10$"),
     ]
 
     models = list(available.keys())
@@ -1448,11 +1450,13 @@ def fig_dl_f1_scores(dl_results_dir: Path, output_dir: Path) -> None:
     ax.set_xticks(x)
     ax.set_xticklabels([label for _, label in thresholds], fontsize=FONT_SIZE)
     ax.set_xlabel(
-        "Error threshold (normalised pixel range [0, 1])", fontsize=FONT_SIZE
+        "Limiar de erro (intervalo de pixel normalizado [0, 1])",
+        fontsize=FONT_SIZE,
     )
-    ax.set_ylabel("F1 score", fontsize=FONT_SIZE)
+    ax.set_ylabel("Pontuação F1", fontsize=FONT_SIZE)
     ax.set_title(
-        "Pixel-level F1 score by threshold (last epoch)", fontsize=FONT_SIZE + 1
+        "F1 em nível de pixel por limiar (última época)",
+        fontsize=FONT_SIZE + 1,
     )
     ax.set_ylim(0, 1.12)
     ax.grid(True, axis="y", alpha=0.3, linewidth=0.5)
@@ -1469,116 +1473,6 @@ def fig_dl_f1_scores(dl_results_dir: Path, output_dir: Path) -> None:
     log.info("Saved fig_dl_f1_scores")
 
 
-_TABLE_COLUMN_SPECS: list[tuple[str, str, bool, str]] = [
-    ("val_psnr", "PSNR (dB)", True, ".2f"),
-    ("val_ssim", "SSIM", True, ".4f"),
-    ("val_rmse", "RMSE", False, ".4f"),
-    ("val_pixel_acc_002", "Acc @0.02", True, ".4f"),
-    ("val_f1_002", "F1 @0.02", True, ".4f"),
-    ("val_pixel_acc_005", "Acc @0.05", True, ".4f"),
-    ("val_f1_005", "F1 @0.05", True, ".4f"),
-    ("val_pixel_acc_01", "Acc @0.10", True, ".4f"),
-    ("val_f1_01", "F1 @0.10", True, ".4f"),
-]
-
-
-def _build_table_cells(
-    available: dict,
-) -> tuple[list[list[str]], list[list[float | None]]]:
-    """Return (cell_text, raw_values) for the metrics summary table."""
-    cell_text: list[list[str]] = []
-    raw_values: list[list[float | None]] = []
-    for hist in available.values():
-        last = hist["epochs"][-1]
-        row_text: list[str] = []
-        row_raw: list[float | None] = []
-        for key, _, _, fmt in _TABLE_COLUMN_SPECS:
-            val = last.get(key)
-            row_raw.append(val)
-            row_text.append(f"{val:{fmt}}" if val is not None else "-")
-        cell_text.append(row_text)
-        raw_values.append(row_raw)
-    return cell_text, raw_values
-
-
-def _best_cell_colors(
-    raw_values: list[list[float | None]],
-) -> list[list[str]]:
-    """Return a grid of hex colors marking the best value per column."""
-    n_rows = len(raw_values)
-    n_cols = len(_TABLE_COLUMN_SPECS)
-    colors = [["#ffffff"] * n_cols for _ in range(n_rows)]
-    for c_idx, (_, _, higher_is_better, _) in enumerate(_TABLE_COLUMN_SPECS):
-        col_vals = [raw_values[r][c_idx] for r in range(n_rows)]
-        finite = [v for v in col_vals if v is not None and np.isfinite(v)]
-        if not finite:
-            continue
-        best = max(finite) if higher_is_better else min(finite)
-        for r_idx, v in enumerate(col_vals):
-            if v is not None and np.isfinite(v) and abs(v - best) < 1e-9:
-                colors[r_idx][c_idx] = "#c8e6c9"
-    return colors
-
-
-def fig_dl_metrics_table(dl_results_dir: Path, output_dir: Path) -> None:
-    """Fig DL-7: Matplotlib table of final-epoch metrics for all models.
-
-    Shows PSNR, SSIM, RMSE and all F1/pixel-accuracy metrics.
-    Best value per column is highlighted in bold green.
-    """
-    log.info("Figure DL-7: metrics summary table")
-
-    histories = {m: _load_dl_history(dl_results_dir, m) for m in DL_MODELS}
-    available = {m: h for m, h in histories.items() if h and h.get("epochs")}
-    if not available:
-        log.warning("No DL histories found. Skipping fig_dl_metrics_table.")
-        return
-
-    model_names = [m.upper() for m in available]
-    col_headers = [label for _, label, _, _ in _TABLE_COLUMN_SPECS]
-    cell_text, raw_values = _build_table_cells(available)
-    cell_colors = _best_cell_colors(raw_values)
-
-    n_rows = len(model_names)
-    n_cols = len(_TABLE_COLUMN_SPECS)
-    fig_w = max(7.0, n_cols * 0.95 + 1.2)
-    fig_h = max(1.5, n_rows * 0.42 + 0.8)
-    fig, ax = plt.subplots(figsize=(fig_w, fig_h), constrained_layout=True)
-    ax.axis("off")
-
-    tbl = ax.table(
-        cellText=cell_text,
-        rowLabels=model_names,
-        colLabels=col_headers,
-        cellLoc="center",
-        loc="center",
-    )
-    tbl.auto_set_font_size(False)
-    tbl.set_fontsize(FONT_SIZE - 1)
-    tbl.scale(1.0, 1.5)
-
-    for r_idx in range(n_rows):
-        for c_idx in range(n_cols):
-            tbl[r_idx + 1, c_idx].set_facecolor(cell_colors[r_idx][c_idx])
-    for c_idx in range(n_cols):
-        tbl[0, c_idx].set_facecolor("#e3f2fd")
-        tbl[0, c_idx].set_text_props(weight="bold")
-    for r_idx in range(n_rows):
-        tbl[r_idx + 1, -1].set_facecolor("#fafafa")
-        tbl[r_idx + 1, -1].set_text_props(weight="bold")
-
-    ax.set_title(
-        "DL model metrics summary (last epoch, best per column highlighted)",
-        fontsize=FONT_SIZE + 1,
-        pad=12,
-        y=0.98,
-    )
-
-    _save_figure(fig, output_dir, "fig_dl_metrics_table")
-    plt.close(fig)
-    log.info("Saved fig_dl_metrics_table")
-
-
 ALL_DL_FIGURES = {
     "loss_curves": fig_dl_loss_curves,
     "val_metrics": fig_dl_val_metrics,
@@ -1586,7 +1480,6 @@ ALL_DL_FIGURES = {
     "gan_components": fig_dl_gan_components,
     "comparison_matrix": fig_dl_comparison_matrix,
     "f1_scores": fig_dl_f1_scores,
-    "metrics_table": fig_dl_metrics_table,
 }
 
 

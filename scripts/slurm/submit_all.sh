@@ -1,21 +1,37 @@
 #!/bin/bash
 # ---------------------------------------------------------------------------
-# submit_all.sh - Submit all 5 DL training jobs to SLURM.
+# submit_all.sh - Submit the full DL pipeline as independent SLURM jobs.
 #
-# Each model runs as an independent job and can execute in parallel if
-# multiple GPUs are available.
+# Dependency chain:
+#   preprocess -> [ae, vae, gan, unet, vit in parallel]
 #
-# Usage:
+# Usage (from the repo root or login node):
 #   bash scripts/slurm/submit_all.sh
 #   PDI_CONFIG=config/quick_validation.yaml bash scripts/slurm/submit_all.sh
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="${REPO_DIR:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
+CONFIG="${PDI_CONFIG:-config/paper_results.yaml}"
+
+mkdir -p "$REPO_DIR/logs"
+
+echo "=== PDI Pipeline ==="
+echo "Repo:   $REPO_DIR"
+echo "Config: $CONFIG"
+echo ""
+
+PREP_JID=$(REPO_DIR="$REPO_DIR" sbatch --parsable "$SCRIPT_DIR/preprocess.sbatch")
+echo "Submitted preprocess:  job $PREP_JID"
 
 for model in ae vae gan unet vit; do
-    echo "Submitting ${model}..."
-    sbatch "${SCRIPT_DIR}/train_${model}.sbatch"
+    JID=$(REPO_DIR="$REPO_DIR" PDI_CONFIG="$CONFIG" sbatch \
+        --parsable \
+        --dependency=afterok:"$PREP_JID" \
+        "$SCRIPT_DIR/train_${model}.sbatch")
+    echo "Submitted train-${model}: job $JID"
 done
 
-echo "All jobs submitted. Monitor with: squeue -u \$USER"
+echo ""
+echo "Monitor with: squeue -u \$USER"

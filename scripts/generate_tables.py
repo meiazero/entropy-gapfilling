@@ -1,17 +1,22 @@
 """Generate LaTeX tables from experiment results.
 
-Produces 8 table types for the journal paper, each exported as a
+Produces table types for the journal paper, each exported as a
 standalone .tex file that can be included via \\input{}.
 
 Usage:
     uv run python scripts/generate_tables.py --results results/paper_results
     uv run python scripts/generate_tables.py \
         --results results/paper_results --table 2
+    uv run python scripts/generate_tables.py \
+        --dl-results dl_models
+    uv run python scripts/generate_tables.py \
+        --results results/paper_results --dl-results dl_models
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -685,6 +690,106 @@ def table8_dl_comparison(
 
 
 # ------------------------------------------------------------------
+# DL metrics table (table 9)
+# ------------------------------------------------------------------
+
+_DL_MODELS: tuple[str, ...] = ("ae", "vae", "gan", "unet", "vit")
+
+_DL_COLUMN_SPECS: list[tuple[str, str, bool, str]] = [
+    ("val_psnr", "PSNR (dB)", True, ".2f"),
+    ("val_ssim", "SSIM", True, ".4f"),
+    ("val_rmse", "RMSE", False, ".4f"),
+    ("val_pixel_acc_002", r"Acur. @0,02", True, ".4f"),
+    ("val_f1_002", r"F1 @0,02", True, ".4f"),
+    ("val_pixel_acc_005", r"Acur. @0,05", True, ".4f"),
+    ("val_f1_005", r"F1 @0,05", True, ".4f"),
+    ("val_pixel_acc_01", r"Acur. @0,10", True, ".4f"),
+    ("val_f1_01", r"F1 @0,10", True, ".4f"),
+]
+
+
+def _load_dl_history(dl_results_dir: Path, model: str) -> dict | None:
+    path = dl_results_dir / f"{model}_history.json"
+    if not path.exists():
+        log.debug("History not found: %s", path)
+        return None
+    with path.open(encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def _format_dl_metric(value: float, rank: int, fmt: str) -> str:
+    formatted = f"{value:{fmt}}"
+    if rank == 1:
+        return f"\\textbf{{{formatted}}}"
+    if rank == 2:
+        return f"\\underline{{{formatted}}}"
+    return formatted
+
+
+def table_dl_metrics(dl_results_dir: Path, output_dir: Path) -> None:
+    """Table DL: Final-epoch metrics summary for all DL models."""
+    histories = {m: _load_dl_history(dl_results_dir, m) for m in _DL_MODELS}
+    available = {m: h for m, h in histories.items() if h and h.get("epochs")}
+    if not available:
+        log.warning("No DL histories found. Skipping table_dl_metrics.")
+        return
+
+    # Build rows: model -> {col_key: value}
+    rows: dict[str, dict[str, float | None]] = {}
+    for model, hist in available.items():
+        last = hist["epochs"][-1]
+        rows[model] = {key: last.get(key) for key, _, _, _ in _DL_COLUMN_SPECS}
+
+    # Compute per-column ranks
+    col_ranks: dict[str, dict[str, int]] = {}
+    for key, _, higher_is_better, _ in _DL_COLUMN_SPECS:
+        vals = {
+            m: v
+            for m, v in ((m, rows[m].get(key)) for m in available)
+            if v is not None and np.isfinite(v)
+        }
+        sorted_models = sorted(
+            vals, key=lambda m: vals[m], reverse=higher_is_better
+        )
+        col_ranks[key] = {m: i + 1 for i, m in enumerate(sorted_models)}
+
+    body: list[str] = []
+    for model in available:
+        cells: list[str] = [model.upper()]
+        for key, _, _, fmt in _DL_COLUMN_SPECS:
+            val = rows[model].get(key)
+            if val is None or not np.isfinite(val):
+                cells.append("--")
+            else:
+                rank = col_ranks[key].get(model, 99)
+                cells.append(_format_dl_metric(val, rank, fmt))
+        body.append(" & ".join(cells) + r" \\")
+
+    col_header = "Modelo & " + " & ".join(
+        label for _, label, _, _ in _DL_COLUMN_SPECS
+    )
+    ncols = 1 + len(_DL_COLUMN_SPECS)
+    tex = _render_latex_table(
+        LatexTableConfig(
+            caption=(
+                "Métricas de avaliação dos modelos de aprendizado profundo "
+                r"na última época de treinamento. "
+                "Maior PSNR, SSIM e acurácia são melhores; menor RMSE é melhor."
+                r"\textbf{Negrito}: melhor; \underline{sublinhado}: segundo "
+                "melhor."
+            ),
+            label="tab:dl-metrics",
+            col_spec="l" + "c" * (ncols - 1),
+            header=col_header,
+            font_size=r"\footnotesize",
+            env="table*",
+        ),
+        body,
+    )
+    _write_tex(tex, output_dir / "dl-metrics.tex")
+
+
+# ------------------------------------------------------------------
 # Dispatch table and CLI
 # ------------------------------------------------------------------
 
@@ -737,8 +842,14 @@ def parse_args(
     parser.add_argument(
         "--results",
         type=Path,
-        required=True,
-        help="Path to experiment results directory.",
+        default=None,
+        help="Path to classical experiment results directory.",
+    )
+    parser.add_argument(
+        "--dl-results",
+        type=Path,
+        default=None,
+        help="Path to DL models directory containing *_history.json files.",
     )
     parser.add_argument(
         "--output",
@@ -750,7 +861,7 @@ def parse_args(
         "--table",
         type=int,
         default=None,
-        help="Generate only this table number (1-8).",
+        help="Generate only this classical table number (1-8).",
     )
     return parser.parse_args(argv)
 
@@ -772,26 +883,38 @@ def _setup_file_logging(log_path: Path) -> None:
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
 
-    results_dir = args.results
-    output_dir = args.output or results_dir / "tables"
+    if args.results is None and args.dl_results is None:
+        log.error("Provide at least one of --results or --dl-results.")
+        return
+
+    base_dir = args.results or args.dl_results
+    output_dir = args.output or base_dir / "tables"
     output_dir.mkdir(parents=True, exist_ok=True)
-    _setup_file_logging(results_dir / "tables.log")
+    _setup_file_logging(base_dir / "tables.log")
 
-    df = load_results(results_dir)
-    dispatch = _make_table_dispatch(df, results_dir, output_dir)
+    if args.results is not None:
+        results_dir = args.results
+        df = load_results(results_dir)
+        dispatch = _make_table_dispatch(df, results_dir, output_dir)
 
-    if args.table is not None:
-        if args.table not in dispatch:
-            log.error("Invalid table number: %d", args.table)
-            return
-        _, fn = dispatch[args.table]
-        fn()
-    else:
-        for num, (name, fn) in dispatch.items():
-            try:
-                fn()
-            except Exception:
-                log.exception("Error generating table %d (%s)", num, name)
+        if args.table is not None:
+            if args.table not in dispatch:
+                log.error("Invalid table number: %d", args.table)
+                return
+            _, fn = dispatch[args.table]
+            fn()
+        else:
+            for num, (name, fn) in dispatch.items():
+                try:
+                    fn()
+                except Exception:
+                    log.exception("Error generating table %d (%s)", num, name)
+
+    if args.dl_results is not None:
+        try:
+            table_dl_metrics(args.dl_results, output_dir)
+        except Exception:
+            log.exception("Error generating DL metrics table")
 
     log.info("Tables saved to: %s", output_dir)
 
