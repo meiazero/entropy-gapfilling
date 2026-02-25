@@ -232,7 +232,10 @@ def _compute_error_map(clean: np.ndarray, recon: np.ndarray) -> np.ndarray:
 
 def _choose_fig5_methods(valid: pd.DataFrame) -> list[str] | None:
     method_means = (
-        valid.groupby("method")["psnr"].mean().sort_values(ascending=False)
+        valid
+        .groupby("method", observed=True)["psnr"]
+        .mean()
+        .sort_values(ascending=False)
     )
     if len(method_means) < 2:
         return None

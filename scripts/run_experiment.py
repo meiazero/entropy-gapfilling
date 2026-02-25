@@ -94,6 +94,7 @@ def _load_completed(output_path: Path) -> set[tuple[int, str, str, int]]:
         csv_path,
         usecols=["seed", "noise_level", "method", "patch_id"],
         dtype={"noise_level": str},
+        on_bad_lines="warn",
     )
     return set(
         zip(
@@ -469,38 +470,33 @@ def _entropy_for_patch(
     config: ExperimentConfig,
     preprocessed_dir: Path,
 ) -> dict[str, float]:
+    # Pre-initialize all expected entropy keys with NaN so all rows have
+    # consistent columns regardless of which entropy files exist on disk.
+    entropy: dict[str, float] = {key: float("nan") for key in entropy_keys}
     if patch.mean_entropy is not None:
-        entropy = {
+        entropy.update({
             key: value
             for key, value in patch.mean_entropy.items()
             if key in entropy_keys
-        }
-        missing = [
-            ws
-            for ws in config.entropy_windows
-            if f"entropy_{ws}" not in entropy
-        ]
-        if missing:
-            entropy.update(
-                _load_entropy(
-                    preprocessed_dir,
-                    patch.split,
-                    patch.satellite,
-                    patch.patch_id,
-                    missing,
-                    clean=patch.clean,
-                )
-            )
-        return entropy
+        })
 
-    return _load_entropy(
-        preprocessed_dir,
-        patch.split,
-        patch.satellite,
-        patch.patch_id,
-        config.entropy_windows,
-        clean=patch.clean,
-    )
+    missing = [
+        ws
+        for ws in config.entropy_windows
+        if pd.isna(entropy.get(f"entropy_{ws}", float("nan")))
+    ]
+    if missing:
+        entropy.update(
+            _load_entropy(
+                preprocessed_dir,
+                patch.split,
+                patch.satellite,
+                patch.patch_id,
+                missing,
+                clean=patch.clean,
+            )
+        )
+    return entropy
 
 
 def _entropy_from_row(
@@ -511,7 +507,9 @@ def _entropy_from_row(
     split: str,
     clean: np.ndarray,
 ) -> dict[str, float]:
-    entropy: dict[str, float] = {}
+    # Pre-initialize all expected entropy keys with NaN so all rows have
+    # consistent columns regardless of which entropy files exist on disk.
+    entropy: dict[str, float] = {key: float("nan") for key in entropy_keys}
     for key, value in row.items():
         if key.startswith("mean_entropy_") and value not in (None, ""):
             try:
@@ -524,7 +522,11 @@ def _entropy_from_row(
             except (TypeError, ValueError):
                 continue
 
-    missing = [ws for ws in entropy_windows if f"entropy_{ws}" not in entropy]
+    missing = [
+        ws
+        for ws in entropy_windows
+        if pd.isna(entropy.get(f"entropy_{ws}", float("nan")))
+    ]
     if missing:
         entropy.update(
             _load_entropy(
@@ -1102,7 +1104,7 @@ def _log_failure_summary(output_path: Path) -> None:
     if not csv_path.exists():
         return
 
-    all_df = pd.read_csv(csv_path)
+    all_df = pd.read_csv(csv_path, on_bad_lines="warn")
     if "status" not in all_df.columns:
         return
 

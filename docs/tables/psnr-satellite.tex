@@ -1,27 +1,27 @@
-\begin{table}[htbp]
+\begin{table*}[htbp]
 \centering
-\caption{Mean PSNR (dB) $\pm$ 95\% CI per method and satellite sensor.}
+\caption{PSNR médio (dB) $\pm$ IC de 95\% por método e sensor de satélite. Maior PSNR é melhor.}
 \label{tab:psnr-satellite}
 \footnotesize
-\begin{tabular}{lcccc}
+\begin{tabular}{lc}
 \toprule
-Method & landsat8 & landsat9 & modis & sentinel2 \\
+Método & sentinel2 \\
 \midrule
-bicubic & $19.44_{\pm 1.60}$ & $20.23_{\pm 1.78}$ & $14.07_{\pm 2.07}$ & $19.26_{\pm 2.43}$ \\
-bilinear & \textbf{$22.93_{\pm 1.28}$} & $22.33_{\pm 1.91}$ & $17.17_{\pm 2.61}$ & $20.58_{\pm 2.50}$ \\
-dct & $17.30_{\pm 1.05}$ & $20.15_{\pm 1.51}$ & $14.31_{\pm 0.91}$ & $13.74_{\pm 0.58}$ \\
-exemplar_based & $22.26_{\pm 1.37}$ & \textbf{$24.43_{\pm 1.34}$} & $17.88_{\pm 2.05}$ & \textbf{$22.79_{\pm 2.51}$} \\
-idw & $18.89_{\pm 1.31}$ & $21.57_{\pm 1.99}$ & $15.71_{\pm 1.28}$ & $12.98_{\pm 0.70}$ \\
-kriging & \underline{$22.38_{\pm 1.51}$} & $23.67_{\pm 1.41}$ & \textbf{$18.31_{\pm 2.39}$} & $22.13_{\pm 2.40}$ \\
-l1_dct & $17.30_{\pm 1.05}$ & $20.15_{\pm 1.51}$ & $14.31_{\pm 0.91}$ & $13.74_{\pm 0.58}$ \\
-l1_wavelet & $12.58_{\pm 1.60}$ & $14.22_{\pm 1.09}$ & $8.41_{\pm 0.80}$ & $9.15_{\pm 1.69}$ \\
-lanczos & $20.89_{\pm 1.53}$ & $21.90_{\pm 1.64}$ & $15.44_{\pm 1.88}$ & $18.08_{\pm 1.52}$ \\
-nearest & $21.05_{\pm 1.37}$ & $21.77_{\pm 1.61}$ & $15.72_{\pm 2.11}$ & $18.39_{\pm 1.73}$ \\
-non_local & $15.25_{\pm 1.43}$ & $19.16_{\pm 2.03}$ & $12.71_{\pm 0.46}$ & $8.88_{\pm 0.26}$ \\
-rbf & $22.08_{\pm 1.29}$ & \underline{$24.28_{\pm 1.31}$} & \underline{$18.24_{\pm 2.10}$} & \underline{$22.72_{\pm 2.54}$} \\
-spline & $22.08_{\pm 1.29}$ & $24.28_{\pm 1.31}$ & $18.24_{\pm 2.10}$ & $22.72_{\pm 2.54}$ \\
-tv & $17.66_{\pm 1.36}$ & $18.39_{\pm 1.75}$ & $14.30_{\pm 1.42}$ & $13.75_{\pm 0.94}$ \\
-wavelet & $18.98_{\pm 1.30}$ & $20.16_{\pm 1.74}$ & $15.50_{\pm 1.21}$ & $12.46_{\pm 0.37}$ \\
+bicubic & $17.66_{\pm 4.37}$ \\
+bilinear & \underline{$23.64_{\pm 0.15}$} \\
+dct & $19.43_{\pm 3.05}$ \\
+exemplar_based & $21.28_{\pm 0.95}$ \\
+idw & $20.17_{\pm 0.26}$ \\
+kriging & \textbf{$24.72_{\pm 0.20}$} \\
+l1_dct & $19.43_{\pm 3.05}$ \\
+l1_wavelet & $12.58_{\pm 6.53}$ \\
+lanczos & $20.11_{\pm 1.39}$ \\
+nearest & $21.89_{\pm 1.63}$ \\
+non_local & $15.05_{\pm 0.26}$ \\
+rbf & $20.58_{\pm 1.65}$ \\
+spline & $20.58_{\pm 1.65}$ \\
+tv & $18.33_{\pm 2.95}$ \\
+wavelet & $20.68_{\pm 0.98}$ \\
 \bottomrule
 \end{tabular}
-\end{table}
+\end{table*}
