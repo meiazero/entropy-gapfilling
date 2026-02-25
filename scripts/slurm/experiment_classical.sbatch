@@ -13,7 +13,7 @@
 #SBATCH -p cpuq
 #SBATCH --cpus-per-task=200
 #SBATCH --mem=128G
-#SBATCH --time=10:00:00
+#SBATCH --time=72:00:00
 #SBATCH -o logs/slurm_%x_%j.out
 #SBATCH -e logs/slurm_%x_%j.err
 
