@@ -28,7 +28,10 @@ plt.rcParams.update({
 })
 
 _CMAP = plt.get_cmap("Set2")
-COLORS = [_CMAP(i) for i in range(4)]
+COLORS = [_CMAP(i) for i in range(8)]
+
+# Distinct markers per model so curves remain distinguishable in grayscale.
+MARKERS = ["o", "s", "^", "D", "v"]
 
 
 def _save_fig(fig: Figure, output_dir: Path, name: str) -> None:
@@ -148,18 +151,32 @@ def _plot_metric_curves(
     filename: str,
 ) -> None:
     """Plot a single validation metric over epochs for all models."""
-    fig, ax = plt.subplots(figsize=(6, 4), constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(7, 4), constrained_layout=True)
     for i, h in enumerate(histories):
+        epochs = _get_epochs(h)
+        # Space markers so they don't clutter the line (at most ~8 marks).
+        every = max(1, len(epochs) // 8)
         ax.plot(
-            _get_epochs(h),
+            epochs,
             _get_values(h, metric_key),
             label=h["model_name"].upper(),
             color=COLORS[i % len(COLORS)],
+            marker=MARKERS[i % len(MARKERS)],
+            markevery=every,
+            markersize=5,
+            linewidth=1.5,
         )
     ax.set_xlabel("Epoch")
     ax.set_ylabel(ylabel)
     ax.set_title(title)
-    ax.legend(frameon=True, framealpha=0.85)
+    # Place legend outside the right edge so it never overlaps axis labels.
+    ax.legend(
+        frameon=True,
+        framealpha=0.9,
+        loc="upper left",
+        bbox_to_anchor=(1.01, 1.0),
+        borderaxespad=0,
+    )
     _save_fig(fig, output_dir, filename)
 
 

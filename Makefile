@@ -68,13 +68,40 @@ preprocess-all: ## Preprocess full dataset to NPY (shared for all workflows)
 	@uv run python scripts/preprocess_dataset.py --resume
 
 .PHONY: experiment-quick
-experiment-quick: preprocess-all ## Run quick validation (50 patches, 1 seed)
-	@echo "Running quick validation experiment"
+experiment-quick: preprocess-all ## Run quick classical-only validation (1 seed, 1 patch)
+	@echo "Running quick classical validation experiment"
 	@uv run python scripts/run_experiment.py --quick --save-entropy-top-k 5
 	@echo "Generating figures and tables for quick_validation"
 	@rm -rf results/quick_validation/figures
 	@uv run python scripts/generate_figures.py --results results/quick_validation --png-only
 	@uv run python scripts/generate_tables.py --results results/quick_validation
+
+.PHONY: preview
+preview: preprocess-all ## Full preview: classical quick + all DL models quick + unified figures
+	@echo "=== Step 1/4: Classical quick experiment ==="
+	@uv run python scripts/run_experiment.py --quick --save-entropy-top-k 5
+	@echo "=== Step 2/4: Training and evaluating all DL models (quick) ==="
+	@for model in ae vae gan unet vit; do \
+		echo "--- $$model ---"; \
+		uv run python scripts/slurm/train_model.py \
+			--config config/quick_validation.yaml --model $$model; \
+	done
+	@echo "=== Step 3/4: Plotting DL training curves ==="
+	@_DL_DIR=$$(dirname "$(CKPT_DIR)"); \
+	HFILES=$$(ls "$$_DL_DIR"/*_history.json 2>/dev/null || true); \
+	if [ -n "$$HFILES" ]; then \
+		mkdir -p "$(PLOT_DIR)"; \
+		uv run python -m dl_models.plot_training --history $$HFILES --output $(PLOT_DIR); \
+	fi
+	@echo "=== Step 4/4: Generating unified preview figures and tables ==="
+	@_DL_DIR=$$(dirname "$(CKPT_DIR)"); \
+	rm -rf results/quick_validation/figures; \
+	uv run python scripts/generate_figures.py \
+		--results results/quick_validation \
+		--dl-results "$$_DL_DIR" \
+		--png-only
+	@uv run python scripts/generate_tables.py --results results/quick_validation
+	@echo "Preview complete. Results in results/quick_validation/ and $(PLOT_DIR)/"
 
 # =============================================================================
 ##@ Paper

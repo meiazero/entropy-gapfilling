@@ -1063,8 +1063,16 @@ def fig_dl_loss_curves(dl_results_dir: Path, output_dir: Path) -> None:
         train_loss = [e.get("train_loss") for e in epochs_data]
         val_loss = [e.get("val_loss") for e in epochs_data]
 
+        every = max(1, len(epochs) // 6)
         ax.plot(
-            epochs, train_loss, label="Treino", linewidth=1.2, color="#1f77b4"
+            epochs,
+            train_loss,
+            label="Treino",
+            linewidth=1.2,
+            color="#1f77b4",
+            marker="o",
+            markevery=every,
+            markersize=3,
         )
         ax.plot(
             epochs,
@@ -1073,11 +1081,14 @@ def fig_dl_loss_curves(dl_results_dir: Path, output_dir: Path) -> None:
             linewidth=1.2,
             color="#ff7f0e",
             linestyle="--",
+            marker="s",
+            markevery=every,
+            markersize=3,
         )
         ax.set_title(model.upper(), fontsize=FONT_SIZE + 1)
         ax.set_xlabel("Época", fontsize=FONT_SIZE)
         ax.set_ylabel("Perda", fontsize=FONT_SIZE)
-        ax.legend(fontsize=FONT_SIZE - 1)
+        ax.legend(fontsize=FONT_SIZE - 1, loc="best")
         ax.grid(True, alpha=0.3, linewidth=0.5)
 
     for idx in range(n, len(axes_flat)):
@@ -1114,34 +1125,43 @@ def fig_dl_val_metrics(dl_results_dir: Path, output_dir: Path) -> None:
         constrained_layout=True,
     )
 
+    _markers = ["o", "s", "^", "D", "v"]
+
     for ax, (key, label) in zip(axes, metric_specs, strict=False):
-        for color, (model, hist) in zip(
-            palette, available.items(), strict=False
+        for i, (color, (model, hist)) in enumerate(
+            zip(palette, available.items(), strict=False)
         ):
             epochs_data = hist["epochs"]
             epochs = [e["epoch"] for e in epochs_data]
             values = [e.get(key) for e in epochs_data]
             if any(v is not None for v in values):
+                every = max(1, len(epochs) // 8)
                 ax.plot(
                     epochs,
                     values,
                     label=model.upper(),
                     linewidth=1.2,
                     color=color,
+                    marker=_markers[i % len(_markers)],
+                    markevery=every,
+                    markersize=3,
                 )
         ax.set_xlabel("Época", fontsize=FONT_SIZE)
         ax.set_ylabel(label, fontsize=FONT_SIZE)
         ax.set_title(label, fontsize=FONT_SIZE + 1)
         ax.grid(True, alpha=0.3, linewidth=0.5)
 
+    # Place legend above the panels so it never overlaps the x-axis labels.
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(
         handles,
         labels,
-        loc="lower center",
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.08),
         ncol=len(available),
         fontsize=FONT_SIZE - 1,
         frameon=True,
+        borderaxespad=0.0,
     )
 
     _save_figure(fig, output_dir, "fig_dl_val_metrics")

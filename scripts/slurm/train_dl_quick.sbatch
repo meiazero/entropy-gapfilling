@@ -60,9 +60,18 @@ DL_RESULTS_DIR=$(python -c "
 import yaml, pathlib
 with open('$CONFIG') as f:
     cfg = yaml.safe_load(f)
-ckpt_dir = pathlib.Path(cfg.get('dl_training', {}).get('output_dir', 'dl_models/checkpoints'))
+ckpt_dir = pathlib.Path(cfg.get('dl_training', {}).get('output_dir', 'results/dl_models/checkpoints'))
 print(ckpt_dir.parent if ckpt_dir.name == 'checkpoints' else ckpt_dir)
 ")
+
+echo "=== Plotting DL training curves ==="
+HIST_FILES=$(ls "$DL_RESULTS_DIR"/*_history.json 2>/dev/null || true)
+if [ -n "$HIST_FILES" ]; then
+    mkdir -p results/dl_plots
+    python -m dl_models.plot_training \
+        --history $HIST_FILES \
+        --output results/dl_plots
+fi
 
 echo "=== Generating DL Figures (results: $DL_RESULTS_DIR) ==="
 python scripts/generate_figures.py --dl-results "$DL_RESULTS_DIR"
