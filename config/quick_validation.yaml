@@ -42,32 +42,32 @@ dl_training:
   max_patches: 2
   models:
     ae:
-      epochs: 2
-      batch_size: 4
+      epochs: 1
+      batch_size: 2
       lr: 1e-3
       patience: 2
     vae:
-      epochs: 2
-      batch_size: 4
+      epochs: 1
+      batch_size: 2
       lr: 1e-3
       beta: 0.001
       patience: 2
     gan:
-      epochs: 2
-      batch_size: 4
+      epochs: 1
+      batch_size: 2
       lr: 2e-4
       lambda_l1: 10.0
       lambda_adv: 0.1
       patience: 2
     unet:
-      epochs: 2
-      batch_size: 4
+      epochs: 1
+      batch_size: 2
       lr: 1e-3
       weight_decay: 1e-4
       patience: 2
     vit:
-      epochs: 2
-      batch_size: 4
+      epochs: 1
+      batch_size: 2
       lr: 1e-4
       weight_decay: 0.05
       patience: 2
