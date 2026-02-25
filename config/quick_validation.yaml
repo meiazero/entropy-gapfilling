@@ -37,37 +37,37 @@ dl_training:
   output_dir: results/dl_models/checkpoints
   satellite: sentinel2
   device: cuda
-  num_workers: null
-  eval_after_train: true
+  num_workers: 0
+  eval_after_train: false
   max_patches: 2
   models:
     ae:
       epochs: 1
       batch_size: 2
       lr: 1e-3
-      patience: 2
+      patience: 1
     vae:
       epochs: 1
       batch_size: 2
       lr: 1e-3
       beta: 0.001
-      patience: 2
+      patience: 1
     gan:
       epochs: 1
       batch_size: 2
       lr: 2e-4
       lambda_l1: 10.0
       lambda_adv: 0.1
-      patience: 2
+      patience: 1
     unet:
       epochs: 1
       batch_size: 2
       lr: 1e-3
       weight_decay: 1e-4
-      patience: 2
+      patience: 1
     vit:
       epochs: 1
       batch_size: 2
       lr: 1e-4
       weight_decay: 0.05
-      patience: 2
+      patience: 1

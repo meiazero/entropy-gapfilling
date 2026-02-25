@@ -1,397 +1,476 @@
-# Analise quantitativa e espacial da relacao entre entropia local e desempenho de metodos classicos de interpolacao de lacunas em imagens de satelite
+# Analise quantitativa e espacial da entropia local e metodos classicos de preenchimento de lacunas em imagens de satelite
 
-## Objetivo
+Pipeline de pesquisa reproduzivel que avalia 15 metodos classicos de interpolacao e 5 baselines de aprendizado profundo para preenchimento de lacunas em imagens de satelite, com analise espacial e estatistica da relacao entre entropia local e qualidade de reconstrucao.
 
-Avaliar e comparar procedimentos de processamento de imagem para preenchimento de lacunas em imagens de satelite e quantificar, por meio de metricas objetivas e analise espacial, a correlacao entre entropia calculada em janelas locais e a perda de qualidade dos metodos, identificando regioes com maior deficiencia dos algoritmos convencionais.
+## Hipoteses de Pesquisa
 
-## Hipoteses
+- **H1** - Regioes com maior entropia local (mais textura/complexidade) apresentarao pior desempenho medio dos interpoladores classicos.
+- **H2** - Metodos espectro-temporais e geostatisticos terao desempenho superior em areas de baixa entropia.
+- **H3** - Existe relacao estatisticamente significante entre metricas de qualidade locais e entropia local.
 
-- H1 - Regioes com maior entropia local (mais textura/complexidade) apresentarao pior desempenho medio de interpoladores classicos.
-- H2 - Metodos baseados em modelos espectro-temporais e geostaticos terao desempenho superior em areas de baixa entropia.
-- H3 - Existe relacao estatisticamente significante entre metricas de qualidade locais e entropia local.
+## Metodos
 
-## Tecnicas
+**Classicos (15):**
 
-1. Interpoladores espaciais classicos (nearest neighbor, bilinear, bicubic, Lanczos).
-2. Metodos baseados em kernel (IDW, RBF, splines).
-3. Metodos geostaticos (kriging).
-4. Metodos de transformadas/regularizacao (DCT, wavelets, TV inpainting).
-5. Metodos patch-based (exemplar-based, non-local).
-6. Metodos de compressive sensing (L1 em wavelet/DCT).
-7. Baselines de aprendizado profundo (AE, VAE, GAN, ViT) - avaliados separadamente.
+| Categoria                    | Metodos                              |
+| ---------------------------- | ------------------------------------ |
+| Espacial                     | nearest, bilinear, bicubic, Lanczos  |
+| Kernel                       | IDW, RBF (thin-plate spline), spline |
+| Geostatistico                | kriging                              |
+| Transformada / regularizacao | DCT, wavelet, TV inpainting          |
+| Compressive sensing          | L1-DCT, L1-wavelet                   |
+| Patch-based                  | non-local means, exemplar-based      |
+
+**Baselines de aprendizado profundo (5):** AE, VAE, GAN (gerador UNet + discriminador PatchGAN), U-Net, ViT (estilo MAE).
 
 ## Base de Dados
 
-Uso de Sentinel-2, Landsat-8/9 e MODIS. Simulacao de lacunas (mascaras de nuvem realistas, patches de diferentes tamanhos, niveis de ruido). Validacao com cenas limpas temporais.
+77.916 patches (64x64 px, 4 bandas) extraidos de Sentinel-2, Landsat-8, Landsat-9 e MODIS. Lacunas sinteticas geradas a partir de mascaras de nuvem realistas em quatro niveis de SNR (inf, 40, 30, 20 dB). Veja [DATASET.md](DATASET.md) para detalhes completos sobre colunas, splits e layout de saida do pre-processamento.
 
-## Pipeline
+| Satelite   | Patches |
+| ---------- | ------- |
+| Sentinel-2 | 73.984  |
+| Landsat-9  | 1.936   |
+| Landsat-8  | 1.936   |
+| MODIS      | 60      |
 
-1. Coleta e pre-processamento.
-2. Segmentacao em janelas.
-3. Calculo de entropia local.
-4. Aplicacao dos metodos.
-5. Avaliacao (PSNR, SSIM, RMSE, SAM, ERGAS).
-6. Analise estatistica e espacial.
-7. Visualizacao (mapas, graficos, tabelas).
-8. Relatorio e recomendacoes.
+Divisao: 52.842 treino / 10.225 validacao / 14.849 teste.
 
-## Metricas e validacao estatistica
+## Estrutura do Projeto
 
-**Metricas:** PSNR, SSIM, RMSE, IoU, SAM, ERGAS.
+```
+.
+├── config/
+│   ├── paper_results.yaml      # Execucao completa de producao (10 seeds, 75 patches/config)
+│   └── quick_validation.yaml   # Execucao de smoke-test (1 seed, 1 patch, 1 epoch)
+├── dl_models/
+│   ├── ae/                     # Autoencoder (model + train)
+│   ├── vae/                    # Variational Autoencoder
+│   ├── gan/                    # GAN (gerador UNet + discriminador PatchGAN)
+│   ├── unet/                   # U-Net (skip connections + blocos residuais)
+│   ├── vit/                    # Vision Transformer estilo MAE
+│   ├── shared/                 # Utilitarios compartilhados: base, dataset, metricas, trainer, visualizacao
+│   ├── evaluate.py             # Script de avaliacao unificado para todos os modelos DL
+│   └── plot_training.py        # Plota curvas de treinamento a partir de arquivos JSON de historico
+├── docs/
+│   ├── main.tex                # Fonte LaTeX do artigo
+│   ├── figures/                # Figuras copiadas por make paper-assets
+│   ├── tables/                 # Tabelas copiadas por make paper-assets
+│   └── dist/                   # Saida PDF compilada
+├── paper_assets/
+│   ├── classico/               # Figuras, tabelas, resultados brutos e logs do experimento classico
+│   └── dl/                     # Resultados de avaliacao, plots de treinamento e historico do experimento DL
+├── results/
+│   ├── paper_results/          # Saida do experimento completo do artigo
+│   └── quick_validation/       # Saida da execucao de validacao rapida
+├── scripts/
+│   ├── preprocess_dataset.py   # Converte patches GeoTIFF para NPY + gera manifest
+│   ├── run_experiment.py       # Executador principal do experimento de metodos classicos
+│   ├── generate_figures.py     # Gera todas as figuras do artigo a partir dos resultados
+│   ├── generate_tables.py      # Gera todas as tabelas LaTeX a partir dos resultados
+│   ├── precompute_entropy.py   # Pre-computa mapas de entropia para todos os patches
+│   ├── pack_paper_assets.sh    # Empacota assets do artigo em paper_assets.zip
+│   ├── grid_search_classical.py
+│   ├── grid_search_dl.py
+│   └── slurm/                  # Scripts de submissao SLURM (ver secao Cluster)
+├── src/pdi_pipeline/
+│   ├── methods/                # Implementacoes dos 15 metodos classicos de preenchimento
+│   ├── metrics.py              # PSNR, SSIM, RMSE, SAM, ERGAS
+│   ├── statistics.py           # Pearson/Spearman, Kruskal-Wallis, regressao robusta, Moran's I
+│   ├── entropy.py              # Calculo de entropia local (janelas multi-escala)
+│   ├── aggregation.py          # Utilitarios de agregacao de resultados
+│   ├── dataset.py              # Carregamento de dataset e manifest
+│   ├── config.py               # Parsing de configuracao YAML
+│   ├── logging_utils.py        # Logger StreamProgress (substitui tqdm)
+│   └── experiment_artifacts.py # Salvamento de artefatos e serializacao de resultados
+├── tests/
+│   ├── unit/                   # Testes unitarios para modelos DL e pipeline
+│   └── integration/            # Testes de integracao
+├── graphs-examples/            # Exemplos de estilo matplotlib e scripts de plot
+├── images/                     # Estilo matplotlib compartilhado
+├── Makefile                    # Todos os targets de workflow (ver abaixo)
+├── pyproject.toml
+├── DATASET.md
+└── pdi.md (README.md)
+```
 
-**Analises:** correlacao (Pearson, Spearman), regressao robusta, ANOVA/Kruskal-Wallis, testes pareados, bootstrap IC95%, Moran's I, LISA.
+## Configuracao do Ambiente
 
-## Parametrizacoes
+Requer Python 3.12. Usa `uv` como gerenciador de pacotes.
 
-- Janelas de entropia: 7x7, 15x15, 31x31.
-- Patches 64x64 com sobreposicao.
-- N minimo de patches: 500-2000.
-- Niveis de ruido: infinito, 40 dB, 30 dB, 20 dB.
-- Repeticoes: 10 seeds aleatorias.
-- alpha=0.05 com correcao multipla (FDR).
+```bash
+uv sync
+uv run pre-commit install
+```
 
-## Posssiveis limitacoes
+Verificacoes de qualidade de codigo:
 
-- Disponibilidade de ground truth.
-- Sensibilidade do Kriging.
-- Custo computacional de metodos patch-based.
+```bash
+make check    # verificacao do lock file + pre-commit + deptry
+make test     # pytest com cobertura
+```
 
-## Resultados
+## Configuracao
 
-### Figuras
+Todos os parametros do experimento sao definidos em arquivos YAML em `config/`. Selecione uma configuracao com a variavel de ambiente `PDI_CONFIG` (padrao: `config/paper_results.yaml`):
 
-- **Fig 1:** Mapas de entropia local em 3 escalas (7x7, 15x15, 31x31), TODOS os sensores.
-- **Fig 2:** Scatterplots entropia vs. PSNR por metodo (15 metodos classicos) incluindo coeficientes (beta), p-values, R-squared, R-squared ajustado, alem da reta de regressao.
-- **Fig 3:** Boxplots PSNR por metodo, agrupados por bin de entropia (low/medium/high).
-- **Fig 4:** Boxplots PSNR por metodo, agrupados por nivel de ruido (inf, 40, 30, 20 dB).
-- **Fig 5:** Mapas de clusters LISA sobrepostos em mapas de erro de reconstrucao.
-- **Fig 6:** Exemplos visuais: clean / degraded / todos os metodos para patches organizados de baixa e alta entropia.
-- **Fig 7:** Heatmap de correlacao (Spearman rho) entre entropia multi-escala e metricas.
-- **Fig 8:** Mapas de PSNR local e SSIM local para patch representativo (todos os metodos).
+```bash
+# Usar a configuracao completa do artigo (padrao)
+uv run python scripts/run_experiment.py
 
-### Tabelas
+# Usar a configuracao de validacao rapida
+PDI_CONFIG=config/quick_validation.yaml uv run python scripts/run_experiment.py --quick
+```
 
-- **Tabela 1:** Visao geral dos 15 metodos classicos (categoria, parametros, complexidade).
-- **Tabela 2:** Media PSNR +/- IC95% por metodo x nivel de ruido (bold-best, underline-second).
-- **Tabela 3:** Media PSNR +/- IC95% estratificada por tercil de entropia em cada escala (7x7, 15x15, 31x31).
-- **Tabela 4:** Correlacao Spearman entre entropia (multi-escala) e metricas (PSNR, SSIM, RMSE, SAM) com p-values FDR-corrigidos.
-- **Tabela 5:** Teste Kruskal-Wallis (H, p, epsilon-squared) e pares significativos (Dunn post-hoc com Cliff's delta).
-- **Tabela 6:** Regressao robusta (RLM/HuberT) por metrica: coeficientes (beta), p-values, R-squared, R-squared ajustado, VIF.
-- **Tabela 7:** Media PSNR +/- IC95% por metodo x sensor satelite (Sentinel-2, Landsat-8, Landsat-9, MODIS).
-- **Tabela 8:** Comparacao classicos vs. DL (PSNR, SSIM, RMSE side-by-side).
+Parametros principais de um arquivo de configuracao:
 
-### Analises estatisticas
+```yaml
+experiment:
+  seeds: [42, 123, ...] # Seeds aleatorias para reproducibilidade
+  noise_levels: ["inf", "40", "30", "20"]
+  satellites: ["sentinel2", "landsat8", "landsat9", "modis"]
+  entropy_windows: [7, 15, 31] # Tamanhos de janela para entropia local (pixels)
+  max_patches: 75 # Maximo de patches por configuracao
 
-- Correlacao Pearson e Spearman com correcao FDR (alpha=0.05) para ambos.
-- Kruskal-Wallis + Dunn post-hoc com Bonferroni, incluindo epsilon-squared e Cliff's delta.
-- Regressao robusta: metrica ~ entropia (multi-escala) + metodo + ruido. Coeficientes, p-values, IC95%, R-squared ajustado, VIF.
-- Moran's I global e LISA local para autocorrelacao espacial de mapas de erro.
+dl_training:
+  satellite: sentinel2
+  device: cuda
+  models:
+    ae: { epochs: 30, batch_size: 32, lr: 1e-3, patience: 7 }
+    vae: { epochs: 40, batch_size: 32, lr: 1e-3, beta: 0.001, patience: 8 }
+    gan:
+      {
+        epochs: 60,
+        batch_size: 16,
+        lr: 2e-4,
+        lambda_l1: 10.0,
+        lambda_adv: 0.1,
+        patience: 10
+      }
+    unet:
+      { epochs: 40, batch_size: 32, lr: 1e-3, weight_decay: 1e-4, patience: 8 }
+    vit:
+      { epochs: 60, batch_size: 32, lr: 1e-4, weight_decay: 0.05, patience: 10 }
+```
 
-## Deep Learning - Treinamento e Avaliacao
+## Quick Start (Make)
 
-### Pre-processamento
+```bash
+# Pre-processar dataset (necessario uma vez; seguro re-executar)
+make preprocess-all
 
-Converte patches GeoTIFF para NPY. Gera `preprocessed/manifest.csv` com splits `train`, `val` e `test`. Resume-safe - se o manifest ja estiver completo, pula automaticamente.
+# Smoke test rapido: apenas metodos classicos (1 seed, 1 patch)
+make experiment-quick
+
+# Preview completo: classico + todos os 5 modelos DL + figuras unificadas
+make preview
+
+# Experimento completo do artigo (producao)
+make experiment
+```
+
+## Pipeline do Experimento (Metodos Classicos)
+
+### 1. Pre-processar dataset
+
+Converte patches GeoTIFF para NPY e produz `preprocessed/manifest.csv`:
 
 ```bash
 uv run python scripts/preprocess_dataset.py --resume
+# ou: make preprocess-all
 ```
 
-### Quick-start (via Make)
-
-Os targets do `make` usam defaults rapidos (2 epochs) para validacao rapida:
+### 2. Pre-computar entropia (opcional, melhora a velocidade do experimento)
 
 ```bash
-make dl-train-vae        # treina VAE com 2 epochs
-make dl-train-all        # treina todos os 5 modelos sequencialmente
-make dl-eval-all         # avalia todos no test split
+uv run python scripts/precompute_entropy.py
 ```
 
-Para alterar epochs via make: `make dl-train-ae AE_EPOCHS=50`.
-
-### Treinamento (producao)
-
-Comandos completos com hiperparametros de producao:
+### 3. Executar experimento
 
 ```bash
-# AE - Autoencoder
+uv run python scripts/run_experiment.py --config config/paper_results.yaml --save-entropy-top-k 5
+```
+
+Use a flag `--quick` para rodar com `config/quick_validation.yaml` automaticamente.
+
+### 4. Gerar figuras e tabelas
+
+```bash
+uv run python scripts/generate_figures.py --results results/paper_results
+uv run python scripts/generate_tables.py  --results results/paper_results
+```
+
+Adicione `--png-only` para pular a saida PDF (mais rapido, util para previews).
+
+### 5. Empacotar assets do artigo
+
+```bash
+bash scripts/pack_paper_assets.sh
+# Produz o diretorio paper_assets/ e paper_assets.zip
+```
+
+## Pipeline de Aprendizado Profundo
+
+### Treinamento (local)
+
+```bash
+make dl-train-ae     # Autoencoder
+make dl-train-vae    # Variational Autoencoder
+make dl-train-gan    # GAN
+make dl-train-unet   # U-Net
+make dl-train-vit    # ViT estilo MAE
+make dl-train-all    # Todos os 5 modelos sequencialmente
+```
+
+Sobrescrever hiperparametros ou satelite pela linha de comando:
+
+```bash
+make dl-train-ae SATELLITE=landsat8 AE_EPOCHS=100 DEVICE=cuda:1
+```
+
+### Avaliacao (test split)
+
+```bash
+make dl-eval-all          # Avaliar todos os 5 modelos
+make dl-eval-unet         # Avaliar um modelo individual
+```
+
+Checkpoints esperados em `results/dl_models/checkpoints/` (configuravel via `CKPT_DIR`).
+
+### Plots de curva de treinamento
+
+```bash
+make dl-plot
+```
+
+Le arquivos `*_history.json` de `dl_models/` e escreve plots em `results/dl_plots/`.
+
+### Pipeline DL completo
+
+```bash
+make dl-all    # treinar todos -> avaliar todos -> plotar
+```
+
+### Invocacao direta
+
+```bash
+# Treinamento
 uv run python -m dl_models.ae.train \
     --manifest preprocessed/manifest.csv --satellite sentinel2 \
-    --output dl_models/checkpoints/ae_best.pth \
-    --epochs 50 --batch-size 32 --lr 1e-3 --patience 10
+    --output results/dl_models/checkpoints/ae_best.pth \
+    --epochs 30 --batch-size 32 --lr 1e-3 --patience 7
 
-# VAE - Variational Autoencoder
-uv run python -m dl_models.vae.train \
-    --manifest preprocessed/manifest.csv --satellite sentinel2 \
-    --output dl_models/checkpoints/vae_best.pth \
-    --epochs 60 --batch-size 32 --lr 1e-3 --beta 0.001 --patience 10
-
-# GAN - UNet Generator + PatchGAN Discriminator
-uv run python -m dl_models.gan.train \
-    --manifest preprocessed/manifest.csv --satellite sentinel2 \
-    --output dl_models/checkpoints/gan_best.pth \
-    --epochs 100 --batch-size 16 --lr 2e-4 \
-    --lambda-l1 10.0 --lambda-adv 0.1 --patience 15
-
-# U-Net (PyTorch)
-uv run python -m dl_models.unet.train \
-    --manifest preprocessed/manifest.csv --satellite sentinel2 \
-    --output dl_models/checkpoints/unet_best.pth \
-    --epochs 60 --batch-size 32 --lr 1e-3 \
-    --weight-decay 1e-4 --patience 12
-
-# ViT (MAE-style)
-uv run python -m dl_models.vit.train \
-    --manifest preprocessed/manifest.csv --satellite sentinel2 \
-    --output dl_models/checkpoints/vit_best.pth \
-    --epochs 100 --batch-size 32 --lr 1e-4 \
-    --weight-decay 0.05 --patience 15
-```
-
-### Avaliacao
-
-```bash
-# Exemplo: avaliar U-Net no test split
+# Avaliacao
 uv run python -m dl_models.evaluate \
     --model unet \
-    --checkpoint dl_models/checkpoints/unet_best.pth \
+    --checkpoint results/dl_models/checkpoints/unet_best.pth \
     --manifest preprocessed/manifest.csv \
     --satellite sentinel2 \
     --output results/dl_eval
+```
 
-# Modelos disponiveis: ae, vae, gan, unet, vit
+Modelos disponiveis: `ae`, `vae`, `gan`, `unet`, `vit`.
+
+## Compilacao do Artigo
+
+Copiar assets gerados e compilar o artigo LaTeX:
+
+```bash
+make paper-assets    # Copia tabelas e figuras de results/ para docs/
+make paper           # paper-assets + compilacao latexmk
+make paper-only      # Compilar usando os arquivos existentes em docs/ (sem copia de assets)
+```
+
+Saida: `docs/dist/draft.pdf`. Requer XeLaTeX + latexmk.
+
+Instalar toolchain LaTeX (Ubuntu/Debian):
+
+```bash
+make install-latex
 ```
 
 ## Cluster (SLURM)
 
-Este projeto requer Python >= 3.12. A configuracao abaixo foi validada no
-cluster alvo (Rocky Linux 9.5, NVIDIA A100 80GB PCIe, driver NVIDIA
-550.90.07 / CUDA 12.4, toolkit CUDA 12.6.2).
+Validado em Rocky Linux 9.5 com NVIDIA A100 80GB PCIe, driver 550.90.07 / CUDA 12.4, toolkit CUDA 12.6.2.
 
-Valores confirmados:
+| Recurso        | Valor                     |
+| -------------- | ------------------------- |
+| Particao (GPU) | `gpuq`                    |
+| Particao (CPU) | `cpuq`                    |
+| GRES           | `gpu:a100:1`              |
+| Modulo Conda   | `miniconda3/py312_25.1.1` |
+| Modulo CUDA    | `cuda/12.6.2`             |
 
-| Recurso | Valor |
-|---------|-------|
-| Particao (GPU) | `gpuq` |
-| Particao (CPU) | `cpuq` |
-| GRES | `gpu:a100:1` |
-| Modulo Conda | `miniconda3/py312_25.1.1` |
-| Modulo CUDA | `cuda/12.6.2` |
-
-Se for submeter em um cluster diferente, use `hello_cuda.sbatch` para
-redescobrir os valores corretos (veja a secao "Diagnostico" abaixo).
-
-### Sequencia de reproducao
-
-Execute os passos abaixo em ordem. Os passos 1-3 sao pre-requisitos
-sequenciais - nao submeta os jobs de treinamento antes de o
-pre-processamento ter terminado com sucesso.
+### Sequencia de execucao
 
 ```
-# Apos o login no no de login do cluster:
-
-[1] setup_env.sh          <- uma vez, aguardar completar
-[2] export PDI_DATA_ROOT  <- obrigatorio antes de qualquer job
-[3] preprocess.sbatch     <- uma vez, aguardar completar (squeue -u $USER)
+[1] setup_env.sh              <- uma vez, aguardar completar
+[2] export PDI_DATA_ROOT      <- obrigatorio antes de qualquer job
+[3] preprocess.sbatch         <- uma vez, aguardar completar (squeue -u $USER)
         |
-        +-- [4a] submit_all.sh              (todos os 5 modelos DL, paralelo)
+        +-- [4a] submit_all.sh               (todos os 5 modelos DL, paralelo)
         +-- [4b] experiment_classical.sbatch (metodos classicos, independente)
 ```
 
-Antes de rodar em producao, valide o pipeline com os smoke tests (passo 6
-abaixo). Eles usam 2 epochs e poucos patches e completam em ~1h.
+Os passos 1-3 sao pre-requisitos sequenciais. Nao submeta jobs de treinamento antes de o pre-processamento terminar.
 
-### 1) Preparar o ambiente (executar apenas uma vez)
-
-O script `setup_env.sh` cria o ambiente conda `pdi312`, instala todas as
-dependencias do projeto e instala o PyTorch com suporte a CUDA
-(torch 2.3.1+cu121, compativel com o runtime CUDA 12.4 do driver). Ele
-tambem exporta `PYTHONNOUSERSITE=1` para impedir que pacotes instalados
-em `~/.local` interfiram no ambiente.
-
-**Importante:** o setup deve ser executado em um no com GPU, pois a
-verificacao final testa se o PyTorch consegue acessar a placa. Nos de login
-nao possuem GPU, entao `torch.cuda.is_available()` retornara `False` se o
-script for executado diretamente com `bash`.
-
-Use `srun` para alocar um no da particao `gpuq` de forma interativa:
+### 1. Preparar ambiente (uma vez)
 
 ```bash
-# Aloca 1 GPU A100, 16 GB de RAM, 4 CPUs e 30 minutos de tempo limite.
-# O script instala o ambiente conda e verifica se CUDA esta acessivel.
+# Alocar 1 no GPU de forma interativa e executar o setup
 srun -p gpuq --gres=gpu:a100:1 --mem=16G --cpus-per-task=4 --time=00:30:00 \
     bash scripts/slurm/setup_env.sh "$(pwd)"
 ```
 
-Ao final da execucao, a saida deve mostrar:
+A saida esperada confirma `CUDA available: True` e `Python 3.12.x`.
 
-```
-torch: 2.3.1+cu121
-torch.version.cuda: 12.1
-CUDA available: True
-  GPU 0: NVIDIA A100 80GB PCIe  (capability 8.0)
-Environment ready: Python 3.12.12
-```
-
-Se `CUDA available: False` aparecer, verifique se o comando foi executado
-via `srun` (e nao diretamente no no de login) e se a particao `gpuq` esta
-correta (`sinfo -o "%P %a %G"`).
-
-> **Nota sobre pacotes pip do usuario:** se uma versao diferente do torch
-> existir em `~/.local/lib/python3.12/site-packages` (por exemplo, de uma
-> instalacao anterior), ela sera ignorada enquanto `PYTHONNOUSERSITE=1`
-> estiver definido. Todos os scripts de job em `scripts/slurm/` ja exportam
-> essa variavel.
-
-### 2) Definir o caminho do dataset
-
-Exporte a variavel `PDI_DATA_ROOT` apontando para o diretorio raiz dos
-dados brutos. Os scripts de pre-processamento e treinamento usam essa
-variavel para localizar as imagens:
+### 2. Definir caminho do dataset
 
 ```bash
-export PDI_DATA_ROOT=/caminho/para/o/dataset
+export PDI_DATA_ROOT=/caminho/para/imagens-satelite
 ```
 
-### 3) Pre-processar os dados (executar uma vez, compartilhado entre todos os workflows)
-
-O pre-processamento converte os patches GeoTIFF para NPY e gera o arquivo
-`preprocessed/manifest.csv` com os splits de treino, validacao e teste.
-
-Opcao recomendada - submeter via SLURM (roda na particao `cpuq` com 16 CPUs
-e 64 GB de RAM, tempo limite de 24h):
+### 3. Pre-processar
 
 ```bash
 sbatch scripts/slurm/preprocess.sbatch
 ```
 
-Opcao alternativa - executar diretamente (util para testes rapidos ou
-ambientes sem SLURM):
+### 4a. Treinar modelos DL
 
-```bash
-python scripts/preprocess_dataset.py --resume
-```
-
-A flag `--resume` permite retomar o processamento de onde parou caso o
-job seja interrompido.
-
-### 4) Treinar modelos de DL na GPU (SLURM)
-
-Cada modelo possui seu proprio sbatch com recursos SLURM ajustados e
-hiperparametros lidos do arquivo YAML (`config/paper_results.yaml` por
-padrao). Apos o treino, a avaliacao no test set roda automaticamente.
-
-Treinar um modelo individual:
-
-```bash
-# Submeter treino do AE (8h, 48G)
-sbatch scripts/slurm/train_ae.sbatch
-
-# Submeter treino do VAE (12h, 48G)
-sbatch scripts/slurm/train_vae.sbatch
-
-# Submeter treino do GAN (36h, 64G)
-sbatch scripts/slurm/train_gan.sbatch
-
-# Submeter treino do U-Net (16h, 48G)
-sbatch scripts/slurm/train_unet.sbatch
-
-# Submeter treino do ViT (36h, 64G)
-sbatch scripts/slurm/train_vit.sbatch
-```
-
-Submeter todos os 5 modelos em paralelo (cada um roda em seu proprio job):
+Submeter todos os 5 modelos em paralelo (cada um em seu proprio job):
 
 ```bash
 bash scripts/slurm/submit_all.sh
 ```
 
-Usar um arquivo de configuracao diferente (por exemplo, validacao rapida com
-2 epochs):
+Ou submeter modelos individuais:
 
 ```bash
-PDI_CONFIG=config/quick_validation.yaml sbatch scripts/slurm/train_ae.sbatch
-PDI_CONFIG=config/quick_validation.yaml bash scripts/slurm/submit_all.sh
+sbatch scripts/slurm/train_ae.sbatch    # 8h, 48G
+sbatch scripts/slurm/train_vae.sbatch   # 12h, 48G
+sbatch scripts/slurm/train_gan.sbatch   # 36h, 64G
+sbatch scripts/slurm/train_unet.sbatch  # 16h, 48G
+sbatch scripts/slurm/train_vit.sbatch   # 36h, 64G
 ```
 
-Os hiperparametros de cada modelo estao na secao `dl_training` do YAML. Para
-alterar, edite o arquivo de configuracao diretamente.
+Usar uma configuracao diferente:
 
-> **Alternativa - treino sequencial:** o `train_all.sbatch` ainda esta
-> disponivel para treinar os 5 modelos em um unico job de 72h. Nesse caso,
-> os hiperparametros sao definidos via variaveis de ambiente bash:
->
-> ```bash
-> sbatch scripts/slurm/train_all.sbatch
-> ```
+```bash
+PDI_CONFIG=config/quick_validation.yaml bash scripts/slurm/submit_all.sh
+PDI_CONFIG=config/quick_validation.yaml sbatch scripts/slurm/train_ae.sbatch
+```
 
-### 5) Executar experimento classico (SLURM)
+### 4b. Experimento classico
 
-O experimento classico avalia os 15 metodos de interpolacao (nearest,
-bilinear, bicubic, Lanczos, IDW, RBF, spline, kriging, DCT, wavelet, TV,
-L1-DCT, L1-wavelet, non-local, exemplar-based) em todas as combinacoes de
-satelites, niveis de ruido e seeds definidos no YAML.
-
-Este job roda na particao `cpuq` (nao requer GPU) com 32 CPUs, 128 GB de
-RAM e tempo limite de 72 horas:
+Roda em `cpuq` (32 CPUs, 128G, 72h):
 
 ```bash
 sbatch scripts/slurm/experiment_classical.sbatch
 ```
 
-Para usar uma configuracao diferente:
+### 5. Smoke tests (antes da producao)
 
 ```bash
-PDI_CONFIG=config/quick_validation.yaml sbatch scripts/slurm/experiment_classical.sbatch
+sbatch scripts/slurm/experiment_classical_quick.sbatch   # ~1h, CPU
+sbatch scripts/slurm/train_dl_quick.sbatch               # ~1h, GPU
 ```
 
-### 6) Validacao rapida (smoke test)
-
-Antes de submeter os jobs de producao, use os scripts de validacao rapida
-para verificar se o pipeline esta funcionando. Eles usam
-`config/quick_validation.yaml` (1 seed, 2 patches, 2 epochs para DL):
+### 6. Monitorar jobs
 
 ```bash
-# Validacao rapida dos metodos classicos (~1h, CPU)
-sbatch scripts/slurm/experiment_classical_quick.sbatch
-
-# Validacao rapida de todos os 5 modelos DL (~1h, GPU)
-sbatch scripts/slurm/train_dl_quick.sbatch
-```
-
-### 7) Monitorar jobs e inspecionar saida
-
-```bash
-# Listar jobs em execucao do usuario atual
 squeue -u $USER
-
-# Ver detalhes de um job especifico (tempo, memoria, status)
 sacct -j <JOB_ID> --format=JobID,State,Elapsed,MaxRSS
-
-# Acompanhar a saida em tempo real
 tail -f slurm_pdi-train-all_<JOB_ID>.out
-
-# Ver logs de erro
-cat slurm_pdi-train-all_<JOB_ID>.err
 ```
 
-### Diagnostico (cluster novo ou ambiente com problemas)
-
-O `hello_cuda.sbatch` e um job apenas de diagnostico que coleta informacoes
-do ambiente sem abortar em caso de erros. Use-o para descobrir nomes de
-modulos, particoes disponiveis, GPUs acessiveis e estado do CUDA:
+### Diagnostico (cluster novo ou ambiente desconhecido)
 
 ```bash
-# Primeiro, verificar as particoes e GRES disponiveis no cluster
 sinfo -o "%P %a %G"
-
-# Submeter o diagnostico com os valores padrao
 sbatch scripts/slurm/hello_cuda.sbatch
-
-# Ou sobrescrever particao/GRES se os padroes nao corresponderem ao cluster
+# ou sobrescrever particao/GRES:
 sbatch -p <particao> --gres=gpu:1 scripts/slurm/hello_cuda.sbatch
 ```
 
-O arquivo de saida (`slurm_pdi-hello-cuda_<JOB_ID>.out`) contera secoes
-para: modulos disponiveis, modulos carregados, informacoes de GPU via
-nvidia-smi e status do PyTorch/CUDA.
+O arquivo de saida `slurm_pdi-hello-cuda_<JOB_ID>.out` contem listagem de modulos, informacoes de GPU e status do PyTorch/CUDA.
+
+## Metricas e Analise Estatistica
+
+**Metricas de qualidade de imagem:** PSNR, SSIM, RMSE, SAM, ERGAS.
+
+**Analises estatisticas:**
+
+- Correlacao de Pearson e Spearman com correcao FDR (alpha = 0,05).
+- Kruskal-Wallis + Dunn post-hoc (Bonferroni), epsilon-squared, Cliff's delta.
+- Regressao robusta (RLM / HuberT): metrica ~ entropia (multi-escala) + metodo + ruido. Inclui coeficientes beta, p-values, IC95%, R-squared ajustado, VIF.
+- Moran's I (global) e LISA (local) para autocorrelacao espacial de mapas de erro de reconstrucao.
+
+## Estrutura de Saida
+
+```
+results/
+  paper_results/
+    raw_results.parquet         # Resultados por patch para todos os metodos, seeds, niveis de ruido
+    entropy/                    # Mapas de entropia salvos para os top-k patches
+    figures/                    # Figuras PDF e PNG (8 figuras)
+    tables/                     # Arquivos de tabelas LaTeX (8 tabelas)
+  dl_eval/
+    {model}_inpainting/
+      results.csv
+  dl_plots/
+    {model}_training_curves.{pdf,png}
+
+paper_assets/
+  classico/
+    figures/
+    tables/
+    raw_results/
+    logs/
+  dl/
+    eval_results/
+    figures/
+    history/
+    training_logs/
+    training_plots/
+```
+
+## Parametrizacoes
+
+| Parametro                 | Valores                                                    |
+| ------------------------- | ---------------------------------------------------------- |
+| Janelas de entropia       | 7x7, 15x15, 31x31                                          |
+| Tamanho do patch          | 64x64                                                      |
+| Niveis de ruido (SNR)     | inf, 40, 30, 20 dB                                         |
+| Seeds aleatorias (artigo) | 10 (42, 123, 456, 789, 1011, 1213, 1415, 1617, 1819, 2021) |
+| Max patches por config    | 75 (artigo) / 1 (rapido)                                   |
+| Alpha estatistico         | 0,05 com correcao FDR                                      |
+
+## Figuras e Tabelas
+
+**Figuras (8):**
+
+1. Mapas de entropia local em 3 escalas (7x7, 15x15, 31x31) para todos os sensores.
+2. Scatterplots entropia vs. PSNR por metodo (15 classicos) com reta de regressao, beta, p-value, R-squared.
+3. Boxplots PSNR por metodo, agrupados por tercil de entropia (baixo / medio / alto).
+4. Boxplots PSNR por metodo, agrupados por nivel de ruido.
+5. Mapas de clusters LISA sobrepostos em mapas de erro de reconstrucao.
+6. Exemplos visuais: clean / degraded / todos os metodos para patches de baixa e alta entropia.
+7. Heatmap de correlacao Spearman rho (entropia multi-escala vs. metricas).
+8. Mapas de PSNR local e SSIM local para patch representativo (todos os metodos).
+
+**Tabelas (8):**
+
+1. Visao geral dos 15 metodos classicos (categoria, parametros, complexidade).
+2. Media PSNR +/- IC95% por metodo x nivel de ruido.
+3. Media PSNR +/- IC95% estratificada por tercil de entropia em cada escala.
+4. Correlacao Spearman entre entropia multi-escala e metricas (p-values FDR-corrigidos).
+5. Kruskal-Wallis (H, p, epsilon-squared) e pares significativos (Dunn post-hoc, Cliff's delta).
+6. Regressao robusta (RLM/HuberT) por metrica: beta, p-values, R-squared, R-squared ajustado, VIF.
+7. Media PSNR +/- IC95% por metodo x satelite.
+8. Comparacao classicos vs. DL (PSNR, SSIM, RMSE side-by-side).
+
+## Licenca
+
+MIT - ver [LICENSE](LICENSE).
