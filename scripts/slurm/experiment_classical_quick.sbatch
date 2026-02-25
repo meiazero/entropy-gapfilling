@@ -7,9 +7,9 @@
 # ---------------------------------------------------------------------------
 #SBATCH -J pdi-experiment-classical-quick
 #SBATCH -p cpuq
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=32G
-#SBATCH --time=01:00:00
+#SBATCH --cpus-per-task=64
+#SBATCH --mem=128G
+#SBATCH --time=02:00:00
 #SBATCH -o logs/slurm_%x_%j.out
 #SBATCH -e logs/slurm_%x_%j.err
 
