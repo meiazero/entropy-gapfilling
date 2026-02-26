@@ -1,27 +1,27 @@
 \begin{table}[htbp]
 \centering
-\caption{PSNR médio (dB) $\pm$ IC de 95\% estratificado por tercil de entropia (janela 7$\times$7). Maior PSNR é melhor.}
-\label{tab:psnr-entropy-tercile-7}
+\caption{PSNR médio (dB) $\pm$ IC de 95\% estratificado por tercil de entropia (janela 15$\times$15). Maior PSNR é melhor.}
+\label{tab:psnr-entropy-tercile}
 \footnotesize
 \begin{tabular}{lccc}
 \toprule
 Método & Entropia Baixa & Entropia Média & Entropia Alta \\
 \midrule
-bicubic & $22.03_{\pm 0.00}$ & $13.28_{\pm 0.00}$ & -- \\
-bilinear & \underline{$23.79_{\pm 0.00}$} & \underline{$23.49_{\pm 0.00}$} & -- \\
-dct & $22.48_{\pm 0.00}$ & $16.38_{\pm 0.00}$ & -- \\
-exemplar_based & $22.24_{\pm 0.00}$ & $20.33_{\pm 0.00}$ & -- \\
-idw & $20.44_{\pm 0.00}$ & $19.91_{\pm 0.00}$ & -- \\
-kriging & \textbf{$24.93_{\pm 0.00}$} & \textbf{$24.52_{\pm 0.00}$} & -- \\
-l1_dct & $22.48_{\pm 0.00}$ & $16.38_{\pm 0.00}$ & -- \\
-l1_wavelet & $19.11_{\pm 0.00}$ & $6.05_{\pm 0.00}$ & -- \\
-lanczos & $21.50_{\pm 0.00}$ & $18.72_{\pm 0.00}$ & -- \\
-nearest & $23.52_{\pm 0.00}$ & $20.25_{\pm 0.00}$ & -- \\
-non_local & $15.31_{\pm 0.00}$ & $14.79_{\pm 0.00}$ & -- \\
-rbf & $22.23_{\pm 0.00}$ & $18.93_{\pm 0.00}$ & -- \\
-spline & $22.23_{\pm 0.00}$ & $18.93_{\pm 0.00}$ & -- \\
-tv & $15.38_{\pm 0.00}$ & $21.28_{\pm 0.00}$ & -- \\
-wavelet & $21.66_{\pm 0.00}$ & $19.71_{\pm 0.00}$ & -- \\
+bicubic & $17.11_{\pm 2.75}$ & $15.14_{\pm 0.86}$ & $21.84_{\pm 3.55}$ \\
+bilinear & $18.84_{\pm 2.30}$ & $16.31_{\pm 0.25}$ & \underline{$27.94_{\pm 0.99}$} \\
+dct & $17.79_{\pm 2.69}$ & $16.74_{\pm 0.05}$ & $17.16_{\pm 0.01}$ \\
+exemplar_based & $20.42_{\pm 2.82}$ & $18.18_{\pm 0.84}$ & $27.14_{\pm 2.32}$ \\
+idw & $17.61_{\pm 3.14}$ & \underline{$18.52_{\pm 0.01}$} & $20.05_{\pm 0.01}$ \\
+kriging & $19.90_{\pm 3.14}$ & \textbf{$20.22_{\pm 0.10}$} & \textbf{$28.33_{\pm 0.66}$} \\
+l1_dct & $17.79_{\pm 2.69}$ & $16.74_{\pm 0.05}$ & $17.16_{\pm 0.01}$ \\
+l1_wavelet & $14.47_{\pm 3.44}$ & $8.52_{\pm 0.01}$ & $8.70_{\pm 0.01}$ \\
+lanczos & $18.46_{\pm 2.73}$ & $16.56_{\pm 0.37}$ & $23.32_{\pm 1.03}$ \\
+nearest & $18.53_{\pm 2.73}$ & $16.31_{\pm 0.29}$ & $23.48_{\pm 0.78}$ \\
+non_local & $15.68_{\pm 2.22}$ & $17.09_{\pm 0.04}$ & $12.61_{\pm 0.03}$ \\
+rbf & \textbf{$20.49_{\pm 2.30}$} & $16.00_{\pm 0.49}$ & $25.98_{\pm 2.38}$ \\
+spline & \underline{$20.49_{\pm 2.30}$} & $16.00_{\pm 0.49}$ & $25.98_{\pm 2.38}$ \\
+tv & $15.20_{\pm 2.52}$ & $15.74_{\pm 0.00}$ & $20.52_{\pm 0.01}$ \\
+wavelet & $19.37_{\pm 2.89}$ & $17.43_{\pm 0.03}$ & $19.51_{\pm 0.13}$ \\
 \bottomrule
 \end{tabular}
 \end{table}

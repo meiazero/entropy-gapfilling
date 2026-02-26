@@ -3,25 +3,25 @@
 \caption{PSNR médio (dB) $\pm$ IC de 95\% por método e sensor de satélite. Maior PSNR é melhor.}
 \label{tab:psnr-satellite}
 \footnotesize
-\begin{tabular}{lc}
+\begin{tabular}{lcccc}
 \toprule
-Método & sentinel2 \\
+Método & landsat8 & landsat9 & modis & sentinel2 \\
 \midrule
-bicubic & $17.66_{\pm 4.37}$ \\
-bilinear & \underline{$23.64_{\pm 0.15}$} \\
-dct & $19.43_{\pm 3.05}$ \\
-exemplar_based & $21.28_{\pm 0.95}$ \\
-idw & $20.17_{\pm 0.26}$ \\
-kriging & \textbf{$24.72_{\pm 0.20}$} \\
-l1_dct & $19.43_{\pm 3.05}$ \\
-l1_wavelet & $12.58_{\pm 6.53}$ \\
-lanczos & $20.11_{\pm 1.39}$ \\
-nearest & $21.89_{\pm 1.63}$ \\
-non_local & $15.05_{\pm 0.26}$ \\
-rbf & $20.58_{\pm 1.65}$ \\
-spline & $20.58_{\pm 1.65}$ \\
-tv & $18.33_{\pm 2.95}$ \\
-wavelet & $20.68_{\pm 0.98}$ \\
+bicubic & $21.84_{\pm 3.55}$ & $15.14_{\pm 0.86}$ & $13.46_{\pm 1.74}$ & $20.77_{\pm 0.11}$ \\
+bilinear & \underline{$27.94_{\pm 0.99}$} & $16.31_{\pm 0.25}$ & $15.75_{\pm 0.13}$ & $21.93_{\pm 0.05}$ \\
+dct & $17.16_{\pm 0.01}$ & $16.74_{\pm 0.05}$ & $14.21_{\pm 0.01}$ & $21.38_{\pm 0.00}$ \\
+exemplar_based & $27.14_{\pm 2.32}$ & $18.18_{\pm 0.84}$ & $16.55_{\pm 0.89}$ & \textbf{$24.29_{\pm 0.04}$} \\
+idw & $20.05_{\pm 0.01}$ & \underline{$18.52_{\pm 0.01}$} & $13.42_{\pm 0.00}$ & $21.80_{\pm 0.02}$ \\
+kriging & \textbf{$28.33_{\pm 0.66}$} & \textbf{$20.22_{\pm 0.10}$} & $15.70_{\pm 0.07}$ & \underline{$24.11_{\pm 0.03}$} \\
+l1_dct & $17.16_{\pm 0.01}$ & $16.74_{\pm 0.05}$ & $14.21_{\pm 0.01}$ & $21.38_{\pm 0.00}$ \\
+l1_wavelet & $8.70_{\pm 0.01}$ & $8.52_{\pm 0.01}$ & $9.88_{\pm 0.01}$ & $19.06_{\pm 0.01}$ \\
+lanczos & $23.32_{\pm 1.03}$ & $16.56_{\pm 0.37}$ & $14.78_{\pm 0.23}$ & $22.14_{\pm 0.03}$ \\
+nearest & $23.48_{\pm 0.78}$ & $16.31_{\pm 0.29}$ & $14.85_{\pm 0.20}$ & $22.21_{\pm 0.04}$ \\
+non_local & $12.61_{\pm 0.03}$ & $17.09_{\pm 0.04}$ & $12.71_{\pm 0.03}$ & $18.65_{\pm 0.01}$ \\
+rbf & $25.98_{\pm 2.38}$ & $16.00_{\pm 0.49}$ & \textbf{$17.33_{\pm 0.82}$} & $23.65_{\pm 0.11}$ \\
+spline & $25.98_{\pm 2.38}$ & $16.00_{\pm 0.49}$ & \underline{$17.33_{\pm 0.82}$} & $23.65_{\pm 0.11}$ \\
+tv & $20.52_{\pm 0.01}$ & $15.74_{\pm 0.00}$ & $11.84_{\pm 0.01}$ & $18.57_{\pm 0.02}$ \\
+wavelet & $19.51_{\pm 0.13}$ & $17.43_{\pm 0.03}$ & $15.50_{\pm 0.02}$ & $23.24_{\pm 0.07}$ \\
 \bottomrule
 \end{tabular}
 \end{table*}
