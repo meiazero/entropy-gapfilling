@@ -37,6 +37,15 @@ from pdi_pipeline.statistics import (
     robust_regression,
 )
 
+
+def _agg_csv(agg_dir: Path | None, filename: str) -> Path | None:
+    """Return the path to *filename* in *agg_dir* if both exist, else None."""
+    if agg_dir is None:
+        return None
+    p = agg_dir / filename
+    return p if p.exists() else None
+
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -334,9 +343,19 @@ def table1_method_overview(df: pd.DataFrame, output_dir: Path) -> None:
     _write_tex(tex, output_dir / "methods.tex")
 
 
-def table2_overall_results(df: pd.DataFrame, output_dir: Path) -> None:
+def table2_overall_results(
+    df: pd.DataFrame,
+    output_dir: Path,
+    *,
+    agg_dir: Path | None = None,
+) -> None:
     """Table 2: Mean PSNR +/- CI95% per method x noise level."""
-    noise_summary = summary_by_noise(df, metric="psnr")
+    csv = _agg_csv(agg_dir, "by_noise_psnr.csv")
+    if csv is not None:
+        log.info("Table 2: reading from %s", csv)
+        noise_summary = pd.read_csv(csv)
+    else:
+        noise_summary = summary_by_noise(df, metric="psnr")
     if noise_summary.empty:
         log.warning("No data for table2")
         return
@@ -378,7 +397,12 @@ def table2_overall_results(df: pd.DataFrame, output_dir: Path) -> None:
     _write_tex(tex, output_dir / "psnr-method-noise.tex")
 
 
-def table3_entropy_stratified(df: pd.DataFrame, output_dir: Path) -> None:
+def table3_entropy_stratified(
+    df: pd.DataFrame,
+    output_dir: Path,
+    *,
+    agg_dir: Path | None = None,
+) -> None:
     """Table 3: Mean PSNR per method x entropy bin."""
     if "entropy_15" in df.columns:
         entropy_windows = ["entropy_15"]
@@ -393,9 +417,14 @@ def table3_entropy_stratified(df: pd.DataFrame, output_dir: Path) -> None:
 
     for ecol in sorted(entropy_windows):
         ws = ecol.split("_")[-1]
-        ent_summary = summary_by_entropy_bin(
-            df, entropy_col=ecol, metric="psnr"
-        )
+        csv = _agg_csv(agg_dir, f"by_entropy_bin_{ws}_psnr.csv")
+        if csv is not None:
+            log.info("Table 3 (%s): reading from %s", ecol, csv)
+            ent_summary = pd.read_csv(csv)
+        else:
+            ent_summary = summary_by_entropy_bin(
+                df, entropy_col=ecol, metric="psnr"
+            )
 
         if ent_summary.empty:
             log.warning("No data for table3 (%s)", ecol)
@@ -431,16 +460,38 @@ def table3_entropy_stratified(df: pd.DataFrame, output_dir: Path) -> None:
         _write_tex(tex, output_dir / "psnr-entropy-tercile.tex")
 
 
-def table4_correlation(df: pd.DataFrame, output_dir: Path) -> None:
+def table4_correlation(
+    df: pd.DataFrame,
+    output_dir: Path,
+    *,
+    agg_dir: Path | None = None,
+) -> None:
     """Table 4: Spearman rho for entropy x metric."""
-    entropy_cols = [c for c in df.columns if c.startswith("entropy_")]
-    metric_cols = [c for c in ["psnr"] if c in df.columns]
-
-    if not entropy_cols or not metric_cols:
-        log.warning("Missing columns for table4")
-        return
-
-    corr_df = correlation_matrix(df, entropy_cols, metric_cols)
+    csv = _agg_csv(agg_dir, "spearman_correlation.csv")
+    if csv is not None:
+        log.info("Table 4: reading from %s", csv)
+        corr_df = pd.read_csv(csv)
+        # Infer entropy and metric cols from the CSV itself.
+        entropy_cols = (
+            sorted(corr_df["entropy_col"].unique())
+            if "entropy_col" in corr_df.columns
+            else []
+        )
+        metric_cols = (
+            sorted(corr_df["metric_col"].unique())
+            if "metric_col" in corr_df.columns
+            else []
+        )
+        if not entropy_cols or not metric_cols:
+            log.warning("Cannot infer columns from spearman_correlation.csv")
+            return
+    else:
+        entropy_cols = [c for c in df.columns if c.startswith("entropy_")]
+        metric_cols = [c for c in ["psnr"] if c in df.columns]
+        if not entropy_cols or not metric_cols:
+            log.warning("Missing columns for table4")
+            return
+        corr_df = correlation_matrix(df, entropy_cols, metric_cols)
     if corr_df.empty:
         return
 
@@ -479,26 +530,58 @@ def table4_correlation(df: pd.DataFrame, output_dir: Path) -> None:
     _write_tex(tex, output_dir / "spearman-heatmap.tex")
 
 
-def table5_kruskal_wallis(df: pd.DataFrame, output_dir: Path) -> None:
+def table5_kruskal_wallis(
+    df: pd.DataFrame,
+    output_dir: Path,
+    *,
+    agg_dir: Path | None = None,
+) -> None:
     """Table 5: Kruskal-Wallis + Dunn post-hoc summary."""
+    global_csv = _agg_csv(agg_dir, "method_comparison_global.csv")
+    pairwise_csv = _agg_csv(agg_dir, "method_comparison_pairwise.csv")
+
     body: list[str] = []
-    for metric in ["psnr", "ssim", "rmse", "sam"]:
-        if metric not in df.columns:
-            continue
-        result = method_comparison(df, metric_col=metric)
-        n_sig = 0
-        if not result.posthoc.empty:
-            n_sig = int(result.posthoc["significant"].sum())
-        p_str = (
-            "$< 10^{-10}$"
-            if result.p_value < 1e-10
-            else f"${result.p_value:.2e}$"
+
+    if global_csv is not None:
+        log.info("Table 5: reading from %s", global_csv)
+        global_df = pd.read_csv(global_csv)
+        pairwise_df = (
+            pd.read_csv(pairwise_csv)
+            if pairwise_csv is not None
+            else pd.DataFrame()
         )
-        body.append(
-            f"{metric.upper()} & ${result.statistic:.1f}$ & "
-            f"{p_str} & ${result.epsilon_squared:.4f}$ "
-            f"& {n_sig} \\\\"
-        )
+        for _, row in global_df.iterrows():
+            metric = str(row["metric"])
+            stat = float(row["kruskal_H"])
+            p_val = float(row["kruskal_p"])
+            eps = float(row["epsilon_squared"])
+            n_sig = 0
+            if not pairwise_df.empty and "significant" in pairwise_df.columns:
+                n_sig = int(pairwise_df["significant"].sum())
+            p_str = "$< 10^{-10}$" if p_val < 1e-10 else f"${p_val:.2e}$"
+            body.append(
+                f"{metric.upper()} & ${stat:.1f}$ & "
+                f"{p_str} & ${eps:.4f}$ "
+                f"& {n_sig} \\\\"
+            )
+    else:
+        for metric in ["psnr", "ssim", "rmse", "sam"]:
+            if metric not in df.columns:
+                continue
+            result = method_comparison(df, metric_col=metric)
+            n_sig = 0
+            if not result.posthoc.empty:
+                n_sig = int(result.posthoc["significant"].sum())
+            p_str = (
+                "$< 10^{-10}$"
+                if result.p_value < 1e-10
+                else f"${result.p_value:.2e}$"
+            )
+            body.append(
+                f"{metric.upper()} & ${result.statistic:.1f}$ & "
+                f"{p_str} & ${result.epsilon_squared:.4f}$ "
+                f"& {n_sig} \\\\"
+            )
 
     tex = _render_latex_table(
         LatexTableConfig(
@@ -519,8 +602,112 @@ def table5_kruskal_wallis(df: pd.DataFrame, output_dir: Path) -> None:
     _write_tex(tex, output_dir / "table5_kruskal.tex")
 
 
-def table6_regression(df: pd.DataFrame, output_dir: Path) -> None:
+def table6_regression(  # noqa: C901
+    df: pd.DataFrame,
+    output_dir: Path,
+    *,
+    agg_dir: Path | None = None,
+) -> None:
     """Table 6: Robust regression coefficients."""
+    coefs_csv = _agg_csv(agg_dir, "robust_regression_coefs.csv")
+    vif_csv = _agg_csv(agg_dir, "robust_regression_vif.csv")
+    summary_csv = _agg_csv(agg_dir, "robust_regression_summary.csv")
+
+    if coefs_csv is not None:
+        log.info("Table 6: reading from %s", coefs_csv)
+        coefs_df = pd.read_csv(coefs_csv)
+        vif_df = pd.read_csv(vif_csv) if vif_csv is not None else pd.DataFrame()
+        summary_df = (
+            pd.read_csv(summary_csv)
+            if summary_csv is not None
+            else pd.DataFrame()
+        )
+
+        # Infer metric from summary CSV, default to "psnr".
+        metric = "psnr"
+        r_squared_adj = float("nan")
+        n = 0
+        if not summary_df.empty:
+            metric = (
+                str(summary_df.iloc[0]["metric"])
+                if "metric" in summary_df.columns
+                else "psnr"
+            )
+            r_squared_adj = (
+                float(summary_df.iloc[0]["r_squared_adj"])
+                if "r_squared_adj" in summary_df.columns
+                else float("nan")
+            )
+            n = int(summary_df.iloc[0]["n"]) if "n" in summary_df.columns else 0
+
+        body: list[str] = []
+        for row in coefs_df.itertuples():
+            var = (
+                str(row.variable).replace("_", r"\_")
+                if hasattr(row, "variable")
+                else "--"
+            )
+            beta = float(row.beta) if hasattr(row, "beta") else float("nan")
+            std_err = (
+                float(row.std_err) if hasattr(row, "std_err") else float("nan")
+            )
+            z_value = (
+                float(row.z_value) if hasattr(row, "z_value") else float("nan")
+            )
+            p_value = (
+                float(row.p_value) if hasattr(row, "p_value") else float("nan")
+            )
+            ci_lo = float(row.ci_lo) if hasattr(row, "ci_lo") else float("nan")
+            ci_hi = float(row.ci_hi) if hasattr(row, "ci_hi") else float("nan")
+            p_str = "$< 10^{-10}$" if p_value < 1e-10 else f"${p_value:.2e}$"
+            ci_str = f"[{ci_lo:.4f}, {ci_hi:.4f}]"
+            body.append(
+                f"{var} & ${beta:.4f}$ & ${std_err:.4f}$ & "
+                f"${z_value:.2f}$ & {p_str} & {ci_str} \\\\"
+            )
+
+        extra: list[str] = []
+        if (
+            not vif_df.empty
+            and "variable" in vif_df.columns
+            and "vif" in vif_df.columns
+        ):
+            extra.append(r"\vspace{0.5em}")
+            extra.append(r"\begin{tabular}{lr}")
+            extra.append(r"\toprule")
+            extra.append(r"Variável & FIV \\")
+            extra.append(r"\midrule")
+            for vrow in vif_df.itertuples():
+                var = str(vrow.variable).replace("_", r"\_")
+                extra.append(f"{var} & ${float(vrow.vif):.2f}$ \\\\")
+            extra.append(r"\bottomrule")
+            extra.append(r"\end{tabular}")
+
+        mu = metric.upper()
+        r2_str = f"{r_squared_adj:.4f}" if np.isfinite(r_squared_adj) else "N/A"
+        n_str = str(n) if n > 0 else "N/A"
+        tex = _render_latex_table(
+            LatexTableConfig(
+                caption=(
+                    f"Regressão robusta (RLM/HuberT) para {mu}. "
+                    f"$R^2_{{adj}} = {r2_str}$, $n = {n_str}$."
+                ),
+                label="tab:robust-regression",
+                col_spec="lrrrrr",
+                header=(
+                    r"Variável & $\beta$ & Erro Padrão "
+                    r"& $z$ & $p$ & IC 95\%"
+                ),
+                font_size=r"\tiny",
+                env="table*",
+            ),
+            body,
+            extra_after_tabular=extra or None,
+        )
+        _write_tex(tex, output_dir / "robust-regression.tex")
+        return
+
+    # Fallback: compute from raw data.
     entropy_cols = sorted(c for c in df.columns if c.startswith("entropy_"))
     if not entropy_cols:
         log.warning("No entropy columns for table6")
@@ -537,7 +724,7 @@ def table6_regression(df: pd.DataFrame, output_dir: Path) -> None:
             log.warning("Regression failed for %s", metric)
             continue
 
-        body: list[str] = []
+        body = []
         for row in result.coefficients.itertuples():
             var = str(row.variable).replace("_", r"\_")
             p_str = (
@@ -553,7 +740,7 @@ def table6_regression(df: pd.DataFrame, output_dir: Path) -> None:
                 f"{p_str} & {ci_str} \\\\"
             )
 
-        extra: list[str] = []
+        extra = []
         if not result.vif.empty:
             extra.append(r"\vspace{0.5em}")
             extra.append(r"\begin{tabular}{lr}")
@@ -599,9 +786,19 @@ def table6_regression(df: pd.DataFrame, output_dir: Path) -> None:
         _write_tex(tex, output_dir / filename)
 
 
-def table7_satellite(df: pd.DataFrame, output_dir: Path) -> None:
+def table7_satellite(
+    df: pd.DataFrame,
+    output_dir: Path,
+    *,
+    agg_dir: Path | None = None,
+) -> None:
     """Table 7: Mean PSNR per method x satellite."""
-    sat_summary = summary_by_satellite(df, metric="psnr")
+    csv = _agg_csv(agg_dir, "by_satellite_psnr.csv")
+    if csv is not None:
+        log.info("Table 7: reading from %s", csv)
+        sat_summary = pd.read_csv(csv)
+    else:
+        sat_summary = summary_by_satellite(df, metric="psnr")
 
     if sat_summary.empty:
         log.warning("No data for table7")
@@ -637,49 +834,100 @@ def table8_dl_comparison(
     output_dir: Path,
     *,
     results_dir: Path | None = None,
+    agg_dir: Path | None = None,
 ) -> None:
     """Table 8: Classical vs. DL method comparison."""
-    classical_summary = (
-        df
-        .groupby("method", observed=True)[["psnr", "ssim", "rmse"]]
-        .mean()
-        .reset_index()
-    )
-    classical_summary["type"] = "Clássico"
-
-    dl_base = (
-        results_dir.parent / "dl_eval" if results_dir is not None else Path(".")
-    )
-    dl_rows = _collect_dl_rows(dl_base)
-
-    if not dl_rows:
-        log.info(
-            "No DL results at %s. Skipping table8.",
-            dl_base,
+    csv = _agg_csv(agg_dir, "combined_comparison.csv")
+    if csv is not None:
+        log.info("Table 8: reading from %s", csv)
+        raw = pd.read_csv(csv)
+        # combined_comparison.csv has columns: type, method, noise_level, n,
+        # psnr_mean, psnr_ci95_lo, psnr_ci95_hi, ssim_mean, rmse_mean, ...
+        # Aggregate across noise levels to get overall mean per method.
+        present_m = [
+            m for m in ["psnr", "ssim", "rmse"] if f"{m}_mean" in raw.columns
+        ]
+        if not present_m:
+            log.warning(
+                "No metric columns in combined_comparison.csv for table8"
+            )
+            return
+        agg_cols = {f"{m}_mean": "mean" for m in present_m}
+        combined = (
+            raw
+            .groupby(["type", "method"], observed=True)
+            .agg(agg_cols)
+            .reset_index()
         )
-        return
+        # Rename type labels to Portuguese.
+        combined["type"] = (
+            combined["type"]
+            .map({"classical": "Clássico", "dl": "Aprendizado Profundo"})
+            .fillna(combined["type"])
+        )
+        for m in present_m:
+            combined[m] = combined[f"{m}_mean"]
+        combined = combined.sort_values("psnr", ascending=False)
+        _add_metric_rankings(combined, present_m)
 
-    dl_summary = pd.DataFrame(dl_rows)
-    combined = pd.concat([classical_summary, dl_summary], ignore_index=True)
-    combined = combined.sort_values("psnr", ascending=False)
+        body: list[str] = []
+        prev_type = ""
+        for row in combined.itertuples():
+            row_type = str(row.type)
+            type_str = row_type if row_type != prev_type else ""
+            prev_type = row_type
+            method_str = str(row.method).replace("_", r"\_")
+            cells: list[str] = [type_str, method_str]
+            for m_col in present_m:
+                val = float(getattr(row, m_col))
+                rank = int(getattr(row, f"rank_{m_col}"))
+                cells.append(_format_table8_metric(val, rank))
+            body.append(" & ".join(cells) + r" \\")
+        present = present_m
+    else:
+        classical_summary = (
+            df
+            .groupby("method", observed=True)[["psnr", "ssim", "rmse"]]
+            .mean()
+            .reset_index()
+        )
+        classical_summary["type"] = "Clássico"
 
-    present = [m for m in ["psnr", "ssim", "rmse"] if m in combined.columns]
+        dl_base = (
+            results_dir.parent / "dl_eval"
+            if results_dir is not None
+            else Path(".")
+        )
+        dl_rows = _collect_dl_rows(dl_base)
 
-    _add_metric_rankings(combined, present)
+        if not dl_rows:
+            log.info(
+                "No DL results at %s. Skipping table8.",
+                dl_base,
+            )
+            return
 
-    body: list[str] = []
-    prev_type = ""
-    for row in combined.itertuples():
-        row_type = str(row.type)
-        type_str = row_type if row_type != prev_type else ""
-        prev_type = row_type
-        method_str = str(row.method).replace("_", r"\_")
-        cells: list[str] = [type_str, method_str]
-        for m_col in present:
-            val = float(getattr(row, m_col))
-            rank = int(getattr(row, f"rank_{m_col}"))
-            cells.append(_format_table8_metric(val, rank))
-        body.append(" & ".join(cells) + r" \\")
+        dl_summary = pd.DataFrame(dl_rows)
+        combined = pd.concat([classical_summary, dl_summary], ignore_index=True)
+        combined = combined.sort_values("psnr", ascending=False)
+
+        present = [m for m in ["psnr", "ssim", "rmse"] if m in combined.columns]
+
+        _add_metric_rankings(combined, present)
+
+        body = []
+        prev_type = ""
+        for row in combined.itertuples():
+            row_type = str(row.type)
+            type_str = row_type if row_type != prev_type else ""
+            prev_type = row_type
+            method_str = str(row.method).replace("_", r"\_")
+            cells: list[str] = [type_str, method_str]
+            for m_col in present:
+                val = float(getattr(row, m_col))
+                rank = int(getattr(row, f"rank_{m_col}"))
+                cells.append(_format_table8_metric(val, rank))
+            body.append(" & ".join(cells) + r" \\")
 
     tex = _render_latex_table(
         LatexTableConfig(
@@ -736,10 +984,42 @@ def _format_dl_metric(value: float, rank: int, fmt: str) -> str:
     return formatted
 
 
-def table_dl_metrics(dl_results_dir: Path, output_dir: Path) -> None:
+def table_dl_metrics(  # noqa: C901
+    dl_results_dir: Path | None,
+    output_dir: Path,
+    *,
+    agg_dir: Path | None = None,
+) -> None:
     """Table DL: Final-epoch metrics summary for all DL models."""
-    histories = {m: _load_dl_history(dl_results_dir, m) for m in _DL_MODELS}
-    available = {m: h for m, h in histories.items() if h and h.get("epochs")}
+    csv = _agg_csv(agg_dir, "dl_training_history.csv")
+    if csv is not None:
+        log.info("Table DL: reading from %s", csv)
+        hist_df = pd.read_csv(csv)
+        if "model" not in hist_df.columns:
+            log.warning("dl_training_history.csv has no 'model' column")
+            return
+        # Last epoch per model.
+        available: dict[str, dict] = {}
+        for model, grp in hist_df.groupby("model", sort=False):
+            # Sort by epoch if available, take last row.
+            if "epoch" in grp.columns:
+                grp = grp.sort_values("epoch")
+            last_row = grp.iloc[-1].to_dict()
+            available[str(model)] = {
+                "model_name": str(model),
+                "epochs": [last_row],
+            }
+    else:
+        if dl_results_dir is None:
+            log.warning(
+                "No dl_results_dir or dl_training_history.csv"
+                " for table_dl_metrics"
+            )
+            return
+        histories = {m: _load_dl_history(dl_results_dir, m) for m in _DL_MODELS}
+        available = {
+            m: h for m, h in histories.items() if h and h.get("epochs")
+        }
     if not available:
         log.warning("No DL histories found. Skipping table_dl_metrics.")
         return
@@ -808,6 +1088,7 @@ def _make_table_dispatch(
     df: pd.DataFrame,
     results_dir: Path,
     output_dir: Path,
+    agg_dir: Path | None = None,
 ) -> dict[int, tuple[str, Any]]:
     """Build dispatch table mapping number -> (name, callable).
 
@@ -820,24 +1101,32 @@ def _make_table_dispatch(
         ),
         2: (
             "overall_results",
-            lambda: table2_overall_results(df, output_dir),
+            lambda: table2_overall_results(df, output_dir, agg_dir=agg_dir),
         ),
         3: (
             "entropy_stratified",
-            lambda: table3_entropy_stratified(df, output_dir),
+            lambda: table3_entropy_stratified(df, output_dir, agg_dir=agg_dir),
         ),
         4: (
             "correlation",
-            lambda: table4_correlation(df, output_dir),
+            lambda: table4_correlation(df, output_dir, agg_dir=agg_dir),
+        ),
+        5: (
+            "kruskal_wallis",
+            lambda: table5_kruskal_wallis(df, output_dir, agg_dir=agg_dir),
+        ),
+        6: (
+            "regression",
+            lambda: table6_regression(df, output_dir, agg_dir=agg_dir),
         ),
         7: (
             "satellite",
-            lambda: table7_satellite(df, output_dir),
+            lambda: table7_satellite(df, output_dir, agg_dir=agg_dir),
         ),
         8: (
             "dl_comparison",
             lambda: table8_dl_comparison(
-                df, output_dir, results_dir=results_dir
+                df, output_dir, results_dir=results_dir, agg_dir=agg_dir
             ),
         ),
     }
@@ -862,6 +1151,18 @@ def parse_args(
         help="Path to DL models directory containing *_history.json files.",
     )
     parser.add_argument(
+        "--aggregated-dir",
+        type=Path,
+        default=None,
+        dest="aggregated_dir",
+        help=(
+            "Directory with pre-computed aggregated CSVs from "
+            "aggregate_results.py. Enables fast table generation without "
+            "re-running statistical computations. Auto-detected from "
+            "{results}/aggregated/ if that directory exists."
+        ),
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=None,
@@ -871,7 +1172,7 @@ def parse_args(
         "--table",
         type=int,
         default=None,
-        help="Generate only this classical table number (1-8).",
+        help="Generate only this table number (1-8).",
     )
     return parser.parse_args(argv)
 
@@ -890,14 +1191,31 @@ def _setup_file_logging(log_path: Path) -> None:
     logging.getLogger().addHandler(handler)
 
 
-def main(argv: list[str] | None = None) -> None:
+def main(argv: list[str] | None = None) -> None:  # noqa: C901
     args = parse_args(argv)
 
-    if args.results is None and args.dl_results is None:
-        log.error("Provide at least one of --results or --dl-results.")
+    if (
+        args.results is None
+        and args.dl_results is None
+        and args.aggregated_dir is None
+    ):
+        log.error(
+            "Provide at least one of --results, "
+            "--dl-results, or --aggregated-dir."
+        )
         return
 
-    base_dir = args.results or args.dl_results
+    # Resolve aggregated dir: explicit arg > auto-detect from results/.
+    agg_dir: Path | None = args.aggregated_dir
+    if agg_dir is None and args.results is not None:
+        auto = args.results / "aggregated"
+        if auto.exists():
+            agg_dir = auto
+            log.info("Auto-detected aggregated dir: %s", agg_dir)
+    if agg_dir is not None:
+        log.info("Using aggregated CSVs from: %s", agg_dir)
+
+    base_dir = args.results or args.dl_results or args.aggregated_dir
     output_dir = args.output or base_dir / "tables"
     output_dir.mkdir(parents=True, exist_ok=True)
     _setup_file_logging(base_dir / "tables.log")
@@ -905,7 +1223,9 @@ def main(argv: list[str] | None = None) -> None:
     if args.results is not None:
         results_dir = args.results
         df = load_results(results_dir)
-        dispatch = _make_table_dispatch(df, results_dir, output_dir)
+        dispatch = _make_table_dispatch(
+            df, results_dir, output_dir, agg_dir=agg_dir
+        )
 
         if args.table is not None:
             if args.table not in dispatch:
@@ -919,10 +1239,28 @@ def main(argv: list[str] | None = None) -> None:
                     fn()
                 except Exception:
                     log.exception("Error generating table %d (%s)", num, name)
+    elif agg_dir is not None:
+        # No raw results but aggregated CSVs available. All table functions
+        # either have a fast path (read from agg_dir CSV) or will gracefully
+        # skip if the relevant CSV is missing. Table 1 is always safe because
+        # it uses only static metadata (METHOD_INFO).
+        _empty_df = pd.DataFrame()
+        dispatch = _make_table_dispatch(
+            _empty_df, Path("."), output_dir, agg_dir=agg_dir
+        )
+        for num, (name, fn) in dispatch.items():
+            try:
+                fn()
+            except Exception:
+                log.exception("Error generating table %d (%s)", num, name)
 
-    if args.dl_results is not None:
+    # DL metrics table: use agg_dir CSV or JSON history.
+    has_dl_csv = (
+        agg_dir is not None and (agg_dir / "dl_training_history.csv").exists()
+    )
+    if args.dl_results is not None or has_dl_csv:
         try:
-            table_dl_metrics(args.dl_results, output_dir)
+            table_dl_metrics(args.dl_results, output_dir, agg_dir=agg_dir)
         except Exception:
             log.exception("Error generating DL metrics table")
 

@@ -168,6 +168,46 @@ def _ergas_core(
     return float(100.0 * np.sqrt(np.mean(ratio_sq)))
 
 
+_PIXEL_ACC_THRESHOLDS: dict[str, float] = {
+    "002": 0.02,
+    "005": 0.05,
+    "01": 0.10,
+}
+
+
+def _pixel_acc_core(
+    clean: np.ndarray,
+    reconstructed: np.ndarray,
+    gap: np.ndarray,
+    threshold: float,
+) -> float:
+    """Fraction of gap pixels with absolute error <= threshold."""
+    if not np.any(gap):
+        return 1.0
+    if clean.ndim == 3:
+        gap_3d = np.broadcast_to(gap[:, :, np.newaxis], clean.shape)
+        diff = np.abs(clean[gap_3d] - reconstructed[gap_3d])
+    else:
+        diff = np.abs(clean[gap] - reconstructed[gap])
+    return float(np.mean(diff <= threshold))
+
+
+def _rmse_per_band_core(
+    clean: np.ndarray,
+    reconstructed: np.ndarray,
+    gap: np.ndarray,
+) -> list[float]:
+    """Per-band RMSE on gap pixels. Returns [] for 2D inputs."""
+    if clean.ndim != 3 or not np.any(gap):
+        return []
+    n_bands = clean.shape[2]
+    gap_3d = np.broadcast_to(gap[:, :, np.newaxis], clean.shape)
+    diff_flat = (clean - reconstructed)[gap_3d].reshape(-1, n_bands)
+    return [
+        float(np.sqrt(np.mean(diff_flat[:, b] ** 2))) for b in range(n_bands)
+    ]
+
+
 def psnr(
     clean: np.ndarray,
     reconstructed: np.ndarray,
@@ -301,7 +341,10 @@ def compute_all(
     reconstructed: np.ndarray,
     mask: np.ndarray,
 ) -> dict[str, float]:
-    """Compute all four metrics at once.
+    """Compute all metrics at once.
+
+    Includes PSNR, SSIM, RMSE, SAM, ERGAS (spectral), per-band RMSE,
+    pixel accuracy and F1 at three error thresholds (0.02, 0.05, 0.10).
 
     Args:
         clean: Reference image, (H, W) or (H, W, C).
@@ -309,8 +352,8 @@ def compute_all(
         mask: Binary mask, (H, W), 1=gap.
 
     Returns:
-        Dictionary with keys 'psnr', 'ssim', 'rmse', and optionally
-        'sam' (only if input is multichannel with C >= 2).
+        Dictionary with all metric keys. SAM, ERGAS, and per-band RMSE
+        are only included for multichannel inputs (C >= 2).
     """
     # Validate once; pass pre-validated arrays to core functions.
     clean, reconstructed, gap = _validate_inputs(clean, reconstructed, mask)
@@ -321,8 +364,20 @@ def compute_all(
         "rmse": _rmse_core(clean, reconstructed, gap),
     }
 
+    # Pixel accuracy and F1 at three thresholds (both 2D and 3D inputs).
+    for suffix, threshold in _PIXEL_ACC_THRESHOLDS.items():
+        acc = _pixel_acc_core(clean, reconstructed, gap, threshold)
+        results[f"pixel_acc_{suffix}"] = acc
+        results[f"f1_{suffix}"] = (
+            float(2.0 * acc / (1.0 + acc)) if (1.0 + acc) > 0 else 0.0
+        )
+
     if clean.ndim == 3 and clean.shape[2] >= 2:
         results["sam"] = _sam_core(clean, reconstructed, gap)
         results["ergas"] = _ergas_core(clean, reconstructed, gap)
+        for b, rmse_b in enumerate(
+            _rmse_per_band_core(clean, reconstructed, gap)
+        ):
+            results[f"rmse_b{b}"] = rmse_b
 
     return results

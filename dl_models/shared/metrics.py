@@ -4,6 +4,9 @@ Standalone implementations using numpy and skimage only.
 No imports from pdi_pipeline.metrics.
 
 All metrics are computed strictly on gap pixels (mask=1).
+Metric set matches pdi_pipeline.metrics.compute_all() for cross-method
+comparability: PSNR, SSIM, RMSE, SAM, ERGAS, per-band RMSE, pixel
+accuracy and F1 at three error thresholds.
 """
 
 from __future__ import annotations
@@ -13,28 +16,31 @@ import torch
 from skimage.metrics import structural_similarity
 
 _MSE_FLOOR = 1e-12
-_PIXEL_ACC_THRESHOLDS = {
+
+_PIXEL_ACC_THRESHOLDS: dict[str, float] = {
     "002": 0.02,
     "005": 0.05,
     "01": 0.10,
 }
 
 
-def _gap_diff(
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+def _gap_mask(mask: np.ndarray) -> np.ndarray:
+    """Return a boolean (H, W) gap mask."""
+    m = mask if mask.ndim == 2 else mask[:, :, 0]
+    return m > 0.5
+
+
+def _gap_diff_flat(
     clean: np.ndarray,
     pred: np.ndarray,
     gap: np.ndarray,
 ) -> np.ndarray:
-    """Compute per-pixel difference on gap pixels only.
-
-    Args:
-        clean: Reference image, (H, W) or (H, W, C).
-        pred: Predicted image, same shape.
-        gap: Boolean mask, (H, W), True=gap.
-
-    Returns:
-        1-D array of ``clean - pred`` values at gap locations.
-    """
+    """1-D array of ``clean - pred`` values at gap locations."""
     c = clean.astype(np.float64)
     p = pred.astype(np.float64)
     if c.ndim == 3:
@@ -43,29 +49,29 @@ def _gap_diff(
     return c[gap] - p[gap]
 
 
+def _gap_abs_diff_flat(
+    clean: np.ndarray,
+    pred: np.ndarray,
+    gap: np.ndarray,
+) -> np.ndarray:
+    return np.abs(_gap_diff_flat(clean, pred, gap))
+
+
+# ---------------------------------------------------------------------------
+# Public scalar metrics (mask-on-gap)
+# ---------------------------------------------------------------------------
+
+
 def psnr(
     clean: np.ndarray,
     pred: np.ndarray,
     mask: np.ndarray,
 ) -> float:
-    """PSNR on gap pixels only.
-
-    PSNR = 10 * log10(1.0 / MSE) where MSE is over gap pixels.
-    Data range assumed to be [0, 1].
-
-    Args:
-        clean: Reference image, (H, W) or (H, W, C).
-        pred: Predicted image, same shape.
-        mask: Binary mask, (H, W), 1=gap.
-
-    Returns:
-        PSNR in dB. Returns inf if MSE is effectively zero.
-    """
-    gap = mask > 0.5
+    """PSNR on gap pixels only. Data range assumed [0, 1]."""
+    gap = _gap_mask(mask)
     if not np.any(gap):
         return float("inf")
-
-    diff = _gap_diff(clean, pred, gap)
+    diff = _gap_diff_flat(clean, pred, gap)
     mse = float(np.mean(diff**2))
     if mse < _MSE_FLOOR:
         return float("inf")
@@ -77,23 +83,10 @@ def ssim(
     pred: np.ndarray,
     mask: np.ndarray,
 ) -> float:
-    """SSIM map masked to gap pixels only.
-
-    Computes the full SSIM map via skimage, then averages only the
-    values at gap pixel locations.
-
-    Args:
-        clean: Reference image, (H, W) or (H, W, C).
-        pred: Predicted image, same shape.
-        mask: Binary mask, (H, W), 1=gap.
-
-    Returns:
-        Mean SSIM value restricted to gap region.
-    """
-    gap = mask > 0.5
+    """Mean SSIM restricted to gap pixels."""
+    gap = _gap_mask(mask)
     if not np.any(gap):
         return 1.0
-
     is_multichannel = clean.ndim == 3
     _, ssim_map = structural_similarity(
         clean,
@@ -102,10 +95,8 @@ def ssim(
         full=True,
         channel_axis=2 if is_multichannel else None,
     )
-
     if ssim_map.ndim == 3:
         ssim_map = np.mean(ssim_map, axis=2)
-
     return float(np.mean(ssim_map[gap]))
 
 
@@ -114,22 +105,106 @@ def rmse(
     pred: np.ndarray,
     mask: np.ndarray,
 ) -> float:
-    """RMSE on gap pixels only.
-
-    Args:
-        clean: Reference image, (H, W) or (H, W, C).
-        pred: Predicted image, same shape.
-        mask: Binary mask, (H, W), 1=gap.
-
-    Returns:
-        RMSE value over gap pixels.
-    """
-    gap = mask > 0.5
+    """RMSE on gap pixels only."""
+    gap = _gap_mask(mask)
     if not np.any(gap):
         return 0.0
-
-    diff = _gap_diff(clean, pred, gap)
+    diff = _gap_diff_flat(clean, pred, gap)
     return float(np.sqrt(np.mean(diff**2)))
+
+
+def sam(
+    clean: np.ndarray,
+    pred: np.ndarray,
+    mask: np.ndarray,
+) -> float:
+    """Mean Spectral Angle Mapper (degrees) on gap pixels.
+
+    Requires multichannel input (H, W, C) with C >= 2.
+    Returns 0.0 for 2-D inputs.
+    """
+    gap = _gap_mask(mask)
+    if not np.any(gap) or clean.ndim != 3 or clean.shape[2] < 2:
+        return 0.0
+    c = clean.astype(np.float64)
+    p = pred.astype(np.float64)
+    gap_3d = np.broadcast_to(gap[:, :, np.newaxis], c.shape)
+    c_vecs = c[gap_3d].reshape(-1, c.shape[2])
+    p_vecs = p[gap_3d].reshape(-1, c.shape[2])
+    dot = np.sum(c_vecs * p_vecs, axis=1)
+    norm_c = np.linalg.norm(c_vecs, axis=1)
+    norm_p = np.linalg.norm(p_vecs, axis=1)
+    denom = norm_c * norm_p
+    valid = denom > 1e-10
+    if not np.any(valid):
+        return 0.0
+    cos_angle = np.clip(dot[valid] / denom[valid], -1.0, 1.0)
+    return float(np.mean(np.degrees(np.arccos(cos_angle))))
+
+
+def ergas(
+    clean: np.ndarray,
+    pred: np.ndarray,
+    mask: np.ndarray,
+) -> float:
+    """ERGAS on gap pixels (h/l = 1 for gap-filling).
+
+    Requires multichannel input (H, W, C) with C >= 2.
+    Returns 0.0 for 2-D inputs.
+    """
+    gap = _gap_mask(mask)
+    if not np.any(gap) or clean.ndim != 3 or clean.shape[2] < 2:
+        return 0.0
+    c = clean.astype(np.float64)
+    p = pred.astype(np.float64)
+    gap_3d = np.broadcast_to(gap[:, :, np.newaxis], c.shape)
+    c_gap = c[gap_3d].reshape(-1, c.shape[2])
+    p_gap = p[gap_3d].reshape(-1, c.shape[2])
+    rmse_per_band = np.sqrt(np.mean((c_gap - p_gap) ** 2, axis=0))
+    mean_per_band = np.mean(c_gap, axis=0)
+    valid = np.abs(mean_per_band) > 1e-10
+    if not np.any(valid):
+        return 0.0
+    ratio_sq = (rmse_per_band[valid] / mean_per_band[valid]) ** 2
+    return float(100.0 * np.sqrt(np.mean(ratio_sq)))
+
+
+def pixel_accuracy(
+    clean: np.ndarray,
+    pred: np.ndarray,
+    mask: np.ndarray,
+    threshold: float,
+) -> float:
+    """Fraction of gap pixels with |error| <= threshold."""
+    gap = _gap_mask(mask)
+    if not np.any(gap):
+        return 1.0
+    diff = _gap_abs_diff_flat(clean, pred, gap)
+    return float(np.mean(diff <= threshold))
+
+
+def rmse_per_band(
+    clean: np.ndarray,
+    pred: np.ndarray,
+    mask: np.ndarray,
+) -> list[float]:
+    """Per-band RMSE on gap pixels. Returns [] for 2-D inputs."""
+    gap = _gap_mask(mask)
+    if not np.any(gap) or clean.ndim != 3:
+        return []
+    n_bands = clean.shape[2]
+    gap_3d = np.broadcast_to(gap[:, :, np.newaxis], clean.shape)
+    diff_flat = (clean.astype(np.float64) - pred.astype(np.float64))[
+        gap_3d
+    ].reshape(-1, n_bands)
+    return [
+        float(np.sqrt(np.mean(diff_flat[:, b] ** 2))) for b in range(n_bands)
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Aggregate: all per-patch metrics in one call
+# ---------------------------------------------------------------------------
 
 
 def compute_all(
@@ -137,21 +212,50 @@ def compute_all(
     pred: np.ndarray,
     mask: np.ndarray,
 ) -> dict[str, float]:
-    """Compute psnr, ssim, rmse for a single patch.
+    """Compute the full metric set for a single patch.
+
+    Returns a dict with keys matching pdi_pipeline.metrics.compute_all():
+      psnr, ssim, rmse,
+      sam, ergas (multichannel only),
+      rmse_b0..b{C-1} (multichannel only),
+      pixel_acc_002/005/01, f1_002/005/01.
 
     Args:
-        clean: Reference image, (H, W) or (H, W, C).
+        clean: Reference image, (H, W) or (H, W, C), float in [0, 1].
         pred: Predicted image, same shape.
         mask: Binary mask, (H, W), 1=gap.
 
     Returns:
-        Dict with keys 'psnr', 'ssim', 'rmse'.
+        Dict[str, float] with all metric values.
     """
-    return {
+    gap = _gap_mask(mask)
+
+    results: dict[str, float] = {
         "psnr": psnr(clean, pred, mask),
         "ssim": ssim(clean, pred, mask),
         "rmse": rmse(clean, pred, mask),
     }
+
+    for suffix, threshold in _PIXEL_ACC_THRESHOLDS.items():
+        acc = pixel_accuracy(clean, pred, mask, threshold)
+        results[f"pixel_acc_{suffix}"] = acc
+        results[f"f1_{suffix}"] = (
+            float(2.0 * acc / (1.0 + acc)) if (1.0 + acc) > 0 else 0.0
+        )
+
+    if clean.ndim == 3 and clean.shape[2] >= 2:
+        results["sam"] = sam(clean, pred, mask)
+        results["ergas"] = ergas(clean, pred, mask)
+        for b, rmse_b in enumerate(rmse_per_band(clean, pred, mask)):
+            results[f"rmse_b{b}"] = rmse_b
+
+    _ = gap  # gap used indirectly via public functions above
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Batch validation (used during training - torch tensors)
+# ---------------------------------------------------------------------------
 
 
 def _to_numpy_batches(
@@ -174,75 +278,30 @@ def _prepare_sample(
     return pred, target
 
 
-def _update_pixel_acc(
-    pixel_acc: dict[str, list[float]],
-    diff: np.ndarray,
-    gap: np.ndarray,
-) -> None:
-    if diff.ndim == 3:
-        diff = np.mean(diff, axis=2)
-    for key, tau in _PIXEL_ACC_THRESHOLDS.items():
-        pixel_acc[key].append(float(np.mean(diff[gap] <= tau)))
-
-
-def _accumulate_sample_metrics(
-    pred: np.ndarray,
-    target: np.ndarray,
-    mask: np.ndarray,
-    psnr_vals: list[float],
-    ssim_vals: list[float],
-    rmse_vals: list[float],
-    pixel_acc: dict[str, list[float]],
-    ssim_count: int,
-    max_ssim_samples: int,
-) -> int:
-    pred, target = _prepare_sample(pred, target)
-    psnr_vals.append(psnr(target, pred, mask))
-    rmse_vals.append(rmse(target, pred, mask))
-
-    gap = mask > 0.5
-    if np.any(gap):
-        diff = np.abs(target - pred)
-        _update_pixel_acc(pixel_acc, diff, gap)
-    else:
-        for key in pixel_acc:
-            pixel_acc[key].append(1.0)
-
-    if ssim_count < max_ssim_samples:
-        ssim_vals.append(ssim(target, pred, mask))
-        return ssim_count + 1
-    return ssim_count
-
-
 def compute_validation_metrics(
     preds: list[torch.Tensor],
     targets: list[torch.Tensor],
     masks: list[torch.Tensor],
-    max_ssim_samples: int = 64,
+    max_ssim_samples: int = 0,
 ) -> dict[str, float]:
     """Bridge torch tensors to numpy and compute quality metrics.
 
     Converts (B, C, H, W) tensors to numpy (H, W, C) and calls
-    psnr/ssim/rmse per sample.
+    compute_all() per sample.
 
     Args:
         preds: List of prediction tensors, each (B, C, H, W).
         targets: List of clean reference tensors, each (B, C, H, W).
         masks: List of mask tensors, each (B, H, W) with 1=gap.
-        max_ssim_samples: Cap for SSIM computation (performance).
+        max_ssim_samples: Kept for backward compatibility but ignored;
+            SSIM is now computed for every sample to be consistent with
+            the final evaluation. Set to 0 (default) to always compute
+            full SSIM.
 
     Returns:
-        Dict with val_psnr, val_ssim, val_rmse, val_pixel_acc_*,
-        and val_f1_* for multiple error thresholds.
+        Dict with val_{metric} keys for all metrics in compute_all().
     """
-    psnr_vals: list[float] = []
-    ssim_vals: list[float] = []
-    rmse_vals: list[float] = []
-    pixel_acc: dict[str, list[float]] = {
-        key: [] for key in _PIXEL_ACC_THRESHOLDS
-    }
-
-    ssim_count = 0
+    accum: dict[str, list[float]] = {}
 
     for pred_batch, target_batch, mask_batch in zip(
         preds, targets, masks, strict=True
@@ -252,32 +311,16 @@ def compute_validation_metrics(
         )
         b = pred_np.shape[0]
         for i in range(b):
-            ssim_count = _accumulate_sample_metrics(
-                pred_np[i],
-                target_np[i],
-                mask_np[i],
-                psnr_vals,
-                ssim_vals,
-                rmse_vals,
-                pixel_acc,
-                ssim_count,
-                max_ssim_samples,
-            )
+            p, t = _prepare_sample(pred_np[i], target_np[i])
+            scores = compute_all(t, p, mask_np[i])
+            for key, val in scores.items():
+                accum.setdefault(key, []).append(val)
 
     result: dict[str, float] = {}
-
-    if psnr_vals:
-        finite_psnr = [v for v in psnr_vals if np.isfinite(v)]
-        result["val_psnr"] = float(np.mean(finite_psnr)) if finite_psnr else 0.0
-    else:
-        result["val_psnr"] = 0.0
-
-    result["val_ssim"] = float(np.mean(ssim_vals)) if ssim_vals else 0.0
-    result["val_rmse"] = float(np.mean(rmse_vals)) if rmse_vals else 0.0
-
-    for key, values in pixel_acc.items():
-        acc = float(np.mean(values)) if values else 0.0
-        result[f"val_pixel_acc_{key}"] = acc
-        result[f"val_f1_{key}"] = 2 * acc / (1 + acc) if (1 + acc) > 0 else 0.0
+    for key, values in accum.items():
+        finite = [v for v in values if np.isfinite(v)]
+        result[f"val_{key}"] = (
+            float(np.mean(finite)) if finite else float("nan")
+        )
 
     return result

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -177,6 +178,9 @@ class TrainingHistory:
         model_name: Identifier for the model (e.g. "ae", "vae").
         output_dir: Directory where the JSON file is written.
         metadata: Optional dict of hyperparams, dataset sizes, etc.
+            Recommended keys to include for aggregate_results.py:
+            - n_params (int): total trainable parameter count.
+            - training_time_s (float): cumulative wall-clock seconds.
     """
 
     def __init__(
@@ -189,13 +193,19 @@ class TrainingHistory:
         self.output_dir = Path(output_dir)
         self.metadata: dict[str, Any] = metadata or {}
         self.epochs: list[dict[str, Any]] = []
+        self._training_start: float = time.time()
 
     @property
     def path(self) -> Path:
         return self.output_dir / f"{self.model_name}_history.json"
 
     def record(self, epoch_data: dict[str, Any]) -> None:
-        """Append an epoch record and save to disk."""
+        """Append an epoch record and save to disk.
+
+        Automatically updates ``metadata["training_time_s"]`` with the
+        elapsed wall-clock time since this TrainingHistory was created.
+        """
+        self.metadata["training_time_s"] = time.time() - self._training_start
         self.epochs.append(epoch_data)
         self.save()
 

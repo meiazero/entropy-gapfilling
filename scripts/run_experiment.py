@@ -609,11 +609,23 @@ def _evaluate_patch_worker(task: dict[str, Any]) -> dict[str, Any]:
         status = "ok"
         error_msg = ""
     except Exception as exc:
+        _nan = float("nan")
         scores = {
-            "psnr": float("nan"),
-            "ssim": float("nan"),
-            "rmse": float("nan"),
-            "sam": float("nan"),
+            "psnr": _nan,
+            "ssim": _nan,
+            "rmse": _nan,
+            "sam": _nan,
+            "ergas": _nan,
+            "pixel_acc_002": _nan,
+            "pixel_acc_005": _nan,
+            "pixel_acc_01": _nan,
+            "f1_002": _nan,
+            "f1_005": _nan,
+            "f1_01": _nan,
+            "rmse_b0": _nan,
+            "rmse_b1": _nan,
+            "rmse_b2": _nan,
+            "rmse_b3": _nan,
         }
         status = "error"
         error_msg = str(exc)
@@ -771,11 +783,23 @@ def _evaluate_patch(
             method_name,
             patch.patch_id,
         )
+        _nan = float("nan")
         scores = {
-            "psnr": float("nan"),
-            "ssim": float("nan"),
-            "rmse": float("nan"),
-            "sam": float("nan"),
+            "psnr": _nan,
+            "ssim": _nan,
+            "rmse": _nan,
+            "sam": _nan,
+            "ergas": _nan,
+            "pixel_acc_002": _nan,
+            "pixel_acc_005": _nan,
+            "pixel_acc_01": _nan,
+            "f1_002": _nan,
+            "f1_005": _nan,
+            "f1_01": _nan,
+            "rmse_b0": _nan,
+            "rmse_b1": _nan,
+            "rmse_b2": _nan,
+            "rmse_b3": _nan,
         }
         status = "error"
         error_msg = str(exc)

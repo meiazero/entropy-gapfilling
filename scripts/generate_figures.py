@@ -114,7 +114,7 @@ _PUB_FONT_OVERRIDES = {
 }
 
 
-_SETTINGS: dict[str, bool] = {"png_only": False}
+_SETTINGS: dict[str, object] = {"png_only": False, "agg_dir": None}
 
 _PATCH_SPLITS: dict[int, str] = {}
 
@@ -410,6 +410,46 @@ def _load_dl_history(dl_results_dir: Path, model: str) -> dict | None:
         return None
     with path.open() as fh:
         return json.load(fh)
+
+
+def _load_histories_from_csv(agg_dir: Path) -> dict[str, dict]:
+    """Load dl_training_history.csv and convert to model->hist dict.
+
+    Returns an empty dict if the CSV does not exist or has no model column.
+    """
+    csv_path = agg_dir / "dl_training_history.csv"
+    if not csv_path.exists():
+        return {}
+    df = pd.read_csv(csv_path)
+    if "model" not in df.columns:
+        return {}
+    result: dict[str, dict] = {}
+    for model, grp in df.groupby("model", sort=False):
+        result[str(model)] = {
+            "model_name": str(model),
+            "epochs": grp.to_dict(orient="records"),
+        }
+    return result
+
+
+def _get_dl_histories(dl_results_dir: Path | None) -> dict[str, dict]:
+    """Return {model: hist_dict} from the aggregated CSV or JSON fallback.
+
+    Tries the pre-computed dl_training_history.csv in agg_dir first. Falls
+    back to loading individual JSON files from dl_results_dir.
+    """
+    agg_dir = _SETTINGS.get("agg_dir")
+    if agg_dir is not None:
+        from_csv = _load_histories_from_csv(agg_dir)  # type: ignore[arg-type]
+        if from_csv:
+            return from_csv
+    if dl_results_dir is None:
+        return {}
+    return {
+        m: h
+        for m in DL_MODELS
+        if (h := _load_dl_history(dl_results_dir, m)) is not None
+    }
 
 
 def _save_figure(fig: plt.Figure, output_dir: Path, name: str) -> None:
@@ -977,23 +1017,49 @@ def fig6_visual_examples(results_dir: Path, output_dir: Path) -> None:
     log.info("Saved fig6_visual_examples (all satellites)")
 
 
-def fig7_correlation_heatmap(results_dir: Path, output_dir: Path) -> None:
+def fig7_correlation_heatmap(
+    results_dir: Path | None, output_dir: Path
+) -> None:
     """Fig 7: Correlation heatmap (method x entropy_window x metric)."""
-    from pdi_pipeline.statistics import correlation_matrix
+    # Fast path: read from pre-computed aggregated CSV.
+    corr_df: pd.DataFrame | None = None
+    agg_dir = _SETTINGS.get("agg_dir")
+    if agg_dir is not None:
+        corr_csv = agg_dir / "spearman_correlation.csv"  # type: ignore[operator]
+        if corr_csv.exists():
+            corr_df = pd.read_csv(corr_csv)
+            log.info("Figure 7: reading correlation from %s", corr_csv)
+        else:
+            log.warning(
+                "spearman_correlation.csv not found in %s; "
+                "falling back to on-the-fly computation",
+                agg_dir,
+            )
 
-    df = load_results(results_dir)
+    if corr_df is None:
+        if results_dir is None:
+            log.warning("No results_dir or spearman_correlation.csv for fig7")
+            return
+        from pdi_pipeline.statistics import correlation_matrix
 
-    entropy_cols = [c for c in df.columns if c.startswith("entropy_")]
-    metric_cols = [c for c in ["psnr"] if c in df.columns]
+        df = load_results(results_dir)
+        entropy_cols = [c for c in df.columns if c.startswith("entropy_")]
+        metric_cols = [c for c in ["psnr"] if c in df.columns]
+        if not entropy_cols or not metric_cols:
+            log.warning("Missing entropy or metric columns for fig7")
+            return
+        corr_df = correlation_matrix(df, entropy_cols, metric_cols)
 
-    if not entropy_cols or not metric_cols:
-        log.warning("Missing entropy or metric columns for fig7")
-        return
-
-    corr_df = correlation_matrix(df, entropy_cols, metric_cols)
     if corr_df.empty:
         log.warning("Empty correlation matrix for fig7")
         return
+
+    # metric_cols may come from raw df or be inferred from the CSV.
+    metric_cols = (
+        sorted(corr_df["metric_col"].unique())
+        if "metric_col" in corr_df.columns
+        else ["psnr"]
+    )
 
     methods = sorted(corr_df["method"].unique())
 
@@ -1046,12 +1112,11 @@ def fig7_correlation_heatmap(results_dir: Path, output_dir: Path) -> None:
     log.info("Saved fig7_correlation_heatmap(s)")
 
 
-def fig_dl_loss_curves(dl_results_dir: Path, output_dir: Path) -> None:
+def fig_dl_loss_curves(dl_results_dir: Path | None, output_dir: Path) -> None:
     """Fig DL-1: Train vs val loss curves per model."""
     log.info("Figure DL-1: training loss curves")
 
-    histories = {m: _load_dl_history(dl_results_dir, m) for m in DL_MODELS}
-    available = {m: h for m, h in histories.items() if h and h.get("epochs")}
+    available = _get_dl_histories(dl_results_dir)
     if not available:
         log.warning(
             "No DL training histories found. Skipping fig_dl_loss_curves."
@@ -1114,12 +1179,11 @@ def fig_dl_loss_curves(dl_results_dir: Path, output_dir: Path) -> None:
     log.info("Saved fig_dl_loss_curves")
 
 
-def fig_dl_val_metrics(dl_results_dir: Path, output_dir: Path) -> None:
+def fig_dl_val_metrics(dl_results_dir: Path | None, output_dir: Path) -> None:
     """Fig DL-2: Validation PSNR, SSIM and RMSE comparison across models."""
     log.info("Figure DL-2: validation metrics comparison")
 
-    histories = {m: _load_dl_history(dl_results_dir, m) for m in DL_MODELS}
-    available = {m: h for m, h in histories.items() if h and h.get("epochs")}
+    available = _get_dl_histories(dl_results_dir)
     if not available:
         log.warning(
             "No DL training histories found. Skipping fig_dl_val_metrics."
@@ -1184,12 +1248,14 @@ def fig_dl_val_metrics(dl_results_dir: Path, output_dir: Path) -> None:
     log.info("Saved fig_dl_val_metrics")
 
 
-def fig_dl_vae_components(dl_results_dir: Path, output_dir: Path) -> None:
+def fig_dl_vae_components(
+    dl_results_dir: Path | None, output_dir: Path
+) -> None:
     """Fig DL-3: VAE loss decomposition (reconstruction + KL) over epochs."""
     log.info("Figure DL-3: VAE loss components")
 
-    hist = _load_dl_history(dl_results_dir, "vae")
-    if hist is None or not hist.get("epochs"):
+    hist = _get_dl_histories(dl_results_dir).get("vae")
+    if not hist or not hist.get("epochs"):
         log.info("No VAE history found. Skipping fig_dl_vae_components.")
         return
 
@@ -1247,12 +1313,14 @@ def fig_dl_vae_components(dl_results_dir: Path, output_dir: Path) -> None:
     log.info("Saved fig_dl_vae_components")
 
 
-def fig_dl_gan_components(dl_results_dir: Path, output_dir: Path) -> None:
+def fig_dl_gan_components(
+    dl_results_dir: Path | None, output_dir: Path
+) -> None:
     """Fig DL-4: GAN generator and discriminator loss over epochs."""
     log.info("Figure DL-4: GAN loss components")
 
-    hist = _load_dl_history(dl_results_dir, "gan")
-    if hist is None or not hist.get("epochs"):
+    hist = _get_dl_histories(dl_results_dir).get("gan")
+    if not hist or not hist.get("epochs"):
         log.info("No GAN history found. Skipping fig_dl_gan_components.")
         return
 
@@ -1293,7 +1361,9 @@ def fig_dl_gan_components(dl_results_dir: Path, output_dir: Path) -> None:
     log.info("Saved fig_dl_gan_components")
 
 
-def fig_dl_comparison_matrix(dl_results_dir: Path, output_dir: Path) -> None:
+def fig_dl_comparison_matrix(
+    dl_results_dir: Path | None, output_dir: Path
+) -> None:
     """Fig DL-5: Heatmap comparing all models across final-epoch metrics.
 
     Rows = models, columns = metrics (PSNR, SSIM, RMSE, F1 at each threshold).
@@ -1301,8 +1371,7 @@ def fig_dl_comparison_matrix(dl_results_dir: Path, output_dir: Path) -> None:
     """
     log.info("Figure DL-5: model comparison matrix")
 
-    histories = {m: _load_dl_history(dl_results_dir, m) for m in DL_MODELS}
-    available = {m: h for m, h in histories.items() if h and h.get("epochs")}
+    available = _get_dl_histories(dl_results_dir)
     if not available:
         log.warning("No DL histories found. Skipping fig_dl_comparison_matrix.")
         return
@@ -1397,12 +1466,11 @@ def fig_dl_comparison_matrix(dl_results_dir: Path, output_dir: Path) -> None:
     log.info("Saved fig_dl_comparison_matrix")
 
 
-def fig_dl_f1_scores(dl_results_dir: Path, output_dir: Path) -> None:
+def fig_dl_f1_scores(dl_results_dir: Path | None, output_dir: Path) -> None:
     """Fig DL-6: Grouped bar chart of F1 scores per model at each threshold."""
     log.info("Figure DL-6: F1 scores by threshold")
 
-    histories = {m: _load_dl_history(dl_results_dir, m) for m in DL_MODELS}
-    available = {m: h for m, h in histories.items() if h and h.get("epochs")}
+    available = _get_dl_histories(dl_results_dir)
     if not available:
         log.warning("No DL histories found. Skipping fig_dl_f1_scores.")
         return
@@ -1526,6 +1594,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Path to DL models directory containing *_history.json files.",
     )
     parser.add_argument(
+        "--aggregated-dir",
+        type=Path,
+        default=None,
+        dest="aggregated_dir",
+        help=(
+            "Directory with pre-computed aggregated CSVs from "
+            "aggregate_results.py. Enables fast figure generation without "
+            "re-running experiments. Auto-detected from "
+            "{results}/aggregated/ if that directory exists."
+        ),
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=None,
@@ -1545,20 +1625,39 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> None:
+def main(argv: list[str] | None = None) -> None:  # noqa: C901
     args = parse_args(argv)
 
-    if args.results is None and args.dl_results is None:
-        log.error("Provide at least one of --results or --dl-results.")
+    if (
+        args.results is None
+        and args.dl_results is None
+        and args.aggregated_dir is None
+    ):
+        log.error(
+            "Provide at least one of --results, "
+            "--dl-results, or --aggregated-dir."
+        )
         return
 
     _SETTINGS["png_only"] = args.png_only
     _setup_style()
 
-    base_dir = args.results or args.dl_results
+    # Resolve aggregated dir: explicit arg > auto-detect from results/.
+    agg_dir: Path | None = args.aggregated_dir
+    if agg_dir is None and args.results is not None:
+        auto = args.results / "aggregated"
+        if auto.exists():
+            agg_dir = auto
+            log.info("Auto-detected aggregated dir: %s", agg_dir)
+    if agg_dir is not None:
+        _SETTINGS["agg_dir"] = agg_dir
+        log.info("Using aggregated CSVs from: %s", agg_dir)
+
+    base_dir = args.results or args.dl_results or args.aggregated_dir
     output_dir = args.output or base_dir / "figures"
     output_dir.mkdir(parents=True, exist_ok=True)
-    setup_file_logging(base_dir, name="figures")
+    if base_dir is not None:
+        setup_file_logging(base_dir, name="figures")
 
     if args.results is not None:
         results_dir = args.results
@@ -1573,9 +1672,22 @@ def main(argv: list[str] | None = None) -> None:
                     func(results_dir, output_dir)
                 except Exception:
                     log.exception("Error generating figure %d", num)
+    elif agg_dir is not None:
+        # No raw results - only run fig7 which can work from aggregated
+        # CSV alone.
+        if args.figure is None or args.figure == 7:
+            try:
+                fig7_correlation_heatmap(None, output_dir)
+            except Exception:
+                log.exception("Error generating figure 7 from aggregated dir")
 
-    if args.dl_results is not None:
-        dl_results_dir = args.dl_results
+    # Run DL figures when dl_results are provided OR when agg_dir has
+    # history CSV.
+    has_dl_csv = (
+        agg_dir is not None and (agg_dir / "dl_training_history.csv").exists()
+    )
+    if args.dl_results is not None or has_dl_csv:
+        dl_results_dir: Path | None = args.dl_results
         for name, func in ALL_DL_FIGURES.items():
             try:
                 func(dl_results_dir, output_dir)
