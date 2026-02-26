@@ -183,6 +183,7 @@ def _load_training_config(
         "num_workers": training.get("num_workers"),
         "eval_after_train": training.get("eval_after_train", True),
         "max_patches": training.get("max_patches"),
+        "noise_levels": training.get("noise_levels", ["inf", "40", "30", "20"]),
         "entropy_filter": entropy_filter,
         "model_params": models[model],
     }
@@ -212,10 +213,32 @@ def _run_evaluation(
     model: str,
     checkpoint: Path,
     cfg: dict[str, Any],
+    scenario_name: str | None = None,
+    eval_buckets: list[str] | None = None,
+    noise_level: str = "inf",
 ) -> None:
-    log.info("Evaluating %s", model)
+    """Run evaluation for one (scenario, noise_level) combination.
 
-    eval_dir = checkpoint.parent.parent / "eval"
+    Args:
+        model: Model key (ae, vae, gan, unet, vit).
+        checkpoint: Path to the trained checkpoint.
+        cfg: Parsed training config dict.
+        scenario_name: Subdirectory name for this evaluation scenario.
+            If None, results are written directly to the base eval dir.
+        eval_buckets: Entropy buckets to include for this scenario.
+            Overrides entropy_filter.eval_buckets from cfg.
+        noise_level: Noise level variant to evaluate (inf/40/30/20).
+    """
+    base_eval_dir = checkpoint.parent.parent / "eval"
+    eval_dir = base_eval_dir / scenario_name if scenario_name else base_eval_dir
+
+    log.info(
+        "Evaluating %s | scenario=%s | noise=%s",
+        model,
+        scenario_name or "default",
+        noise_level,
+    )
+
     eval_argv = [
         "evaluate",
         "--model",
@@ -228,18 +251,26 @@ def _run_evaluation(
         str(eval_dir),
         "--satellite",
         str(cfg["satellite"]),
+        "--noise-level",
+        noise_level,
     ]
     if cfg["device"]:
         eval_argv.extend(["--device", str(cfg["device"])])
     if cfg["max_patches"] is not None:
         eval_argv.extend(["--max-patches", str(cfg["max_patches"])])
 
-    entropy_filter = cfg.get("entropy_filter", {})
+    entropy_filter = cfg.get("entropy_filter") or {}
     if entropy_filter:
         window = entropy_filter.get("window")
         if window is not None:
             eval_argv.extend(["--entropy-window", str(window)])
-        buckets = entropy_filter.get("eval_buckets")
+        # Explicit eval_buckets for this scenario take priority
+        #  over config default.
+        buckets = (
+            eval_buckets
+            if eval_buckets is not None
+            else entropy_filter.get("eval_buckets")
+        )
         if buckets:
             eval_argv.extend(["--entropy-buckets", ",".join(buckets)])
         quantiles = entropy_filter.get("quantiles")
@@ -310,7 +341,39 @@ def main() -> None:
     _run_training(args.model, train_args)
 
     if not args.skip_eval and cfg["eval_after_train"] and checkpoint.exists():
-        _run_evaluation(args.model, checkpoint, cfg)
+        noise_levels: list[str] = cfg.get(
+            "noise_levels", ["inf", "40", "30", "20"]
+        )
+        entropy_filter = cfg.get("entropy_filter") or {}
+        eval_scenarios: list[dict[str, Any]] | None = entropy_filter.get(
+            "eval_scenarios"
+        )
+
+        if eval_scenarios:
+            log.info(
+                "Running %d eval scenario(s) x %d noise level(s)",
+                len(eval_scenarios),
+                len(noise_levels),
+            )
+            for scenario in eval_scenarios:
+                for noise_level in noise_levels:
+                    _run_evaluation(
+                        args.model,
+                        checkpoint,
+                        cfg,
+                        scenario_name=scenario["name"],
+                        eval_buckets=scenario.get("buckets"),
+                        noise_level=noise_level,
+                    )
+        else:
+            # Backward-compatible: single evaluation pass, no scenario subdir.
+            for noise_level in noise_levels:
+                _run_evaluation(
+                    args.model,
+                    checkpoint,
+                    cfg,
+                    noise_level=noise_level,
+                )
 
     log.info("Done: %s", args.model)
 
