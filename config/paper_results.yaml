@@ -42,32 +42,64 @@ dl_training:
   max_patches: null
   models:
     ae:
-      epochs: 45
-      batch_size: 48
-      lr: 1.5e-3
-      patience: 10
-    vae:
       epochs: 60
-      batch_size: 48
+      batch_size: 96
+      lr: 1.5e-3
+      patience: 12
+    vae:
+      epochs: 80
+      batch_size: 96
       lr: 1.5e-3
       beta: 0.001
-      patience: 12
+      patience: 15
     gan:
-      epochs: 90
-      batch_size: 24
-      lr: 3e-4
+      epochs: 120
+      batch_size: 32
+      lr: 2e-4
       lambda_l1: 10.0
       lambda_adv: 0.1
-      patience: 15
+      patience: 20
     unet:
-      epochs: 60
-      batch_size: 48
+      epochs: 80
+      batch_size: 96
       lr: 1.5e-3
       weight_decay: 1e-4
-      patience: 12
-    vit:
-      epochs: 90
-      batch_size: 48
-      lr: 1.5e-4
-      weight_decay: 0.05
       patience: 15
+    vit:
+      epochs: 120
+      batch_size: 64
+      lr: 2e-4
+      weight_decay: 0.05
+      patience: 20
+
+dl_grid_search:
+  manifest: preprocessed/manifest.csv
+  output_dir: results/grid_search/dl
+  satellite: sentinel2
+  device: cuda
+  num_workers: null
+  max_patches: 10
+  common:
+    epochs: [30]
+    patience: [8]
+  models:
+    ae:
+      batch_size: [64, 96]
+      lr: [1.0e-3, 1.5e-3]
+    vae:
+      batch_size: [64, 96]
+      lr: [1.0e-3, 1.5e-3]
+      beta: [5.0e-4, 1.0e-3, 2.0e-3]
+    gan:
+      batch_size: [24, 32]
+      lr: [2.0e-4, 3.0e-4]
+      lambda_l1: [10.0]
+      lambda_adv: [0.05, 0.1]
+    unet:
+      batch_size: [64, 96]
+      lr: [1.0e-3, 1.5e-3]
+      weight_decay: [1.0e-4, 3.0e-4]
+    vit:
+      batch_size: [32, 64]
+      lr: [1.0e-4, 2.0e-4]
+      weight_decay: [0.05, 0.1]
