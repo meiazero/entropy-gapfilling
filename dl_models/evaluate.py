@@ -67,6 +67,15 @@ _NOISE_PATH_COLS: dict[str, str] = {
     "20": "degraded_20_path",
 }
 
+# Noise-level key -> descriptive label used in output filenames.
+# "inf" = infinite SNR = only gap/cloud mask applied, no additive noise.
+_NOISE_LABEL: dict[str, str] = {
+    "inf": "gap_only",
+    "40": "snr40dB",
+    "30": "snr30dB",
+    "20": "snr20dB",
+}
+
 _ALL_METRIC_KEYS: list[str] = [
     "psnr",
     "ssim",
@@ -193,6 +202,25 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="Save first N reconstructed arrays as .npy files.",
     )
+    parser.add_argument(
+        "--entropy-window",
+        type=int,
+        default=None,
+        choices=[7, 15, 31],
+        help="Entropy window size for test-set filtering.",
+    )
+    parser.add_argument(
+        "--entropy-buckets",
+        type=str,
+        default=None,
+        help="Comma-separated buckets to include: low, medium, high.",
+    )
+    parser.add_argument(
+        "--entropy-quantiles",
+        type=str,
+        default=None,
+        help="Two quantile thresholds as 'q_low,q_high', e.g. '0.33,0.67'.",
+    )
     return parser
 
 
@@ -251,6 +279,18 @@ def main() -> None:  # noqa: C901
         args.satellite,
     )
 
+    # Parse entropy filtering args.
+    entropy_buckets_list: list[str] | None = None
+    if args.entropy_buckets:
+        entropy_buckets_list = [
+            b.strip() for b in args.entropy_buckets.split(",")
+        ]
+
+    entropy_quantiles_tuple: tuple[float, float] = (1.0 / 3.0, 2.0 / 3.0)
+    if args.entropy_quantiles:
+        q_parts = args.entropy_quantiles.split(",")
+        entropy_quantiles_tuple = (float(q_parts[0]), float(q_parts[1]))
+
     # Load entropy + gap_fraction lookup keyed by patch_id.
     entropy_df = _load_entropy_map(args.manifest, args.satellite)
     has_entropy_7 = "mean_entropy_7" in entropy_df.columns
@@ -261,9 +301,18 @@ def main() -> None:  # noqa: C901
         args.manifest,
         split="test",
         satellite=args.satellite,
+        noise_level=args.noise_level,
         max_patches=args.max_patches,
+        entropy_window=args.entropy_window,
+        entropy_buckets=entropy_buckets_list,
+        entropy_quantiles=entropy_quantiles_tuple,
     )
-    log.info("Test patches: %d", len(test_ds))
+    log.info(
+        "Test patches: %d | noise=%s | entropy_filter=%s",
+        len(test_ds),
+        args.noise_level,
+        args.entropy_buckets or "none",
+    )
 
     architecture = MODEL_ARCHITECTURE.get(args.model, "unknown")
     rows: list[dict[str, Any]] = []
@@ -342,9 +391,8 @@ def main() -> None:  # noqa: C901
     elapsed = time.monotonic() - t0
     df = pd.DataFrame(rows)
 
-    # Use noise_level suffix so results for different noise levels don't
-    # overwrite each other within the same model output directory.
-    csv_path = output_dir / f"eval_{args.noise_level}.csv"
+    noise_label = _NOISE_LABEL.get(args.noise_level, args.noise_level)
+    csv_path = output_dir / f"{args.model}_{noise_label}.csv"
     df.to_csv(csv_path, index=False)
 
     _log_summary(df, model.name)
