@@ -68,12 +68,19 @@ STAGING_DIR="$(mktemp -d)"
 cleanup() { rm -rf "$STAGING_DIR"; }
 trap cleanup EXIT
 
+CLASSIC_STAGE_DIR="$STAGING_DIR/classic"
+DL_STAGE_DIR="$STAGING_DIR/dl"
+
+CLASSIC_RESULTS_DIR="$RESULTS_DIR"
+DL_RESULTS_ROOT="$DL_RESULTS_DIR"
+
 mkdir -p \
-    "$STAGING_DIR/classic/raw_results" \
-    "$STAGING_DIR/classic/aggregated" \
-    "$STAGING_DIR/classic/logs" \
-    "$STAGING_DIR/dl/history" \
-    "$STAGING_DIR/dl/training_logs"
+    "$CLASSIC_STAGE_DIR/raw_results" \
+    "$CLASSIC_STAGE_DIR/aggregated" \
+    "$CLASSIC_STAGE_DIR/logs" \
+    "$CLASSIC_STAGE_DIR/full_results" \
+    "$DL_STAGE_DIR/history" \
+    "$DL_STAGE_DIR/training_logs"
 
 _n_files=0
 
@@ -97,23 +104,35 @@ _copy_glob() {
 # ---------------------------------------------------------------------------
 # Classical - raw per-patch results
 # ---------------------------------------------------------------------------
-echo "--- Classical: $RESULTS_DIR"
+echo "--- Classical: $CLASSIC_RESULTS_DIR"
 
-_copy_file "$RESULTS_DIR/raw_results.csv" "$STAGING_DIR/classic/raw_results/"
+_copy_file "$CLASSIC_RESULTS_DIR/raw_results.csv" "$CLASSIC_STAGE_DIR/raw_results/"
 
 # ---------------------------------------------------------------------------
 # Classical - aggregated CSVs (inputs to generate_figures.py / generate_tables.py)
 # ---------------------------------------------------------------------------
-if [ -d "$RESULTS_DIR/aggregated" ]; then
-    _copy_glob "$RESULTS_DIR/aggregated" "*.csv" "$STAGING_DIR/classic/aggregated"
+if [ -d "$CLASSIC_RESULTS_DIR/aggregated" ]; then
+    _copy_glob "$CLASSIC_RESULTS_DIR/aggregated" "*.csv" "$CLASSIC_STAGE_DIR/aggregated"
 fi
 
 # ---------------------------------------------------------------------------
 # Classical - logs
 # ---------------------------------------------------------------------------
-for f in "$RESULTS_DIR"/*.log; do
-    [ -f "$f" ] && _copy_file "$f" "$STAGING_DIR/classic/logs/" || true
+for f in "$CLASSIC_RESULTS_DIR"/*.log; do
+    [ -f "$f" ] && _copy_file "$f" "$CLASSIC_STAGE_DIR/logs/" || true
 done
+
+# ---------------------------------------------------------------------------
+# Classical - copy everything generated (preserve relative paths)
+# ---------------------------------------------------------------------------
+if [ -d "$CLASSIC_RESULTS_DIR" ]; then
+    while IFS= read -r file_path; do
+        rel="${file_path#$CLASSIC_RESULTS_DIR/}"
+        dst_dir="$CLASSIC_STAGE_DIR/full_results/$(dirname "$rel")"
+        mkdir -p "$dst_dir"
+        _copy_file "$file_path" "$dst_dir/"
+    done < <(find "$CLASSIC_RESULTS_DIR" -type f 2>/dev/null)
+fi
 
 # ---------------------------------------------------------------------------
 # DL - eval CSVs (full schema: psnr, ssim, rmse, sam, ergas, rmse_b*,
@@ -124,62 +143,62 @@ done
 #
 # Backward compat: old evaluator wrote {model}/results.csv (no scenario subdir).
 # ---------------------------------------------------------------------------
-echo "--- DL eval: $DL_RESULTS_DIR/eval"
+echo "--- DL eval: $DL_RESULTS_ROOT/eval"
 
-if [ -d "$DL_RESULTS_DIR/eval" ]; then
-    # Walk eval/ up to 3 levels deep, copying every *.csv while preserving
+if [ -d "$DL_RESULTS_ROOT/eval" ]; then
+    # Walk eval/ recursively, copying every *.csv while preserving
     # the relative path. Handles both layouts:
     #   new: eval/{scenario}/{model}/{model}_{noise_label}.csv
     #   old: eval/{model}/results.csv
     while IFS= read -r csv_file; do
-        rel="${csv_file#$DL_RESULTS_DIR/eval/}"
-        dst_dir="$STAGING_DIR/dl/eval/$(dirname "$rel")"
+        rel="${csv_file#$DL_RESULTS_ROOT/eval/}"
+        dst_dir="$DL_STAGE_DIR/eval/$(dirname "$rel")"
         mkdir -p "$dst_dir"
         _copy_file "$csv_file" "$dst_dir/"
-    done < <(find "$DL_RESULTS_DIR/eval" -maxdepth 3 -name "*.csv" -type f 2>/dev/null)
+    done < <(find "$DL_RESULTS_ROOT/eval" -type f -name "*.csv" 2>/dev/null)
 
     # evaluate.log files alongside the CSVs
     while IFS= read -r log_file; do
-        rel="${log_file#$DL_RESULTS_DIR/eval/}"
+        rel="${log_file#$DL_RESULTS_ROOT/eval/}"
         # flatten to training_logs/ with path encoded in filename
         flat_name="$(echo "$rel" | tr '/' '_')"
-        _copy_file "$log_file" "$STAGING_DIR/dl/training_logs/$flat_name"
-    done < <(find "$DL_RESULTS_DIR/eval" -maxdepth 3 -name "evaluate.log" -type f 2>/dev/null)
+        _copy_file "$log_file" "$DL_STAGE_DIR/training_logs/$flat_name"
+    done < <(find "$DL_RESULTS_ROOT/eval" -type f -name "evaluate.log" 2>/dev/null)
 fi
 
 # ---------------------------------------------------------------------------
 # DL - training history JSONs (per-epoch val metrics consumed by generate_*.py)
 # History files may be at checkpoints/ (flat) or checkpoints/{scenario}/ (new).
 # ---------------------------------------------------------------------------
-echo "--- DL history: $DL_RESULTS_DIR/checkpoints"
+echo "--- DL history: $DL_RESULTS_ROOT/checkpoints"
 
-if [ -d "$DL_RESULTS_DIR/checkpoints" ]; then
+if [ -d "$DL_RESULTS_ROOT/checkpoints" ]; then
     while IFS= read -r hist_file; do
-        rel="${hist_file#$DL_RESULTS_DIR/checkpoints/}"
+        rel="${hist_file#$DL_RESULTS_ROOT/checkpoints/}"
         # Flatten: entropy_high/ae_history.json -> entropy_high_ae_history.json
         flat_name="$(echo "$rel" | tr '/' '_')"
-        _copy_file "$hist_file" "$STAGING_DIR/dl/history/$flat_name"
-    done < <(find "$DL_RESULTS_DIR/checkpoints" -maxdepth 2 -name "*_history.json" -type f 2>/dev/null)
+        _copy_file "$hist_file" "$DL_STAGE_DIR/history/$flat_name"
+    done < <(find "$DL_RESULTS_ROOT/checkpoints" -type f -name "*_history.json" 2>/dev/null)
 fi
 # Backward compat: history JSON directly under DL_RESULTS_DIR
-for f in "$DL_RESULTS_DIR"/*_history.json; do
-    [ -f "$f" ] && _copy_file "$f" "$STAGING_DIR/dl/history/" || true
+for f in "$DL_RESULTS_ROOT"/*_history.json; do
+    [ -f "$f" ] && _copy_file "$f" "$DL_STAGE_DIR/history/" || true
 done
 
 # ---------------------------------------------------------------------------
 # DL - training logs
 # Logs may be at checkpoints/ (flat) or checkpoints/{scenario}/ (new).
 # ---------------------------------------------------------------------------
-if [ -d "$DL_RESULTS_DIR/checkpoints" ]; then
+if [ -d "$DL_RESULTS_ROOT/checkpoints" ]; then
     while IFS= read -r log_file; do
-        rel="${log_file#$DL_RESULTS_DIR/checkpoints/}"
+        rel="${log_file#$DL_RESULTS_ROOT/checkpoints/}"
         flat_name="$(echo "$rel" | tr '/' '_')"
-        _copy_file "$log_file" "$STAGING_DIR/dl/training_logs/$flat_name"
-    done < <(find "$DL_RESULTS_DIR/checkpoints" -maxdepth 2 -name "*_train.log" -type f 2>/dev/null)
+        _copy_file "$log_file" "$DL_STAGE_DIR/training_logs/$flat_name"
+    done < <(find "$DL_RESULTS_ROOT/checkpoints" -type f -name "*_train.log" 2>/dev/null)
 fi
 # Backward compat
-for f in "$DL_RESULTS_DIR"/*_train.log; do
-    [ -f "$f" ] && _copy_file "$f" "$STAGING_DIR/dl/training_logs/" || true
+for f in "$DL_RESULTS_ROOT"/*_train.log; do
+    [ -f "$f" ] && _copy_file "$f" "$DL_STAGE_DIR/training_logs/" || true
 done
 
 # ---------------------------------------------------------------------------
@@ -188,10 +207,10 @@ done
 if [ "$_n_files" -eq 0 ]; then
     echo ""
     echo "WARNING: no files found to pack. Check --results and --dl-results paths."
-    echo "  Expected classical results at: $RESULTS_DIR/raw_results.csv"
-    echo "  Expected aggregated CSVs at:   $RESULTS_DIR/aggregated/"
-    echo "  Expected DL eval CSVs at:      $DL_RESULTS_DIR/eval/"
-    echo "  Expected DL history at:        $DL_RESULTS_DIR/checkpoints/*_history.json"
+    echo "  Expected classical results at: $CLASSIC_RESULTS_DIR/raw_results.csv"
+    echo "  Expected aggregated CSVs at:   $CLASSIC_RESULTS_DIR/aggregated/"
+    echo "  Expected DL eval CSVs at:      $DL_RESULTS_ROOT/eval/"
+    echo "  Expected DL history at:        $DL_RESULTS_ROOT/checkpoints/*_history.json"
 fi
 
 pushd "$STAGING_DIR" > /dev/null
