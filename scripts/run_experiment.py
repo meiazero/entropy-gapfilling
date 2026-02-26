@@ -24,8 +24,17 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from pdi_pipeline.config import ExperimentConfig, load_config
+from pdi_pipeline.config import (
+    EntropyFilterConfig,
+    ExperimentConfig,
+    load_config,
+)
 from pdi_pipeline.dataset import PatchDataset
+from pdi_pipeline.entropy_buckets import (
+    EntropyCutoffs,
+    compute_entropy_cutoffs,
+    filter_by_entropy_buckets,
+)
 from pdi_pipeline.experiment_artifacts import (
     ReconstructionManager,
     compute_entropy_extremes,
@@ -82,7 +91,27 @@ def _load_entropy(
             result[key] = float(np.mean(ent_map))
         else:
             result[key] = float("nan")
+
     return result
+
+
+def _compute_entropy_cutoffs(
+    manifest_path: Path,
+    entropy_filter: EntropyFilterConfig | None,
+) -> EntropyCutoffs | None:
+    if entropy_filter is None:
+        return None
+    try:
+        return compute_entropy_cutoffs(
+            manifest_path,
+            window=entropy_filter.window,
+            quantiles=entropy_filter.quantiles,
+            split="train",
+            satellite=None,
+        )
+    except ValueError as exc:
+        log.warning("Entropy cutoffs unavailable: %s", exc)
+        return None
 
 
 def _load_completed(output_path: Path) -> set[tuple[int, str, str, int]]:
@@ -429,6 +458,7 @@ def _dataset_for_combo(
     noise_level: str,
     satellite: str,
 ) -> PatchDataset:
+    entropy_filter = config.entropy_filter
     return PatchDataset(
         manifest_path,
         split="train",
@@ -437,6 +467,15 @@ def _dataset_for_combo(
         max_patches=config.max_patches,
         seed=seed,
         selected_ids=selected_ids,
+        entropy_window=entropy_filter.window if entropy_filter else None,
+        entropy_buckets=(
+            entropy_filter.eval_buckets if entropy_filter else None
+        ),
+        entropy_quantiles=(
+            entropy_filter.quantiles
+            if entropy_filter
+            else (1.0 / 3.0, 2.0 / 3.0)
+        ),
     )
 
 
@@ -708,6 +747,8 @@ def _rows_for_combo(
     selected_ids: list[int] | None,
     max_patches: int | None,
     seed: int,
+    entropy_filter: EntropyFilterConfig | None,
+    entropy_cutoffs: EntropyCutoffs | None,
 ) -> list[dict[str, Any]]:
     noise_col = {
         "inf": "degraded_inf_path",
@@ -724,6 +765,20 @@ def _rows_for_combo(
     if selected_ids is not None:
         id_set = set(selected_ids)
         df = df[df["patch_id"].isin(id_set)].reset_index(drop=True)
+    if (
+        entropy_filter is not None
+        and entropy_filter.eval_buckets
+        and entropy_cutoffs is not None
+    ):
+        try:
+            df = filter_by_entropy_buckets(
+                df,
+                window=entropy_filter.window,
+                cutoffs=entropy_cutoffs,
+                buckets=entropy_filter.eval_buckets,
+            ).reset_index(drop=True)
+        except ValueError as exc:
+            log.warning("Entropy filter skipped: %s", exc)
     elif max_patches is not None and len(df) > max_patches:
         rng = np.random.default_rng(seed)
         idx = rng.choice(len(df), size=max_patches, replace=False)
@@ -1008,6 +1063,7 @@ def _collect_parallel_tasks(
     entropy_extremes: dict[str, Any],
     save_first_n: int,
     first_seed: int | None,
+    entropy_cutoffs: EntropyCutoffs | None,
 ) -> tuple[list[dict[str, Any]], int]:
     tasks: list[dict[str, Any]] = []
     save_first_counts: dict[tuple[str, str], int] = {}
@@ -1026,6 +1082,8 @@ def _collect_parallel_tasks(
                 selected_ids=selected_ids,
                 max_patches=config.max_patches,
                 seed=seed_default,
+                entropy_filter=config.entropy_filter,
+                entropy_cutoffs=entropy_cutoffs,
             )
             n_skipped += _append_parallel_tasks(
                 rows=rows,
@@ -1070,6 +1128,10 @@ def _run_evaluation_loop_parallel(
     save_first_n = recon_manager.save_first_n if recon_manager else 0
     first_seed = recon_manager.first_seed if recon_manager else None
     entropy_extremes = recon_manager.entropy_extremes if recon_manager else {}
+    entropy_cutoffs = _compute_entropy_cutoffs(
+        manifest_path,
+        config.entropy_filter,
+    )
 
     tasks, n_skipped = _collect_parallel_tasks(
         manifest=manifest,
@@ -1082,6 +1144,7 @@ def _run_evaluation_loop_parallel(
         entropy_extremes=entropy_extremes,
         save_first_n=save_first_n,
         first_seed=first_seed,
+        entropy_cutoffs=entropy_cutoffs,
     )
 
     method_cfg = [(m.name, m.params) for m in methods]

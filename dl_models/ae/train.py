@@ -35,6 +35,25 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
+def _parse_entropy_buckets(value: str | None) -> list[str] | None:
+    if value is None:
+        return None
+    buckets = [b.strip().lower() for b in value.split(",") if b.strip()]
+    return buckets or None
+
+
+def _parse_entropy_quantiles(value: str | None) -> tuple[float, float]:
+    if value is None:
+        return (1.0 / 3.0, 2.0 / 3.0)
+    parts = [p.strip() for p in value.split(",") if p.strip()]
+    if len(parts) != 2:
+        msg = "entropy-quantiles must be two comma-separated floats"
+        raise ValueError(msg)
+    low = float(parts[0])
+    high = float(parts[1])
+    return (low, high)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train AE inpainting model.")
     parser.add_argument("--manifest", type=Path, required=True)
@@ -55,7 +74,23 @@ def main() -> None:
         default=None,
         help="DataLoader workers. Defaults to min(cpu_count, 8).",
     )
+    parser.add_argument("--entropy-window", type=int, default=None)
+    parser.add_argument(
+        "--entropy-buckets",
+        type=str,
+        default=None,
+        help="Comma-separated buckets: low,medium,high",
+    )
+    parser.add_argument(
+        "--entropy-quantiles",
+        type=str,
+        default=None,
+        help="Two comma-separated quantiles (e.g. 0.33,0.66)",
+    )
     args = parser.parse_args()
+
+    entropy_buckets = _parse_entropy_buckets(args.entropy_buckets)
+    entropy_quantiles = _parse_entropy_quantiles(args.entropy_quantiles)
 
     if args.output.parent.name == "checkpoints":
         results_dir = args.output.parent.parent
@@ -76,10 +111,20 @@ def main() -> None:
     pin = device.type == "cuda"
 
     train_ds = InpaintingDataset(
-        args.manifest, split="train", satellite=args.satellite
+        args.manifest,
+        split="train",
+        satellite=args.satellite,
+        entropy_window=args.entropy_window,
+        entropy_buckets=entropy_buckets,
+        entropy_quantiles=entropy_quantiles,
     )
     val_ds = InpaintingDataset(
-        args.manifest, split="val", satellite=args.satellite
+        args.manifest,
+        split="val",
+        satellite=args.satellite,
+        entropy_window=args.entropy_window,
+        entropy_buckets=entropy_buckets,
+        entropy_quantiles=entropy_quantiles,
     )
 
     if len(train_ds) == 0:

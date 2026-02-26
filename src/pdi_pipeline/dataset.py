@@ -14,6 +14,10 @@ from pathlib import Path
 
 import numpy as np
 
+from pdi_pipeline.entropy_buckets import (
+    EntropyCutoffs,
+    compute_entropy_cutoffs,
+)
 from pdi_pipeline.preprocessing import (
     compute_normalize_range,
     ensure_mask_2d,
@@ -65,6 +69,9 @@ class PatchDataset:
         selected_ids: Pre-computed list of patch IDs to use. When
             provided, overrides ``max_patches``/``seed`` sampling and
             filters to exactly these IDs.
+        entropy_window: Entropy window size to filter on.
+        entropy_buckets: Buckets to include (low/medium/high).
+        entropy_quantiles: Low/high quantiles for bucket cutoffs.
     """
 
     def __init__(
@@ -76,6 +83,9 @@ class PatchDataset:
         max_patches: int | None = None,
         seed: int = 42,
         selected_ids: list[int] | None = None,
+        entropy_window: int | None = None,
+        entropy_buckets: list[str] | None = None,
+        entropy_quantiles: tuple[float, float] = (1.0 / 3.0, 2.0 / 3.0),
     ) -> None:
         manifest_path = Path(manifest_path)
         if not manifest_path.exists():
@@ -107,6 +117,21 @@ class PatchDataset:
         if selected_ids is not None:
             id_set = set(selected_ids)
             rows = [r for r in rows if int(r["patch_id"]) in id_set]
+        if entropy_window is not None and entropy_buckets:
+            entropy_col = f"mean_entropy_{entropy_window}"
+            cutoffs = compute_entropy_cutoffs(
+                manifest_path,
+                window=entropy_window,
+                quantiles=entropy_quantiles,
+                split="train",
+                satellite=satellite,
+            )
+            rows = _filter_rows_by_entropy(
+                rows,
+                entropy_col,
+                cutoffs,
+                entropy_buckets,
+            )
         elif max_patches is not None and len(rows) > max_patches:
             rng = np.random.default_rng(seed)
             idx = rng.choice(len(rows), size=max_patches, replace=False)
@@ -178,3 +203,31 @@ class PatchDataset:
     def satellites(self) -> list[str]:
         """Unique satellite names in this dataset."""
         return sorted({r["satellite"] for r in self._rows})
+
+
+def _filter_rows_by_entropy(
+    rows: list[dict[str, str]],
+    entropy_col: str,
+    cutoffs: EntropyCutoffs,
+    buckets: list[str],
+) -> list[dict[str, str]]:
+    normalized = {b.strip().lower() for b in buckets if b is not None}
+    filtered: list[dict[str, str]] = []
+    for row in rows:
+        raw = row.get(entropy_col)
+        if raw in (None, ""):
+            continue
+        try:
+            value = float(raw)
+        except ValueError:
+            continue
+        if "low" in normalized and value <= cutoffs.low:
+            filtered.append(row)
+            continue
+        if "medium" in normalized and cutoffs.low < value <= cutoffs.high:
+            filtered.append(row)
+            continue
+        if "high" in normalized and value > cutoffs.high:
+            filtered.append(row)
+            continue
+    return filtered

@@ -23,6 +23,10 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
+from pdi_pipeline.entropy_buckets import (
+    compute_entropy_cutoffs,
+    filter_by_entropy_buckets,
+)
 from pdi_pipeline.preprocessing import (
     compute_normalize_range,
     normalize_image,
@@ -52,6 +56,9 @@ class InpaintingDataset(Dataset):  # type: ignore[type-arg]
         noise_level: Noise variant to load ("inf", "40", "30", "20").
         max_patches: Optional patch count limit.
         seed: Random seed for reproducible truncation.
+        entropy_window: Entropy window size (e.g. 7, 15, 31).
+        entropy_buckets: Buckets to include (low/medium/high).
+        entropy_quantiles: Low/high quantiles for bucket cutoffs.
     """
 
     def __init__(
@@ -62,6 +69,9 @@ class InpaintingDataset(Dataset):  # type: ignore[type-arg]
         noise_level: str = "inf",
         max_patches: int | None = None,
         seed: int = 42,
+        entropy_window: int | None = None,
+        entropy_buckets: list[str] | None = None,
+        entropy_quantiles: tuple[float, float] = (1.0 / 3.0, 2.0 / 3.0),
     ) -> None:
         manifest_path = Path(manifest_path)
         if not manifest_path.exists():
@@ -86,6 +96,10 @@ class InpaintingDataset(Dataset):  # type: ignore[type-arg]
             "mask_path",
             self._noise_col,
         ]
+        entropy_col = None
+        if entropy_window is not None and entropy_buckets:
+            entropy_col = f"mean_entropy_{entropy_window}"
+            _needed_cols.append(entropy_col)
         df = pd.read_csv(
             manifest_path,
             usecols=_needed_cols,
@@ -102,6 +116,21 @@ class InpaintingDataset(Dataset):  # type: ignore[type-arg]
         df = df[df["split"] == split]
         if satellite is not None:
             df = df[df["satellite"] == satellite]
+
+        if entropy_window is not None and entropy_buckets:
+            cutoffs = compute_entropy_cutoffs(
+                manifest_path,
+                window=entropy_window,
+                quantiles=entropy_quantiles,
+                split="train",
+                satellite=satellite,
+            )
+            df = filter_by_entropy_buckets(
+                df,
+                window=entropy_window,
+                cutoffs=cutoffs,
+                buckets=entropy_buckets,
+            )
 
         # Deterministic ordering by patch_id
         df = df.sort_values("patch_id")

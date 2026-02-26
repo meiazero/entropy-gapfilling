@@ -52,6 +52,9 @@ MODEL_ALLOWED_ARGS: dict[str, set[str]] = {
         "patience",
         "satellite",
         "num_workers",
+        "entropy_window",
+        "entropy_buckets",
+        "entropy_quantiles",
     },
     "vae": {
         "manifest",
@@ -64,6 +67,9 @@ MODEL_ALLOWED_ARGS: dict[str, set[str]] = {
         "patience",
         "satellite",
         "num_workers",
+        "entropy_window",
+        "entropy_buckets",
+        "entropy_quantiles",
     },
     "gan": {
         "manifest",
@@ -77,6 +83,9 @@ MODEL_ALLOWED_ARGS: dict[str, set[str]] = {
         "lambda_adv",
         "satellite",
         "num_workers",
+        "entropy_window",
+        "entropy_buckets",
+        "entropy_quantiles",
     },
     "unet": {
         "manifest",
@@ -89,6 +98,9 @@ MODEL_ALLOWED_ARGS: dict[str, set[str]] = {
         "patience",
         "satellite",
         "num_workers",
+        "entropy_window",
+        "entropy_buckets",
+        "entropy_quantiles",
     },
     "vit": {
         "manifest",
@@ -101,6 +113,9 @@ MODEL_ALLOWED_ARGS: dict[str, set[str]] = {
         "patience",
         "satellite",
         "num_workers",
+        "entropy_window",
+        "entropy_buckets",
+        "entropy_quantiles",
     },
 }
 
@@ -156,6 +171,10 @@ def _load_training_config(
         msg = f"Model '{model}' not found in dl_training.models"
         raise ValueError(msg)
 
+    entropy_filter = data.get("entropy_filter", {})
+    if entropy_filter is None:
+        entropy_filter = {}
+
     return {
         "manifest": training.get("manifest", "preprocessed/manifest.csv"),
         "output_dir": training.get("output_dir", "dl_models/checkpoints"),
@@ -164,6 +183,7 @@ def _load_training_config(
         "num_workers": training.get("num_workers"),
         "eval_after_train": training.get("eval_after_train", True),
         "max_patches": training.get("max_patches"),
+        "entropy_filter": entropy_filter,
         "model_params": models[model],
     }
 
@@ -214,6 +234,21 @@ def _run_evaluation(
     if cfg["max_patches"] is not None:
         eval_argv.extend(["--max-patches", str(cfg["max_patches"])])
 
+    entropy_filter = cfg.get("entropy_filter", {})
+    if entropy_filter:
+        window = entropy_filter.get("window")
+        if window is not None:
+            eval_argv.extend(["--entropy-window", str(window)])
+        buckets = entropy_filter.get("eval_buckets")
+        if buckets:
+            eval_argv.extend(["--entropy-buckets", ",".join(buckets)])
+        quantiles = entropy_filter.get("quantiles")
+        if quantiles and len(quantiles) == 2:
+            eval_argv.extend([
+                "--entropy-quantiles",
+                f"{quantiles[0]},{quantiles[1]}",
+            ])
+
     eval_module = importlib.import_module("dl_models.evaluate")
     with _patched_argv(eval_argv):
         eval_module.main()
@@ -259,6 +294,18 @@ def main() -> None:
         "num_workers": cfg["num_workers"],
     }
     train_args.update(cfg["model_params"])
+
+    entropy_filter = cfg.get("entropy_filter", {})
+    if entropy_filter:
+        window = entropy_filter.get("window")
+        if window is not None:
+            train_args["entropy_window"] = window
+        buckets = entropy_filter.get("train_buckets")
+        if buckets:
+            train_args["entropy_buckets"] = ",".join(buckets)
+        quantiles = entropy_filter.get("quantiles")
+        if quantiles and len(quantiles) == 2:
+            train_args["entropy_quantiles"] = f"{quantiles[0]},{quantiles[1]}"
 
     _run_training(args.model, train_args)
 

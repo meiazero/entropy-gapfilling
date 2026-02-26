@@ -44,6 +44,7 @@ class ExperimentConfig:
     output_dir: str
     methods: list[MethodConfig]
     metrics: list[str]
+    entropy_filter: EntropyFilterConfig | None
 
     @property
     def output_path(self) -> Path:
@@ -58,6 +59,16 @@ VALID_CATEGORIES = frozenset({
     "compressive",
     "patch_based",
 })
+
+
+@dataclass(frozen=True)
+class EntropyFilterConfig:
+    """Entropy bucket filtering for dataset selection."""
+
+    window: int
+    quantiles: tuple[float, float]
+    train_buckets: list[str] | None
+    eval_buckets: list[str] | None
 
 
 def _ensure_top_level_keys(raw: dict[str, Any]) -> None:
@@ -160,6 +171,11 @@ def _validate_raw(raw: dict[str, Any]) -> None:
     _validate_experiment_section(raw["experiment"])
     _validate_methods_section(raw["methods"])
 
+    entropy_filter = raw.get("entropy_filter")
+    if entropy_filter is not None and not isinstance(entropy_filter, dict):
+        msg = "Config 'entropy_filter' must be a mapping"
+        raise ConfigError(msg)
+
 
 def _parse_methods(raw: dict[str, list[dict[str, Any]]]) -> list[MethodConfig]:
     """Flatten category -> method list into a flat list of MethodConfig."""
@@ -202,6 +218,34 @@ def load_config(path: str | Path) -> ExperimentConfig:
     exp = raw["experiment"]
     methods = _parse_methods(raw["methods"])
 
+    entropy_filter = None
+    entropy_raw = raw.get("entropy_filter")
+    if isinstance(entropy_raw, dict):
+        window = entropy_raw.get("window")
+        if window is not None and not isinstance(window, int):
+            msg = "entropy_filter.window must be an int"
+            raise ConfigError(msg)
+        quantiles_raw = entropy_raw.get("quantiles", [1.0 / 3.0, 2.0 / 3.0])
+        if not isinstance(quantiles_raw, list) or len(quantiles_raw) != 2:
+            msg = "entropy_filter.quantiles must be a list of two floats"
+            raise ConfigError(msg)
+        quantiles = (float(quantiles_raw[0]), float(quantiles_raw[1]))
+        train_buckets = entropy_raw.get("train_buckets")
+        if train_buckets is not None and not isinstance(train_buckets, list):
+            msg = "entropy_filter.train_buckets must be a list"
+            raise ConfigError(msg)
+        eval_buckets = entropy_raw.get("eval_buckets")
+        if eval_buckets is not None and not isinstance(eval_buckets, list):
+            msg = "entropy_filter.eval_buckets must be a list"
+            raise ConfigError(msg)
+        if window is not None:
+            entropy_filter = EntropyFilterConfig(
+                window=window,
+                quantiles=quantiles,
+                train_buckets=train_buckets,
+                eval_buckets=eval_buckets,
+            )
+
     return ExperimentConfig(
         name=exp["name"],
         seeds=exp["seeds"],
@@ -213,4 +257,5 @@ def load_config(path: str | Path) -> ExperimentConfig:
         output_dir=exp.get("output_dir", "results/"),
         methods=methods,
         metrics=raw.get("metrics", ["psnr", "ssim", "rmse", "sam"]),
+        entropy_filter=entropy_filter,
     )

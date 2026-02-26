@@ -79,7 +79,7 @@ SPLIT_RATIOS = {
     "val": 0.10,
     "test": 0.10,
 }
-SPLIT_SEED = 42
+SPLIT_SEED = 64
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
