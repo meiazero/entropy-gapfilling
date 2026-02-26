@@ -2,10 +2,9 @@
 # pack_paper_assets.sh - Pack experiment results into a structured .zip for
 # local review and paper writing.
 #
-# Collects only the CSVs required by generate_figures.py and
-# generate_tables.py, plus generated figures, tables, and training logs.
-# Excludes intermediate checkpoints, raw parquet shards, and any CSV not
-# consumed by the figure/table generation pipeline.
+# Collects only the CSVs and JSONs needed to regenerate figures and tables
+# locally. Excludes generated figures, tables, training plots, intermediate
+# checkpoints, and raw parquet shards.
 #
 # Usage:
 #   bash scripts/pack_paper_assets.sh
@@ -13,7 +12,6 @@
 #   bash scripts/pack_paper_assets.sh \
 #       --results results/quick_validation \
 #       --dl-results results/dl_models \
-#       --dl-plots results/dl_plots \
 #       --output my_assets.zip
 #
 # Output structure:
@@ -26,8 +24,6 @@
 #                                   by_entropy_bin, spearman_correlation,
 #                                   method_comparison_*, robust_regression_*,
 #                                   combined_comparison, dl_*)
-#     figures/                   - PDF and PNG figures from classical experiment
-#     tables/                    - LaTeX .tex table files
 #     logs/                      - experiment.log
 #   dl/
 #     eval/
@@ -37,10 +33,7 @@
 #                                       pixel_acc_*, f1_*, entropy_*, gap_fraction)
 #     history/
 #       {model}_history.json     - per-epoch val metrics from training
-#     figures/                   - DL figures from generate_figures.py
-#     tables/                    - DL tables from generate_tables.py
-#     training_plots/            - loss/metric curves from plot_training.py
-#     training_logs/             - evaluate.log per model
+#     training_logs/             - evaluate.log and train.log per model
 
 set -euo pipefail
 
@@ -49,7 +42,6 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 RESULTS_DIR="results/paper_results"
 DL_RESULTS_DIR="results/dl_models"
-DL_PLOTS_DIR="results/dl_plots"
 OUTPUT_ZIP="paper_assets.zip"
 
 # ---------------------------------------------------------------------------
@@ -59,7 +51,6 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --results)      RESULTS_DIR="$2";    shift 2 ;;
         --dl-results)   DL_RESULTS_DIR="$2"; shift 2 ;;
-        --dl-plots)     DL_PLOTS_DIR="$2";   shift 2 ;;
         --output)       OUTPUT_ZIP="$2";     shift 2 ;;
         -h|--help)
             sed -n '2,35p' "$0" | sed 's/^# //' | sed 's/^#//'
@@ -80,13 +71,8 @@ trap cleanup EXIT
 mkdir -p \
     "$STAGING_DIR/classic/raw_results" \
     "$STAGING_DIR/classic/aggregated" \
-    "$STAGING_DIR/classic/figures" \
-    "$STAGING_DIR/classic/tables" \
     "$STAGING_DIR/classic/logs" \
     "$STAGING_DIR/dl/history" \
-    "$STAGING_DIR/dl/figures" \
-    "$STAGING_DIR/dl/tables" \
-    "$STAGING_DIR/dl/training_plots" \
     "$STAGING_DIR/dl/training_logs"
 
 _n_files=0
@@ -123,17 +109,8 @@ if [ -d "$RESULTS_DIR/aggregated" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Classical - generated outputs (figures, tables, logs)
+# Classical - logs
 # ---------------------------------------------------------------------------
-if [ -d "$RESULTS_DIR/figures" ]; then
-    _copy_glob "$RESULTS_DIR/figures" "*.pdf" "$STAGING_DIR/classic/figures"
-    _copy_glob "$RESULTS_DIR/figures" "*.png" "$STAGING_DIR/classic/figures"
-fi
-
-if [ -d "$RESULTS_DIR/tables" ]; then
-    _copy_glob "$RESULTS_DIR/tables" "*.tex" "$STAGING_DIR/classic/tables"
-fi
-
 for f in "$RESULTS_DIR"/*.log; do
     [ -f "$f" ] && _copy_file "$f" "$STAGING_DIR/classic/logs/" || true
 done
@@ -186,22 +163,8 @@ for f in "$DL_RESULTS_DIR"/*_history.json; do
 done
 
 # ---------------------------------------------------------------------------
-# DL - generated outputs (figures, tables, training plots, training logs)
+# DL - training logs
 # ---------------------------------------------------------------------------
-if [ -d "$DL_RESULTS_DIR/figures" ]; then
-    _copy_glob "$DL_RESULTS_DIR/figures" "*.pdf" "$STAGING_DIR/dl/figures"
-    _copy_glob "$DL_RESULTS_DIR/figures" "*.png" "$STAGING_DIR/dl/figures"
-fi
-
-if [ -d "$DL_RESULTS_DIR/tables" ]; then
-    _copy_glob "$DL_RESULTS_DIR/tables" "*.tex" "$STAGING_DIR/dl/tables"
-fi
-
-if [ -d "$DL_PLOTS_DIR" ]; then
-    _copy_glob "$DL_PLOTS_DIR" "*.pdf" "$STAGING_DIR/dl/training_plots"
-    _copy_glob "$DL_PLOTS_DIR" "*.png" "$STAGING_DIR/dl/training_plots"
-fi
-
 # Training logs from checkpoints/
 if [ -d "$DL_RESULTS_DIR/checkpoints" ]; then
     for f in "$DL_RESULTS_DIR/checkpoints"/*_train.log; do
