@@ -34,9 +34,8 @@ metrics: ["psnr", "ssim", "rmse", "sam", "ergas"]
 
 entropy_filter:
   window: 7
-  train_buckets: [high]
   quantiles: [0.33, 0.67]
-  eval_scenarios:
+  scenarios:
     - name: entropy_all
       buckets: [low, medium, high]
 

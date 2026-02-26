@@ -4,7 +4,7 @@ experiment:
   noise_levels: ["inf", "40", "30", "20"]
   satellites: ["sentinel2", "landsat8", "landsat9", "modis"]
   entropy_windows: [7, 15, 31]
-  max_patches: 75
+  max_patches: 30
   output_dir: "results/"
 
 methods:
@@ -32,13 +32,12 @@ methods:
 
 metrics: ["psnr", "ssim", "rmse", "sam", "ergas"]
 
-# Entropy-based curriculum: train only on high-entropy patches (complex textures)
-# and evaluate on progressively broader entropy ranges.
+# Entropy-based training: train a separate model for each entropy scenario
+# and evaluate on the same subset used for training.
 entropy_filter:
   window: 7
-  train_buckets: [high]
   quantiles: [0.33, 0.67]
-  eval_scenarios:
+  scenarios:
     - name: entropy_high
       buckets: [high]
     - name: entropy_medium_high

@@ -149,13 +149,17 @@ fi
 
 # ---------------------------------------------------------------------------
 # DL - training history JSONs (per-epoch val metrics consumed by generate_*.py)
+# History files may be at checkpoints/ (flat) or checkpoints/{scenario}/ (new).
 # ---------------------------------------------------------------------------
 echo "--- DL history: $DL_RESULTS_DIR/checkpoints"
 
 if [ -d "$DL_RESULTS_DIR/checkpoints" ]; then
-    for f in "$DL_RESULTS_DIR/checkpoints"/*_history.json; do
-        [ -f "$f" ] && _copy_file "$f" "$STAGING_DIR/dl/history/" || true
-    done
+    while IFS= read -r hist_file; do
+        rel="${hist_file#$DL_RESULTS_DIR/checkpoints/}"
+        # Flatten: entropy_high/ae_history.json -> entropy_high_ae_history.json
+        flat_name="$(echo "$rel" | tr '/' '_')"
+        _copy_file "$hist_file" "$STAGING_DIR/dl/history/$flat_name"
+    done < <(find "$DL_RESULTS_DIR/checkpoints" -maxdepth 2 -name "*_history.json" -type f 2>/dev/null)
 fi
 # Backward compat: history JSON directly under DL_RESULTS_DIR
 for f in "$DL_RESULTS_DIR"/*_history.json; do
@@ -164,12 +168,14 @@ done
 
 # ---------------------------------------------------------------------------
 # DL - training logs
+# Logs may be at checkpoints/ (flat) or checkpoints/{scenario}/ (new).
 # ---------------------------------------------------------------------------
-# Training logs from checkpoints/
 if [ -d "$DL_RESULTS_DIR/checkpoints" ]; then
-    for f in "$DL_RESULTS_DIR/checkpoints"/*_train.log; do
-        [ -f "$f" ] && _copy_file "$f" "$STAGING_DIR/dl/training_logs/" || true
-    done
+    while IFS= read -r log_file; do
+        rel="${log_file#$DL_RESULTS_DIR/checkpoints/}"
+        flat_name="$(echo "$rel" | tr '/' '_')"
+        _copy_file "$log_file" "$STAGING_DIR/dl/training_logs/$flat_name"
+    done < <(find "$DL_RESULTS_DIR/checkpoints" -maxdepth 2 -name "*_train.log" -type f 2>/dev/null)
 fi
 # Backward compat
 for f in "$DL_RESULTS_DIR"/*_train.log; do

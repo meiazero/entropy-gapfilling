@@ -11,9 +11,9 @@
 # ---------------------------------------------------------------------------
 #SBATCH -J pdi-experiment-classical
 #SBATCH -p cpuq
-#SBATCH --cpus-per-task=200
+#SBATCH --cpus-per-task=64
 #SBATCH --mem=128G
-#SBATCH --time=144:00:00
+#SBATCH --time=48:00:00
 #SBATCH -o logs/slurm_%x_%j.out
 #SBATCH -e logs/slurm_%x_%j.err
 
@@ -53,11 +53,3 @@ fi
 
 echo "=== Classical Experiment ==="
 python scripts/run_experiment.py --config "$CONFIG"
-
-RESULTS_DIR=$(python -c "from pdi_pipeline.config import load_config; c = load_config('$CONFIG'); print(c.output_path)")
-
-echo "=== Generating Tables (results: $RESULTS_DIR) ==="
-python scripts/generate_tables.py --results "$RESULTS_DIR"
-
-echo "=== Generating Figures (results: $RESULTS_DIR) ==="
-python scripts/generate_figures.py --results "$RESULTS_DIR"

@@ -213,6 +213,7 @@ def _run_evaluation(
     model: str,
     checkpoint: Path,
     cfg: dict[str, Any],
+    eval_base_dir: Path,
     scenario_name: str | None = None,
     eval_buckets: list[str] | None = None,
     noise_level: str = "inf",
@@ -223,14 +224,14 @@ def _run_evaluation(
         model: Model key (ae, vae, gan, unet, vit).
         checkpoint: Path to the trained checkpoint.
         cfg: Parsed training config dict.
+        eval_base_dir: Root directory for evaluation outputs.
         scenario_name: Subdirectory name for this evaluation scenario.
             If None, results are written directly to the base eval dir.
         eval_buckets: Entropy buckets to include for this scenario.
             Overrides entropy_filter.eval_buckets from cfg.
         noise_level: Noise level variant to evaluate (inf/40/30/20).
     """
-    base_eval_dir = checkpoint.parent.parent / "eval"
-    eval_dir = base_eval_dir / scenario_name if scenario_name else base_eval_dir
+    eval_dir = eval_base_dir / scenario_name if scenario_name else eval_base_dir
 
     log.info(
         "Evaluating %s | scenario=%s | noise=%s",
@@ -309,14 +310,11 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> None:
-    args = _build_parser().parse_args()
-    cfg = _load_training_config(args.config, args.model)
-
-    output_dir = Path(cfg["output_dir"])
-    output_dir.mkdir(parents=True, exist_ok=True)
-    checkpoint = output_dir / f"{args.model}_best.pth"
-
+def _build_base_train_args(
+    cfg: dict[str, Any], checkpoint: Path
+) -> dict[str, Any]:
+    """Build the base training args dict from config,
+    then merge model params."""
     train_args: dict[str, Any] = {
         "manifest": cfg["manifest"],
         "output": str(checkpoint),
@@ -325,55 +323,132 @@ def main() -> None:
         "num_workers": cfg["num_workers"],
     }
     train_args.update(cfg["model_params"])
+    return train_args
 
-    entropy_filter = cfg.get("entropy_filter", {})
+
+def _apply_entropy_to_train_args(
+    train_args: dict[str, Any],
+    entropy_filter: dict[str, Any],
+    buckets: list[str] | None,
+) -> None:
+    """Inject entropy-filter keys into *train_args* in-place."""
+    window = entropy_filter.get("window")
+    if window is not None:
+        train_args["entropy_window"] = window
+    if buckets:
+        train_args["entropy_buckets"] = ",".join(buckets)
+    quantiles = entropy_filter.get("quantiles")
+    if quantiles and len(quantiles) == 2:
+        train_args["entropy_quantiles"] = f"{quantiles[0]},{quantiles[1]}"
+
+
+def _run_scenario_pass(
+    args: argparse.Namespace,
+    scenario: dict[str, Any],
+    cfg: dict[str, Any],
+    base_output_dir: Path,
+    eval_base_dir: Path,
+    noise_levels: list[str],
+) -> None:
+    """Train and optionally evaluate one entropy scenario."""
+    scenario_name: str = scenario["name"]
+    scenario_buckets: list[str] = scenario["buckets"]
+
+    scenario_dir = base_output_dir / scenario_name
+    scenario_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint = scenario_dir / f"{args.model}_best.pth"
+
+    entropy_filter: dict[str, Any] = cfg.get("entropy_filter") or {}
+    train_args = _build_base_train_args(cfg, checkpoint)
     if entropy_filter:
-        window = entropy_filter.get("window")
-        if window is not None:
-            train_args["entropy_window"] = window
-        buckets = entropy_filter.get("train_buckets")
-        if buckets:
-            train_args["entropy_buckets"] = ",".join(buckets)
-        quantiles = entropy_filter.get("quantiles")
-        if quantiles and len(quantiles) == 2:
-            train_args["entropy_quantiles"] = f"{quantiles[0]},{quantiles[1]}"
+        _apply_entropy_to_train_args(
+            train_args, entropy_filter, scenario_buckets
+        )
+
+    log.info(
+        "--- Scenario %s: training on buckets %s",
+        scenario_name,
+        scenario_buckets,
+    )
+    _run_training(args.model, train_args)
+
+    if not args.skip_eval and cfg["eval_after_train"] and checkpoint.exists():
+        log.info(
+            "--- Scenario %s: evaluating %d noise level(s)",
+            scenario_name,
+            len(noise_levels),
+        )
+        for noise_level in noise_levels:
+            _run_evaluation(
+                args.model,
+                checkpoint,
+                cfg,
+                eval_base_dir=eval_base_dir,
+                scenario_name=scenario_name,
+                eval_buckets=scenario_buckets,
+                noise_level=noise_level,
+            )
+
+
+def _run_single_pass(
+    args: argparse.Namespace,
+    cfg: dict[str, Any],
+    base_output_dir: Path,
+    eval_base_dir: Path,
+    noise_levels: list[str],
+) -> None:
+    """Single training + evaluation pass (no scenario splitting)."""
+    base_output_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint = base_output_dir / f"{args.model}_best.pth"
+
+    entropy_filter: dict[str, Any] = cfg.get("entropy_filter") or {}
+    train_args = _build_base_train_args(cfg, checkpoint)
+    if entropy_filter:
+        buckets: list[str] | None = entropy_filter.get("train_buckets")
+        _apply_entropy_to_train_args(train_args, entropy_filter, buckets)
 
     _run_training(args.model, train_args)
 
     if not args.skip_eval and cfg["eval_after_train"] and checkpoint.exists():
-        noise_levels: list[str] = cfg.get(
-            "noise_levels", ["inf", "40", "30", "20"]
-        )
-        entropy_filter = cfg.get("entropy_filter") or {}
-        eval_scenarios: list[dict[str, Any]] | None = entropy_filter.get(
-            "eval_scenarios"
-        )
-
-        if eval_scenarios:
-            log.info(
-                "Running %d eval scenario(s) x %d noise level(s)",
-                len(eval_scenarios),
-                len(noise_levels),
+        for noise_level in noise_levels:
+            _run_evaluation(
+                args.model,
+                checkpoint,
+                cfg,
+                eval_base_dir=eval_base_dir,
+                noise_level=noise_level,
             )
-            for scenario in eval_scenarios:
-                for noise_level in noise_levels:
-                    _run_evaluation(
-                        args.model,
-                        checkpoint,
-                        cfg,
-                        scenario_name=scenario["name"],
-                        eval_buckets=scenario.get("buckets"),
-                        noise_level=noise_level,
-                    )
-        else:
-            # Backward-compatible: single evaluation pass, no scenario subdir.
-            for noise_level in noise_levels:
-                _run_evaluation(
-                    args.model,
-                    checkpoint,
-                    cfg,
-                    noise_level=noise_level,
-                )
+
+
+def main() -> None:
+    args = _build_parser().parse_args()
+    cfg = _load_training_config(args.config, args.model)
+
+    base_output_dir = Path(cfg["output_dir"])
+    entropy_filter: dict[str, Any] = cfg.get("entropy_filter") or {}
+    scenarios: list[dict[str, Any]] | None = entropy_filter.get("scenarios")
+    noise_levels: list[str] = cfg.get("noise_levels", ["inf", "40", "30", "20"])
+    # eval outputs always go to a sibling "eval" dir relative to checkpoints
+    eval_base_dir = base_output_dir.parent / "eval"
+
+    if scenarios:
+        log.info(
+            "Training %s across %d scenario(s)", args.model, len(scenarios)
+        )
+        for scenario in scenarios:
+            _run_scenario_pass(
+                args,
+                scenario,
+                cfg,
+                base_output_dir,
+                eval_base_dir,
+                noise_levels,
+            )
+    else:
+        # No scenarios: single training + evaluation pass (backward compat).
+        _run_single_pass(
+            args, cfg, base_output_dir, eval_base_dir, noise_levels
+        )
 
     log.info("Done: %s", args.model)
 
