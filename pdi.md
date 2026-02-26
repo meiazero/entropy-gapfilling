@@ -58,14 +58,15 @@ Divisao: 52.842 treino / 10.225 validacao / 14.849 teste.
 │   ├── tables/                 # Tabelas copiadas por make paper-assets
 │   └── dist/                   # Saida PDF compilada
 ├── paper_assets/
-│   ├── classico/               # Figuras, tabelas, resultados brutos e logs do experimento classico
+│   ├── classic/                # Figuras, tabelas, resultados brutos e logs do experimento classico
 │   └── dl/                     # Resultados de avaliacao, plots de treinamento e historico do experimento DL
 ├── results/
-│   ├── paper_results/          # Saida do experimento completo do artigo
+│   ├── paper_results/          # Saida do experimento classico completo do artigo
 │   └── quick_validation/       # Saida da execucao de validacao rapida
 ├── scripts/
 │   ├── preprocess_dataset.py   # Converte patches GeoTIFF para NPY + gera manifest
 │   ├── run_experiment.py       # Executador principal do experimento de metodos classicos
+│   ├── aggregate_results.py    # Agrega CSVs brutos (classicos + DL) em CSVs prontos para analise
 │   ├── generate_figures.py     # Gera todas as figuras do artigo a partir dos resultados
 │   ├── generate_tables.py      # Gera todas as tabelas LaTeX a partir dos resultados
 │   ├── precompute_entropy.py   # Pre-computa mapas de entropia para todos os patches
@@ -75,7 +76,7 @@ Divisao: 52.842 treino / 10.225 validacao / 14.849 teste.
 │   └── slurm/                  # Scripts de submissao SLURM (ver secao Cluster)
 ├── src/pdi_pipeline/
 │   ├── methods/                # Implementacoes dos 15 metodos classicos de preenchimento
-│   ├── metrics.py              # PSNR, SSIM, RMSE, SAM, ERGAS
+│   ├── metrics.py              # PSNR, SSIM, RMSE, SAM, ERGAS, pixel_acc, F1, RMSE por banda
 │   ├── statistics.py           # Pearson/Spearman, Kruskal-Wallis, regressao robusta, Moran's I
 │   ├── entropy.py              # Calculo de entropia local (janelas multi-escala)
 │   ├── aggregation.py          # Utilitarios de agregacao de resultados
@@ -135,22 +136,45 @@ experiment:
 dl_training:
   satellite: sentinel2
   device: cuda
+  eval_after_train: true # roda evaluate.py automaticamente apos treinamento
+  noise_levels: ["inf", "40", "30", "20"]
   models:
-    ae: { epochs: 30, batch_size: 32, lr: 1e-3, patience: 7 }
-    vae: { epochs: 40, batch_size: 32, lr: 1e-3, beta: 0.001, patience: 8 }
+    ae: { epochs: 60, batch_size: 96, lr: 1.5e-3, patience: 12 }
+    vae: { epochs: 80, batch_size: 96, lr: 1.5e-3, beta: 0.001, patience: 15 }
     gan:
       {
-        epochs: 60,
-        batch_size: 16,
+        epochs: 120,
+        batch_size: 32,
         lr: 2e-4,
         lambda_l1: 10.0,
         lambda_adv: 0.1,
-        patience: 10
+        patience: 20
       }
     unet:
-      { epochs: 40, batch_size: 32, lr: 1e-3, weight_decay: 1e-4, patience: 8 }
+      {
+        epochs: 80,
+        batch_size: 96,
+        lr: 1.5e-3,
+        weight_decay: 1e-4,
+        patience: 15
+      }
     vit:
-      { epochs: 60, batch_size: 32, lr: 1e-4, weight_decay: 0.05, patience: 10 }
+      {
+        epochs: 120,
+        batch_size: 64,
+        lr: 2e-4,
+        weight_decay: 0.05,
+        patience: 20
+      }
+
+entropy_filter:
+  window: 7
+  train_buckets: [high] # treina apenas em patches de alta complexidade
+  quantiles: [0.33, 0.67]
+  eval_scenarios: # avalia em 3 cenarios de cobertura de entropia
+    - { name: entropy_high, buckets: [high] }
+    - { name: entropy_medium_high, buckets: [medium, high] }
+    - { name: entropy_all, buckets: [low, medium, high] }
 ```
 
 ## Quick Start (Make)
@@ -189,21 +213,53 @@ uv run python scripts/precompute_entropy.py
 ### 3. Executar experimento
 
 ```bash
-uv run python scripts/run_experiment.py --config config/paper_results.yaml --save-entropy-top-k 5
+uv run python scripts/run_experiment.py --config config/paper_results.yaml
 ```
 
-Use a flag `--quick` para rodar com `config/quick_validation.yaml` automaticamente.
+Saida: `results/paper_results/raw_results.csv`
 
-### 4. Gerar figuras e tabelas
+Colunas do CSV classico: `seed, noise_level, method, method_category, patch_id, satellite, gap_fraction, status, error_msg, elapsed_s, entropy_7, entropy_15, entropy_31, psnr, ssim, rmse, sam, ergas, pixel_acc_002, pixel_acc_005, pixel_acc_01, f1_002, f1_005, f1_01, rmse_b0, rmse_b1, rmse_b2, rmse_b3`
+
+### 4. Agregar resultados
 
 ```bash
-uv run python scripts/generate_figures.py --results results/paper_results
-uv run python scripts/generate_tables.py  --results results/paper_results
+uv run python scripts/aggregate_results.py \
+    --results results/paper_results \
+    --output results/paper_results/aggregated
+```
+
+Para incluir resultados DL apos os treinamentos completarem (ver nota sobre nomenclatura abaixo):
+
+```bash
+uv run python scripts/aggregate_results.py \
+    --results results/paper_results \
+    --dl-eval results/dl_models/eval/entropy_all \
+    --dl-history results/dl_models/checkpoints \
+    --output results/paper_results/aggregated
+```
+
+> **Nota de nomenclatura DL:** `evaluate.py` grava arquivos como `{model}_{noise_label}.csv`
+> (ex: `ae_gap_only.csv`, `ae_snr40dB.csv`), enquanto `aggregate_results.py --dl-eval`
+> espera `eval_{noise}.csv` (ex: `eval_inf.csv`). Se o aggregator nao encontrar os arquivos,
+> as figuras e tabelas DL ainda sao geradas corretamente via `--dl-results results/dl_models`
+> nos passos abaixo - isso cobre a tabela comparativa classicos vs DL.
+
+### 5. Gerar figuras e tabelas
+
+```bash
+uv run python scripts/generate_figures.py \
+    --results results/paper_results \
+    --aggregated-dir results/paper_results/aggregated
+
+uv run python scripts/generate_tables.py \
+    --results results/paper_results \
+    --aggregated-dir results/paper_results/aggregated \
+    --dl-results results/dl_models
 ```
 
 Adicione `--png-only` para pular a saida PDF (mais rapido, util para previews).
 
-### 5. Empacotar assets do artigo
+### 6. Empacotar assets do artigo
 
 ```bash
 bash scripts/pack_paper_assets.sh
@@ -212,7 +268,11 @@ bash scripts/pack_paper_assets.sh
 
 ## Pipeline de Aprendizado Profundo
 
-### Treinamento (local)
+### Treinamento + Avaliacao automatica
+
+Com `eval_after_train: true` no YAML, `train_model.py` executa `evaluate.py` automaticamente
+ao fim de cada treinamento, para todos os `noise_levels` e todos os `eval_scenarios` definidos
+na config. Nao e necessario rodar `evaluate.py` manualmente.
 
 ```bash
 make dl-train-ae     # Autoencoder
@@ -229,14 +289,38 @@ Sobrescrever hiperparametros ou satelite pela linha de comando:
 make dl-train-ae SATELLITE=landsat8 AE_EPOCHS=100 DEVICE=cuda:1
 ```
 
-### Avaliacao (test split)
+### Saida do evaluate.py (schema completo)
 
-```bash
-make dl-eval-all          # Avaliar todos os 5 modelos
-make dl-eval-unet         # Avaliar um modelo individual
+Os CSVs de avaliacao DL produzidos pelo `evaluate.py` atual contem o schema completo:
+
+```
+results/dl_models/eval/{scenario_name}/{model}/{model}_{noise_label}.csv
 ```
 
-Checkpoints esperados em `results/dl_models/checkpoints/` (configuravel via `CKPT_DIR`).
+Exemplo: `results/dl_models/eval/entropy_all/unet/unet_gap_only.csv`
+
+Colunas: `model, architecture, satellite, noise_level, patch_id, gap_fraction, entropy_7,
+entropy_15, entropy_31, status, error_msg, elapsed_s, psnr, ssim, rmse, sam, ergas,
+rmse_b0, rmse_b1, rmse_b2, rmse_b3, pixel_acc_002, pixel_acc_005, pixel_acc_01,
+f1_002, f1_005, f1_01`
+
+> As metricas do test set (eval CSV) sao a fonte autoritativa para reportar performance
+> dos modelos DL no artigo. Os valores de `*_history.json` sao do val set durante
+> treinamento e servem apenas para as curvas de convergencia.
+
+### Avaliacao manual (opcional, para noise levels ou satelites adicionais)
+
+```bash
+uv run python -m dl_models.evaluate \
+    --model unet \
+    --checkpoint results/dl_models/checkpoints/unet_best.pth \
+    --manifest preprocessed/manifest.csv \
+    --satellite sentinel2 \
+    --noise-level inf \
+    --output results/dl_models/eval/entropy_all
+```
+
+Modelos disponiveis: `ae`, `vae`, `gan`, `unet`, `vit`.
 
 ### Plots de curva de treinamento
 
@@ -244,33 +328,13 @@ Checkpoints esperados em `results/dl_models/checkpoints/` (configuravel via `CKP
 make dl-plot
 ```
 
-Le arquivos `*_history.json` de `dl_models/` e escreve plots em `results/dl_plots/`.
+Le arquivos `*_history.json` de `results/dl_models/checkpoints/` e escreve plots em `results/dl_plots/`.
 
 ### Pipeline DL completo
 
 ```bash
 make dl-all    # treinar todos -> avaliar todos -> plotar
 ```
-
-### Invocacao direta
-
-```bash
-# Treinamento
-uv run python -m dl_models.ae.train \
-    --manifest preprocessed/manifest.csv --satellite sentinel2 \
-    --output results/dl_models/checkpoints/ae_best.pth \
-    --epochs 30 --batch-size 32 --lr 1e-3 --patience 7
-
-# Avaliacao
-uv run python -m dl_models.evaluate \
-    --model unet \
-    --checkpoint results/dl_models/checkpoints/unet_best.pth \
-    --manifest preprocessed/manifest.csv \
-    --satellite sentinel2 \
-    --output results/dl_eval
-```
-
-Modelos disponiveis: `ae`, `vae`, `gan`, `unet`, `vit`.
 
 ## Compilacao do Artigo
 
@@ -302,87 +366,113 @@ Validado em Rocky Linux 9.5 com NVIDIA A100 80GB PCIe, driver 550.90.07 / CUDA 1
 | Modulo Conda   | `miniconda3/py312_25.1.1` |
 | Modulo CUDA    | `cuda/12.6.2`             |
 
-### Sequencia de execucao
+### Sequencia de execucao no cluster
 
 ```
-[1] setup_env.sh              <- uma vez, aguardar completar
-[2] export PDI_DATA_ROOT      <- obrigatorio antes de qualquer job
-[3] preprocess.sbatch         <- uma vez, aguardar completar (squeue -u $USER)
-        |
-        +-- [4a] submit_all.sh               (todos os 5 modelos DL, paralelo)
-        +-- [4b] experiment_classical.sbatch (metodos classicos, independente)
+[Fase 0] setup_env.sh            <- uma vez por cluster, sessao interativa
+[Fase 1] preprocess.sbatch       <- uma vez, aguardar COMPLETED antes da Fase 2
+[Fase 2] experiment_classical.sbatch  |
+         train_ae.sbatch              |  paralelo, todos dependem de Fase 1
+         train_vae.sbatch             |  (cada train_*.sbatch roda eval automaticamente)
+         train_gan.sbatch             |
+         train_unet.sbatch            |
+         train_vit.sbatch             |
+[Fase 3] aggregate_results.py    <- interativo, apos todos os jobs da Fase 2 completarem
+         generate_figures.py     <- interativo
+         generate_tables.py      <- interativo
 ```
 
-Os passos 1-3 sao pre-requisitos sequenciais. Nao submeta jobs de treinamento antes de o pre-processamento terminar.
-
-### 1. Preparar ambiente (uma vez)
+### Fase 0 - Preparar ambiente (uma vez por cluster)
 
 ```bash
-# Alocar 1 no GPU de forma interativa e executar o setup
 srun -p gpuq --gres=gpu:a100:1 --mem=16G --cpus-per-task=4 --time=00:30:00 \
     bash scripts/slurm/setup_env.sh "$(pwd)"
 ```
 
 A saida esperada confirma `CUDA available: True` e `Python 3.12.x`.
 
-### 2. Definir caminho do dataset
+### Fase 1 - Pre-processar (aguardar completar antes de continuar)
 
 ```bash
-export PDI_DATA_ROOT=/caminho/para/imagens-satelite
+mkdir -p logs
+PREP_JID=$(sbatch --parsable scripts/slurm/preprocess.sbatch)
+echo "preprocess job: $PREP_JID"
+# Monitorar: squeue -u $USER
+# Aguardar estado COMPLETED antes de submeter a Fase 2
 ```
 
-### 3. Pre-processar
+### Fase 2 - Experimento completo (submeter em paralelo, com dependencia do preprocessamento)
 
 ```bash
-sbatch scripts/slurm/preprocess.sbatch
+# Experimento classico (cpuq, 200 CPUs, 128G, 144h)
+CLASS_JID=$(sbatch --parsable \
+    --dependency=afterok:$PREP_JID \
+    scripts/slurm/experiment_classical.sbatch)
+
+# Modelos DL em paralelo (gpuq, cada um com seu proprio job)
+AE_JID=$(sbatch   --parsable --dependency=afterok:$PREP_JID scripts/slurm/train_ae.sbatch)
+VAE_JID=$(sbatch  --parsable --dependency=afterok:$PREP_JID scripts/slurm/train_vae.sbatch)
+GAN_JID=$(sbatch  --parsable --dependency=afterok:$PREP_JID scripts/slurm/train_gan.sbatch)
+UNET_JID=$(sbatch --parsable --dependency=afterok:$PREP_JID scripts/slurm/train_unet.sbatch)
+VIT_JID=$(sbatch  --parsable --dependency=afterok:$PREP_JID scripts/slurm/train_vit.sbatch)
+
+echo "classical=$CLASS_JID | ae=$AE_JID | vae=$VAE_JID | gan=$GAN_JID | unet=$UNET_JID | vit=$VIT_JID"
 ```
 
-### 4a. Treinar modelos DL
+> Cada `train_*.sbatch` ja roda `train_model.py --config $CONFIG --model <model>`, que ao
+> final do treinamento executa `evaluate.py` automaticamente para todos os noise_levels e
+> eval_scenarios definidos na config. Nao e necessario submeter jobs de avaliacao separados.
 
-Submeter todos os 5 modelos em paralelo (cada um em seu proprio job):
+### Monitorar jobs
 
 ```bash
-bash scripts/slurm/submit_all.sh
+squeue -u $USER
+
+# Verificar estado de um job especifico
+sacct -j <JOB_ID> --format=JobID,State,Elapsed,MaxRSS
+
+# Acompanhar log em tempo real
+tail -f logs/slurm_pdi-train-unet_<JOB_ID>.out
 ```
 
-Ou submeter modelos individuais:
+### Fase 3 - Agregar e gerar assets (interativo, apos todos COMPLETED)
+
+Verificar que todos os jobs terminaram com sucesso:
 
 ```bash
-sbatch scripts/slurm/train_ae.sbatch    # 8h, 48G
-sbatch scripts/slurm/train_vae.sbatch   # 12h, 48G
-sbatch scripts/slurm/train_gan.sbatch   # 36h, 64G
-sbatch scripts/slurm/train_unet.sbatch  # 16h, 48G
-sbatch scripts/slurm/train_vit.sbatch   # 36h, 64G
+sacct -j $CLASS_JID,$AE_JID,$VAE_JID,$GAN_JID,$UNET_JID,$VIT_JID \
+    --format=JobID,JobName,State,Elapsed
 ```
 
-Usar uma configuracao diferente:
+Rodar em sessao interativa (nao precisa de GPU):
 
 ```bash
-PDI_CONFIG=config/quick_validation.yaml bash scripts/slurm/submit_all.sh
-PDI_CONFIG=config/quick_validation.yaml sbatch scripts/slurm/train_ae.sbatch
+# Agregar resultados classicos + historico DL
+uv run python scripts/aggregate_results.py \
+    --results results/paper_results \
+    --dl-history results/dl_models/checkpoints \
+    --output results/paper_results/aggregated
+
+# Gerar figuras (usa aggregated/ para fast-path + raw data para fig1-6)
+uv run python scripts/generate_figures.py \
+    --results results/paper_results \
+    --aggregated-dir results/paper_results/aggregated
+
+# Gerar tabelas (inclui tabela comparativa classicos vs DL via --dl-results)
+uv run python scripts/generate_tables.py \
+    --results results/paper_results \
+    --aggregated-dir results/paper_results/aggregated \
+    --dl-results results/dl_models
+
+# Empacotar
+bash scripts/pack_paper_assets.sh
 ```
 
-### 4b. Experimento classico
-
-Roda em `cpuq` (32 CPUs, 128G, 72h):
-
-```bash
-sbatch scripts/slurm/experiment_classical.sbatch
-```
-
-### 5. Smoke tests (antes da producao)
+### Smoke tests (antes da producao)
 
 ```bash
 sbatch scripts/slurm/experiment_classical_quick.sbatch   # ~1h, CPU
 sbatch scripts/slurm/train_dl_quick.sbatch               # ~1h, GPU
-```
-
-### 6. Monitorar jobs
-
-```bash
-squeue -u $USER
-sacct -j <JOB_ID> --format=JobID,State,Elapsed,MaxRSS
-tail -f slurm_pdi-train-all_<JOB_ID>.out
 ```
 
 ### Diagnostico (cluster novo ou ambiente desconhecido)
@@ -390,40 +480,83 @@ tail -f slurm_pdi-train-all_<JOB_ID>.out
 ```bash
 sinfo -o "%P %a %G"
 sbatch scripts/slurm/hello_cuda.sbatch
-# ou sobrescrever particao/GRES:
-sbatch -p <particao> --gres=gpu:1 scripts/slurm/hello_cuda.sbatch
 ```
 
-O arquivo de saida `slurm_pdi-hello-cuda_<JOB_ID>.out` contem listagem de modulos, informacoes de GPU e status do PyTorch/CUDA.
+O arquivo de saida `logs/slurm_pdi-hello-cuda_<JOB_ID>.out` contem listagem de modulos, informacoes de GPU e status do PyTorch/CUDA.
 
 ## Metricas e Analise Estatistica
 
-**Metricas de qualidade de imagem:** PSNR, SSIM, RMSE, SAM, ERGAS.
+Todas as metricas sao calculadas **exclusivamente sobre pixels de lacuna** (mask = 1), sem dilucao com pixels nao-afetados.
 
-**Analises estatisticas:**
+### Metricas de qualidade (por patch)
 
-- Correlacao de Pearson e Spearman com correcao FDR (alpha = 0,05).
-- Kruskal-Wallis + Dunn post-hoc (Bonferroni), epsilon-squared, Cliff's delta.
-- Regressao robusta (RLM / HuberT): metrica ~ entropia (multi-escala) + metodo + ruido. Inclui coeficientes beta, p-values, IC95%, R-squared ajustado, VIF.
+| Metrica              | Descricao                                                                   | Melhor |
+| -------------------- | --------------------------------------------------------------------------- | ------ |
+| PSNR                 | Peak Signal-to-Noise Ratio (dB) = 10\*log10(1/MSE)                          | maior  |
+| SSIM                 | Structural Similarity Index - media do mapa espacial sobre pixels de lacuna | maior  |
+| RMSE                 | Root Mean Squared Error sobre pixels de lacuna                              | menor  |
+| SAM                  | Spectral Angle Mapper - angulo medio (graus) entre vetores espectrais       | menor  |
+| ERGAS                | Relative Global Adimensional Synthesis Error (h/l=1 para gap-filling)       | menor  |
+| RMSE_b{0-3}          | RMSE por banda espectral                                                    | menor  |
+| pixel_acc_002/005/01 | Fracao de pixels de lacuna com \|erro\| <= 0.02 / 0.05 / 0.10               | maior  |
+| f1_002/005/01        | F1 derivado de pixel_acc: 2\*acc/(1+acc)                                    | maior  |
+
+> **Nota SSIM:** computado sobre a imagem inteira com `structural_similarity(full=True)` e
+> media restrita aos pixels de lacuna. A janela deslizante que inclui vizinhos nao-lacuna e
+> intencional - captura continuidade de fronteira.
+
+> **Nota F1:** F1 = 2\*acc/(1+acc) assume Precision=1 (nao ha falsos positivos, pois somente
+> pixels de lacuna sao avaliados). F1 e transformacao monotona de pixel_acc; ambos sao
+> reportados por convencao.
+
+### Analises estatisticas
+
+- Correlacao de Pearson e Spearman com correcao FDR Benjamini-Hochberg (alpha = 0,05).
+- Kruskal-Wallis + Mann-Whitney U post-hoc (correcao Bonferroni), epsilon-squared, Cliff's delta.
+- Regressao robusta (RLM/HuberT): metrica ~ entropia (multi-escala) + metodo + ruido. Reporta beta, p-values, IC95%, R-squared ajustado, VIF.
 - Moran's I (global) e LISA (local) para autocorrelacao espacial de mapas de erro de reconstrucao.
+- Bootstrap 95% CI (n=10.000) para todas as medias de grupo.
 
 ## Estrutura de Saida
 
 ```
 results/
   paper_results/
-    raw_results.parquet         # Resultados por patch para todos os metodos, seeds, niveis de ruido
-    entropy/                    # Mapas de entropia salvos para os top-k patches
-    figures/                    # Figuras PDF e PNG (8 figuras)
-    tables/                     # Arquivos de tabelas LaTeX (8 tabelas)
-  dl_eval/
-    {model}_inpainting/
-      results.csv
-  dl_plots/
-    {model}_training_curves.{pdf,png}
+    raw_results.csv              # todos os patches: metodos classicos x seeds x noise x satelite
+    entropy/                     # mapas de entropia para top-k patches
+    figures/                     # figuras PDF e PNG (8 figuras)
+    tables/                      # arquivos de tabelas LaTeX (8 tabelas)
+    aggregated/                  # CSVs prontos para analise (gerados por aggregate_results.py)
+      by_method_{metric}.csv
+      by_noise_{metric}.csv
+      by_satellite_{metric}.csv
+      by_gap_bin_{metric}.csv
+      by_entropy_bin_{ws}_{metric}.csv
+      spearman_correlation.csv
+      method_comparison_global.csv
+      method_comparison_pairwise.csv
+      robust_regression_coefs.csv
+      robust_regression_vif.csv
+      robust_regression_summary.csv
+      dl_training_history.csv
+      dl_model_metadata.csv
+      dl_eval_summary.csv
+      combined_comparison.csv
+
+  dl_models/
+    checkpoints/
+      {model}_best.pth           # checkpoint do melhor epoch (menor val_loss)
+      {model}_history.json       # historico por epoch: train/val loss, val_psnr/ssim/rmse/pixel_acc/f1
+    eval/
+      {scenario_name}/           # entropy_high | entropy_medium_high | entropy_all
+        {model}/
+          {model}_gap_only.csv   # noise_level=inf  (schema completo)
+          {model}_snr40dB.csv    # noise_level=40
+          {model}_snr30dB.csv    # noise_level=30
+          {model}_snr20dB.csv    # noise_level=20
 
 paper_assets/
-  classico/
+  classic/
     figures/
     tables/
     raw_results/
@@ -435,6 +568,11 @@ paper_assets/
     training_logs/
     training_plots/
 ```
+
+> **Historico vs Avaliacao DL:** `*_history.json` contem metricas do **val set durante
+> treinamento** (psnr, ssim, rmse, pixel_acc, f1 - sem SAM/ERGAS). Os CSVs em `eval/`
+> contem metricas do **test set** com schema completo (inclui SAM, ERGAS, entropy,
+> gap_fraction). Tabelas e figuras do artigo devem usar os CSVs de `eval/`, nao o historico.
 
 ## Parametrizacoes
 
@@ -469,7 +607,7 @@ paper_assets/
 5. Kruskal-Wallis (H, p, epsilon-squared) e pares significativos (Dunn post-hoc, Cliff's delta).
 6. Regressao robusta (RLM/HuberT) por metrica: beta, p-values, R-squared, R-squared ajustado, VIF.
 7. Media PSNR +/- IC95% por metodo x satelite.
-8. Comparacao classicos vs. DL (PSNR, SSIM, RMSE side-by-side).
+8. Comparacao classicos vs. DL (PSNR, SSIM, RMSE, SAM, ERGAS, pixel_acc side-by-side).
 
 ## Licenca
 
