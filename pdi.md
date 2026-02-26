@@ -169,9 +169,8 @@ dl_training:
 
 entropy_filter:
   window: 7
-  train_buckets: [high] # treina apenas em patches de alta complexidade
   quantiles: [0.33, 0.67]
-  eval_scenarios: # avalia em 3 cenarios de cobertura de entropia
+  scenarios: # treina e avalia um modelo separado por cenario de entropia
     - { name: entropy_high, buckets: [high] }
     - { name: entropy_medium_high, buckets: [medium, high] }
     - { name: entropy_all, buckets: [low, medium, high] }
@@ -270,9 +269,10 @@ bash scripts/pack_paper_assets.sh
 
 ### Treinamento + Avaliacao automatica
 
-Com `eval_after_train: true` no YAML, `train_model.py` executa `evaluate.py` automaticamente
-ao fim de cada treinamento, para todos os `noise_levels` e todos os `eval_scenarios` definidos
-na config. Nao e necessario rodar `evaluate.py` manualmente.
+Com `eval_after_train: true` no YAML, `train_model.py` treina um modelo separado para cada
+cenario em `scenarios` (high, medium+high, all) e executa `evaluate.py` automaticamente
+ao fim de cada treinamento, para todos os `noise_levels`. Nao e necessario rodar `evaluate.py`
+manualmente.
 
 ```bash
 make dl-train-ae     # Autoencoder
@@ -419,9 +419,9 @@ VIT_JID=$(sbatch  --parsable --dependency=afterok:$PREP_JID scripts/slurm/train_
 echo "classical=$CLASS_JID | ae=$AE_JID | vae=$VAE_JID | gan=$GAN_JID | unet=$UNET_JID | vit=$VIT_JID"
 ```
 
-> Cada `train_*.sbatch` ja roda `train_model.py --config $CONFIG --model <model>`, que ao
-> final do treinamento executa `evaluate.py` automaticamente para todos os noise_levels e
-> eval_scenarios definidos na config. Nao e necessario submeter jobs de avaliacao separados.
+> Cada `train_*.sbatch` ja roda `train_model.py --config $CONFIG --model <model>`, que
+> treina um modelo por cenario de entropia e executa `evaluate.py` automaticamente para
+> todos os noise_levels. Nao e necessario submeter jobs de avaliacao separados.
 
 ### Monitorar jobs
 
@@ -612,3 +612,17 @@ paper_assets/
 ## Licenca
 
 MIT - ver [LICENSE](LICENSE).
+
+# CLASS_JID=$(sbatch --parsable scripts/slurm/experiment_classical.sbatch)
+
+# AE_JID=$(sbatch --parsable scripts/slurm/train_ae.sbatch)
+
+# VAE_JID=$(sbatch --parsable scripts/slurm/train_vae.sbatch)
+
+# GAN_JID=$(sbatch --parsable scripts/slurm/train_gan.sbatch)
+
+# UNET_JID=$(sbatch --parsable scripts/slurm/train_unet.sbatch)
+
+# VIT_JID=$(sbatch --parsable scripts/slurm/train_vit.sbatch)
+
+# echo "classical=$CLASS_JID | ae=$AE_JID | vae=$VAE_JID | gan=$GAN_JID | unet=$UNET_JID | vit=$VIT_JID"

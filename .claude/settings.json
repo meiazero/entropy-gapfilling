@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//home/meiazero/Mestrado/Disciplinas/semestre/02/processamento-de-imagens/ModelsMigration/**)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/enforce-uv.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/enforce-no-jupyter.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
