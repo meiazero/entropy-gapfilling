@@ -572,67 +572,82 @@ def fig1_entropy_examples(results_dir: Path, output_dir: Path) -> None:
 
 
 def fig2_entropy_vs_psnr(results_dir: Path, output_dir: Path) -> None:
-    """Fig 2: Scatterplot of entropy vs PSNR per method."""
+    """Fig 2: Scatterplot of entropy vs PSNR per method.
+
+    One figure per window size.
+    """
     df = load_results(results_dir)
 
-    chosen = _choose_entropy_column(df)
-    if chosen is None:
+    entropy_cols = sorted(c for c in df.columns if c.startswith("entropy_"))
+    if not entropy_cols:
         log.warning("No entropy columns for fig2")
         return
-    entropy_col, ws = chosen
 
     methods = sorted(df["method"].unique())
     n_methods = len(methods)
-
-    nrows, ncols = _scatter_grid(n_methods)
+    nrows, ncols = 5, 3
 
     palette = sns.color_palette("Set2", n_methods)
 
-    fig, axes = plt.subplots(
-        nrows,
-        ncols,
-        figsize=(ncols * 2.2, nrows * 1.6),
-        squeeze=False,
-        constrained_layout=True,
-    )
-    axes_flat = axes.flatten()
+    for entropy_col in entropy_cols:
+        try:
+            ws = int(entropy_col.split("_")[-1])
+        except ValueError:
+            ws = 0
 
-    for idx, method in enumerate(methods):
-        ax = axes_flat[idx]
-        mdf = df.loc[df["method"] == method, [entropy_col, "psnr"]].dropna()
-        if mdf.empty:
+        fig, axes = plt.subplots(
+            nrows,
+            ncols,
+            figsize=(ncols * 2.2, nrows * 1.6),
+            squeeze=False,
+            constrained_layout=True,
+        )
+        axes_flat = axes.flatten()
+
+        for idx, method in enumerate(methods):
+            ax = axes_flat[idx]
+            mdf = df.loc[df["method"] == method, [entropy_col, "psnr"]].dropna()
+            if mdf.empty:
+                ax.set_title(method)
+                continue
+
+            sns.scatterplot(
+                data=mdf,
+                x=entropy_col,
+                y="psnr",
+                color=palette[idx % len(palette)],
+                ax=ax,
+                label="Dados",
+                **_SCATTER_KW,
+            )
+
+            _add_entropy_psnr_fit(ax, mdf, entropy_col)
+
+            ax.set_xlabel(f"Entropia ({ws}x{ws})")
+            ax.set_ylabel("PSNR (dB)")
             ax.set_title(method)
-            continue
+            ax.grid(True, alpha=0.2, linewidth=0.5)
+            ax.legend(
+                loc="upper right",
+                frameon=True,
+                framealpha=0.85,
+                fontsize=FONT_SIZE - 2,
+            )
 
-        sns.scatterplot(
-            data=mdf,
-            x=entropy_col,
-            y="psnr",
-            color=palette[idx % len(palette)],
-            ax=ax,
-            label="Dados",
-            **_SCATTER_KW,
+        for idx in range(n_methods, len(axes_flat)):
+            axes_flat[idx].set_visible(False)
+
+        # First entropy column is the canonical figure the paper references.
+        # Subsequent windows are saved with a size suffix for supplementary use.
+        is_canonical = entropy_col == entropy_cols[0]
+        name = (
+            "fig2_entropy_vs_psnr"
+            if is_canonical
+            else f"fig2_entropy_vs_psnr_{ws}x{ws}"
         )
-
-        _add_entropy_psnr_fit(ax, mdf, entropy_col)
-
-        ax.set_xlabel(f"Entropia ({ws}x{ws})")
-        ax.set_ylabel("PSNR (dB)")
-        ax.set_title(method)
-        ax.grid(True, alpha=0.2, linewidth=0.5)
-        ax.legend(
-            loc="upper right",
-            frameon=True,
-            framealpha=0.85,
-            fontsize=FONT_SIZE - 2,
-        )
-
-    for idx in range(n_methods, len(axes_flat)):
-        axes_flat[idx].set_visible(False)
-
-    _save_figure(fig, output_dir, "fig2_entropy_vs_psnr")
-    plt.close(fig)
-    log.info("Saved fig2_entropy_vs_psnr")
+        _save_figure(fig, output_dir, name)
+        plt.close(fig)
+        log.info("Saved %s", name)
 
 
 def fig3_psnr_by_entropy_bin(results_dir: Path, output_dir: Path) -> None:

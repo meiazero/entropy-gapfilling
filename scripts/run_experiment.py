@@ -244,14 +244,27 @@ def _ensure_entropy_for_selection(
 
 
 def _save_checkpoint(rows: list[dict[str, Any]], output_path: Path) -> None:
-    """Append rows to the CSV file in O(len(rows)) time."""
+    """Append rows to the CSV file in O(len(rows)) time.
+
+    Detects schema mismatches between the existing CSV and the new rows.
+    When columns differ, rewrites the entire file with the merged column set
+    so the CSV always has a consistent header.
+    """
     if not rows:
         return
     output_path.mkdir(parents=True, exist_ok=True)
     csv_path = output_path / "raw_results.csv"
     new_df = pd.DataFrame(rows)
-    write_header = not csv_path.exists()
-    new_df.to_csv(csv_path, mode="a", header=write_header, index=False)
+    if not csv_path.exists():
+        new_df.to_csv(csv_path, mode="w", header=True, index=False)
+        return
+    existing_cols = pd.read_csv(csv_path, nrows=0).columns.tolist()
+    if existing_cols == new_df.columns.tolist():
+        new_df.to_csv(csv_path, mode="a", header=False, index=False)
+    else:
+        existing_df = pd.read_csv(csv_path)
+        merged = pd.concat([existing_df, new_df], ignore_index=True)
+        merged.to_csv(csv_path, mode="w", header=True, index=False)
 
 
 def _selection_metadata_matches(

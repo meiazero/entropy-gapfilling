@@ -6,6 +6,7 @@ by method, entropy bin, gap fraction bin, etc.
 
 from __future__ import annotations
 
+import csv as _csv
 from pathlib import Path
 
 import numpy as np
@@ -24,6 +25,78 @@ _METRIC_COLS: frozenset[str] = frozenset({
 })
 
 
+def _read_mixed_schema_csv(path: Path) -> pd.DataFrame:
+    """Read a CSV where some rows have more fields than the header.
+
+    Handles schema evolution where extra entropy columns were added after
+    some rows were already written. The extra columns are identified from
+    _METRIC_COLS and inserted after the last entropy column present in the
+    existing header.
+
+    Args:
+        path: Path to the CSV file.
+
+    Returns:
+        DataFrame with the full reconstructed schema.
+
+    Raises:
+        ValueError: When the number of extra columns cannot be reconciled
+            with the candidates found in _METRIC_COLS.
+    """
+    with open(path, newline="") as f:
+        reader = _csv.reader(f)
+        header = next(reader)
+        rows = list(reader)
+
+    if not rows:
+        return pd.DataFrame(columns=header)
+
+    max_fields = max(len(row) for row in rows)
+    if max_fields == len(header):
+        records = [dict(zip(header, row, strict=False)) for row in rows]
+        return pd.DataFrame(records)
+
+    n_extra = max_fields - len(header)
+    missing_entropy = sorted(
+        col
+        for col in _METRIC_COLS
+        if col.startswith("entropy_") and col not in header
+    )
+    if len(missing_entropy) != n_extra:
+        n_missing = len(missing_entropy)
+        raise ValueError(  # noqa: TRY003
+            f"{path}: found rows with {n_extra} extra field(s) but identified "
+            f"{n_missing} missing entropy candidate(s):"
+            f"{missing_entropy}. "
+            "Cannot auto-repair mixed-schema CSV."
+        )
+
+    entropy_in_header = [c for c in header if c.startswith("entropy_")]
+    insert_after = (
+        max(header.index(c) for c in entropy_in_header)
+        if entropy_in_header
+        else -1
+    )
+    full_header = (
+        header[: insert_after + 1]
+        + missing_entropy
+        + header[insert_after + 1 :]
+    )
+
+    records: list[dict] = []
+    for row in rows:
+        if len(row) == len(full_header):
+            records.append(dict(zip(full_header, row, strict=False)))
+        elif len(row) == len(header):
+            padded = (
+                row[: insert_after + 1]
+                + [""] * n_extra
+                + row[insert_after + 1 :]
+            )
+            records.append(dict(zip(full_header, padded, strict=False)))
+    return pd.DataFrame(records)
+
+
 def load_results(path: str | Path) -> pd.DataFrame:
     """Load raw experiment results from CSV.
 
@@ -37,7 +110,10 @@ def load_results(path: str | Path) -> pd.DataFrame:
     path = Path(path)
     if path.is_dir():
         path = path / "raw_results.csv"
-    df = pd.read_csv(path)
+    try:
+        df = pd.read_csv(path)
+    except pd.errors.ParserError:
+        df = _read_mixed_schema_csv(path)
     for col in (
         "method",
         "method_category",

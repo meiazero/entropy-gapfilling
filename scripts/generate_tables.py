@@ -114,6 +114,7 @@ class LatexTableConfig:
     header: str
     font_size: str = r"\footnotesize"
     env: str = "table"
+    resizebox: bool = False
 
 
 def _render_latex_table(
@@ -122,12 +123,7 @@ def _render_latex_table(
     extra_after_tabular: list[str] | None = None,
 ) -> str:
     """Render a complete LaTeX table from *config* and body rows."""
-    lines = [
-        rf"\begin{{{config.env}}}[htbp]",
-        r"\centering",
-        rf"\caption{{{config.caption}}}",
-        rf"\label{{{config.label}}}",
-        config.font_size,
+    tabular_lines = [
         rf"\begin{{tabular}}{{{config.col_spec}}}",
         r"\toprule",
         config.header + r" \\",
@@ -136,6 +132,17 @@ def _render_latex_table(
         r"\bottomrule",
         r"\end{tabular}",
     ]
+    lines = [
+        rf"\begin{{{config.env}}}[htbp]",
+        r"\centering",
+        rf"\caption{{{config.caption}}}",
+        rf"\label{{{config.label}}}",
+        config.font_size,
+    ]
+    if config.resizebox:
+        lines += [r"\resizebox{\linewidth}{!}{%", *tabular_lines, r"}"]
+    else:
+        lines += tabular_lines
     if extra_after_tabular:
         lines.extend(extra_after_tabular)
     lines.append(rf"\end{{{config.env}}}")
@@ -320,6 +327,7 @@ def table1_method_overview(df: pd.DataFrame, output_dir: Path) -> None:
             label="tab:methods",
             col_spec="lll",
             header=(r"Categoria & Método & Parâmetros"),
+            resizebox=True,
         ),
         body,
     )
@@ -416,6 +424,7 @@ def table3_entropy_stratified(df: pd.DataFrame, output_dir: Path) -> None:
                 header=(
                     "Método & Entropia Baixa & Entropia Média & Entropia Alta"
                 ),
+                resizebox=True,
             ),
             body,
         )
@@ -463,6 +472,7 @@ def table4_correlation(df: pd.DataFrame, output_dir: Path) -> None:
             col_spec="l" + "c" * ncols,
             header=" & ".join(header_parts),
             env="table*",
+            resizebox=True,
         ),
         body,
     )
