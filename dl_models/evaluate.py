@@ -221,6 +221,15 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Two quantile thresholds as 'q_low,q_high', e.g. '0.33,0.67'.",
     )
+    parser.add_argument(
+        "--scenario-name",
+        default=None,
+        help=(
+            "Label for the entropy training/evaluation scenario "
+            "(e.g. entropy_high). Written as 'entropy_scenario' in the "
+            "output CSV to enable cross-comparison with classical results."
+        ),
+    )
     return parser
 
 
@@ -278,6 +287,14 @@ def main() -> None:  # noqa: C901
         args.noise_level,
         args.satellite,
     )
+
+    # Determine entropy scenario label for output CSV.
+    if args.scenario_name:
+        entropy_scenario = args.scenario_name
+    elif args.entropy_buckets:
+        entropy_scenario = "_".join(args.entropy_buckets.split(","))
+    else:
+        entropy_scenario = "all"
 
     # Parse entropy filtering args.
     entropy_buckets_list: list[str] | None = None
@@ -373,6 +390,7 @@ def main() -> None:  # noqa: C901
             "architecture": architecture,
             "satellite": args.satellite,
             "noise_level": args.noise_level,
+            "entropy_scenario": entropy_scenario,
             "patch_id": patch_id,
             "gap_fraction": gap_fraction,
             "entropy_7": entropy_7,

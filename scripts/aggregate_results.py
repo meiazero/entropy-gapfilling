@@ -88,53 +88,79 @@ def _load_classical(results_dir: Path) -> pd.DataFrame:
     return df
 
 
-def _load_dl_eval(dl_eval_dir: Path) -> pd.DataFrame:  # noqa: C901
-    """Load all DL eval CSVs from ``dl_eval/{model}/eval_{noise}.csv``."""
+def _tag_entropy_scenario(
+    df: pd.DataFrame, csv_path: Path, dl_eval_dir: Path
+) -> pd.DataFrame:
+    """Add entropy_scenario column derived from directory layout if absent."""
+    if "entropy_scenario" not in df.columns:
+        rel = csv_path.relative_to(dl_eval_dir)
+        # 2 parts -> flat layout (model, filename) -> no scenario subdir
+        # 3 parts -> scenario layout (scenario, model, filename)
+        df["entropy_scenario"] = rel.parts[0] if len(rel.parts) == 3 else "all"
+    return df
+
+
+def _load_dl_eval_legacy(dl_eval_dir: Path) -> list[pd.DataFrame]:
+    """Backward-compat loader for old-format ``eval_{noise}.csv`` files."""
     frames: list[pd.DataFrame] = []
     for model in DL_MODELS:
         model_dir = dl_eval_dir / model
         if not model_dir.exists():
-            log.warning("DL eval dir not found: %s", model_dir)
             continue
         for noise in _NOISE_LEVELS:
             csv_path = model_dir / f"eval_{noise}.csv"
-            if not csv_path.exists():
-                # Backward compat: old script wrote results.csv
-                # (no noise suffix).
-                legacy = model_dir / "results.csv"
-                if legacy.exists():
-                    df = pd.read_csv(legacy)
-                    if "noise_level" not in df.columns:
-                        df["noise_level"] = "inf"
-                    frames.append(df)
-                    log.debug("Loaded legacy DL eval: %s", legacy)
-                    break
-                continue
-            df = pd.read_csv(csv_path)
+            if csv_path.exists():
+                df = pd.read_csv(csv_path)
+                if "entropy_scenario" not in df.columns:
+                    df["entropy_scenario"] = "all"
+                frames.append(df)
+                log.debug("Loaded legacy DL eval: %s", csv_path)
+    return frames
+
+
+def _normalize_dl_columns(combined: pd.DataFrame) -> pd.DataFrame:
+    """Rename DL eval columns to the unified schema used by classical data."""
+    rename_map: dict[str, str] = {}
+    if "model" in combined.columns and "method" not in combined.columns:
+        rename_map["model"] = "method"
+    if (
+        "architecture" in combined.columns
+        and "method_category" not in combined.columns
+    ):
+        rename_map["architecture"] = "method_category"
+    for ws in (7, 15, 31):
+        old, new = f"mean_entropy_{ws}", f"entropy_{ws}"
+        if old in combined.columns and new not in combined.columns:
+            rename_map[old] = new
+    return combined.rename(columns=rename_map) if rename_map else combined
+
+
+def _load_dl_eval(dl_eval_dir: Path) -> pd.DataFrame:
+    """Load all DL eval CSVs from ``dl_eval/[scenario/]{model}/{model}_*.csv``.
+
+    Supports both the flat layout (no scenario subdir) and the scenario layout
+    produced by entropy-scenario training runs::
+
+        dl_eval_dir/ae/ae_gap_only.csv               <- flat (no scenario)
+        dl_eval_dir/entropy_high/ae/ae_gap_only.csv  <- scenario subdir
+    """
+    frames: list[pd.DataFrame] = []
+    for model in DL_MODELS:
+        for csv_path in sorted(dl_eval_dir.rglob(f"{model}/{model}_*.csv")):
+            df = _tag_entropy_scenario(
+                pd.read_csv(csv_path), csv_path, dl_eval_dir
+            )
             frames.append(df)
             log.debug("Loaded DL eval: %s", csv_path)
 
+    if not frames:
+        frames = _load_dl_eval_legacy(dl_eval_dir)
     if not frames:
         return pd.DataFrame()
 
     combined = pd.concat(frames, ignore_index=True)
     combined["type"] = "dl"
-    # Rename 'model' to 'method' for uniform aggregation.
-    if "model" in combined.columns and "method" not in combined.columns:
-        combined = combined.rename(columns={"model": "method"})
-    # Rename 'architecture' to 'method_category' for uniform schema.
-    if (
-        "architecture" in combined.columns
-        and "method_category" not in combined.columns
-    ):
-        combined = combined.rename(columns={"architecture": "method_category"})
-    # Rename entropy columns to match classical schema.
-    for ws in (7, 15, 31):
-        old = f"mean_entropy_{ws}"
-        new = f"entropy_{ws}"
-        if old in combined.columns and new not in combined.columns:
-            combined = combined.rename(columns={old: new})
-    return combined
+    return _normalize_dl_columns(combined)
 
 
 def _load_dl_history(dl_history_dir: Path) -> pd.DataFrame:
@@ -307,8 +333,10 @@ def _aggregate_dl_eval(dl_df: pd.DataFrame, output_dir: Path) -> None:  # noqa: 
     available_metrics = _safe_metrics(dl_df, _CLASSICAL_METRICS)
     entropy_cols = sorted(c for c in dl_df.columns if c.startswith("entropy_"))
 
-    # Per-model x satellite x noise_level summary for each metric.
+    # Per-model x entropy_scenario x satellite x noise_level summary.
     group_cols = ["method"]
+    if "entropy_scenario" in dl_df.columns:
+        group_cols.append("entropy_scenario")
     if "satellite" in dl_df.columns:
         group_cols.append("satellite")
     if "noise_level" in dl_df.columns:
@@ -361,6 +389,40 @@ def _aggregate_dl_eval(dl_df: pd.DataFrame, output_dir: Path) -> None:  # noqa: 
                     ecol,
                     metric,
                 )
+
+    # By-entropy-scenario: DL performance stratified by training scenario.
+    # Enables direct cross-comparison with classical by_entropy_bin CSVs.
+    if "entropy_scenario" in dl_df.columns:
+        scen_group = ["method", "entropy_scenario"]
+        if "noise_level" in dl_df.columns:
+            scen_group.append("noise_level")
+        for metric in _safe_metrics(
+            dl_df, ["psnr", "ssim", "rmse", "sam", "ergas"]
+        ):
+            scen_rows: list[dict] = []
+            for keys, grp in dl_df.groupby(scen_group, observed=True):
+                if not isinstance(keys, tuple):
+                    keys = (keys,)
+                row: dict = dict(zip(scen_group, keys, strict=False))
+                row["n"] = len(grp)
+                vals = grp[metric].dropna().to_numpy()
+                if len(vals):
+                    ci_lo, ci_hi = _bootstrap_ci(vals)
+                    row[f"{metric}_mean"] = float(np.mean(vals))
+                    row[f"{metric}_ci95_lo"] = ci_lo
+                    row[f"{metric}_ci95_hi"] = ci_hi
+                else:
+                    row[f"{metric}_mean"] = float("nan")
+                    row[f"{metric}_ci95_lo"] = float("nan")
+                    row[f"{metric}_ci95_hi"] = float("nan")
+                scen_rows.append(row)
+            pd.DataFrame(scen_rows).to_csv(
+                output_dir / f"dl_by_scenario_{metric}.csv", index=False
+            )
+        log.info(
+            "Saved dl_by_scenario_*.csv for %d scenario(s)",
+            len(dl_df["entropy_scenario"].unique()),
+        )
 
 
 def _build_combined(

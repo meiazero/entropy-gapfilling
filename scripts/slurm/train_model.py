@@ -281,6 +281,9 @@ def _run_evaluation(
                 f"{quantiles[0]},{quantiles[1]}",
             ])
 
+    if scenario_name:
+        eval_argv.extend(["--scenario-name", scenario_name])
+
     eval_module = importlib.import_module("dl_models.evaluate")
     with _patched_argv(eval_argv):
         eval_module.main()
