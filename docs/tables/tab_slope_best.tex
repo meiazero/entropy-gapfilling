@@ -1,0 +1,17 @@
+\begin{table}[htbp]
+\centering
+\caption{Inclinação do PSNR vs ruído (20/30/40 dB, IC95\%) por faixa de entropia (janela 15x15).}
+\label{tab:noise-slope-psnr-best}
+\footnotesize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lcccccc}
+\toprule
+Faixa de Entropia & exemplar\_based & rbf & spline & unet & gan & vit \\
+\midrule
+Baixa & $0.091_{\pm 0.022}$ & $0.106_{\pm 0.023}$ & $0.106_{\pm 0.023}$ & $0.048_{\pm 0.002}$ & $0.013_{\pm 0.001}$ & $0.010_{\pm 0.001}$ \\
+Média & $0.104_{\pm 0.034}$ & $0.129_{\pm 0.039}$ & $0.129_{\pm 0.039}$ & $0.043_{\pm 0.002}$ & $0.013_{\pm 0.001}$ & $0.008_{\pm 0.001}$ \\
+Alta & $0.086_{\pm 0.026}$ & $0.107_{\pm 0.033}$ & $0.107_{\pm 0.033}$ & $0.028_{\pm 0.001}$ & $0.009_{\pm 0.001}$ & $0.006_{\pm 0.001}$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table}

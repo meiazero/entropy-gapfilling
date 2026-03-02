@@ -1,0 +1,25 @@
+\section{Configuração Experimental e Estatísticas}
+\label{sec:experimental}
+
+\subsection{Amostragem e Avaliação}
+Os resultados clássicos são reportados em uma amostra multi-sensor
+balanceada com 118 recortes e uma seed, distribuídos igualmente entre os
+quatro satélites. A avaliação de aprendizado profundo fica restrita ao
+Sentinel-2, com uma amostra maior (7399 recortes). Para comparação justa,
+os resultados clássicos são filtrados para Sentinel-2 quando comparados com
+os modelos de \gls{DL}.
+
+\subsection{Métricas}
+Reportamos \gls{PSNR}, \gls{SSIM}, \gls{RMSE}, \gls{SAM} e \gls{ERGAS} apenas em
+pixels de lacuna. O \gls{RMSE} por banda espectral também é computado para
+diagnóstico.
+
+\subsection{Análise Estatística}
+Utilizamos correlação de Spearman com correção \gls{FDR},
+Kruskal-Wallis com pós-teste Bonferroni e tamanhos de efeito, e regressão
+robusta com controle por método e ruído. Intervalos de confiança
+são estimados via bootstrap em cluster por patch\_id.
+
+\subsection{Ambiente de Execução}
+Os experimentos foram executados em Rocky Linux 9.5 com NVIDIA A100 80GB PCIe,
+driver 550.90.07 e CUDA 12.4/12.6.2.

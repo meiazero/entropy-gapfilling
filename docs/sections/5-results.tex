@@ -1,0 +1,101 @@
+\section{Resultados}
+\label{sec:results}
+
+\subsection{Relações entre Entropia e Qualidade}
+Entre os métodos, a direção e a magnitude do efeito da entropia dependem
+da janela. Janelas menores (7) apresentam tendências diferentes de janelas
+maiores (31), e o efeito não é monotônico. Isso sustenta H1 e justifica
+analisar cada janela de forma independente.
+
+As correlações com \gls{FDR} e filtro de magnitude são apresentadas na
+\Cref{fig:spearman-heatmap} e sintetizadas na \Cref{tab:spearman-entropy-best}.
+O efeito por faixa de entropia e tamanho de efeito está na
+\Cref{fig:entropy-box}.
+
+\begin{figure*}[htbp]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/fig7_correlation_heatmap_best.png}
+\caption{Correlações de Spearman entre entropia e métricas, com correção
+\gls{FDR} e filtro de magnitude.}
+\label{fig:spearman-heatmap}
+\end{figure*}
+
+\begin{figure*}[htbp]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/fig6_psnr_entropy_best.png}
+\caption{Distribuição de \gls{PSNR} por faixa de entropia, com tamanho de
+efeito entre faixas.}
+\label{fig:entropy-box}
+\end{figure*}
+
+\subsection{Comparação de Métodos}
+Os testes de Kruskal-Wallis indicam diferenças estatisticamente
+significativas entre métodos em todos os níveis de ruído, com tamanhos de
+efeito moderados. O pós-teste destaca lacunas consistentes entre métodos,
+reportadas com tamanhos de efeito.
+
+Os melhores resultados agregados estão na \Cref{tab:global-scoreboard-best}
+e o desempenho espectral na \Cref{tab:spectral-rmse-best}. A sensibilidade ao
+ruído está sumarizada nas \Cref{tab:degradation-psnr-best} e
+\Cref{tab:noise-slope-psnr-best}.
+
+O comportamento espectral por banda está visualizado na
+\Cref{fig:spectral-bar}.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.9\columnwidth]{figures/fig2_spectral_bar_best.png}
+\caption{RMSE por banda com \gls{CI} de 95\%.}
+\label{fig:spectral-bar}
+\end{figure}
+
+\input{tables/tab_global_best}
+
+\input{tables/tab_spectral_best}
+
+\input{tables/tab_degradation_best}
+
+\input{tables/tab_slope_best}
+
+\input{tables/tab_spearman_best}
+
+\subsection{Benchmark Clássico Multi-sensor}
+Os métodos clássicos apresentam rankings estáveis entre sensores, mas o
+grau de sensibilidade à entropia varia por satélite. Isso motiva reportar
+resultados por sensor, e não apenas médias globais.
+
+O trade-off entre qualidade e tempo de inferência está na
+\Cref{fig:pareto} e na \Cref{tab:runtime-speed}.
+
+\begin{figure*}[htbp]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/fig1_pareto_classic_best.png}
+\caption{Clássicos: trade-off entre qualidade e tempo de inferência
+(mediana e intervalo interquartil).}
+\label{fig:pareto}
+\end{figure*}
+
+\input{tables/tab_speed_best}
+
+\subsection{Clássicos vs Aprendizado Profundo (Sentinel-2)}
+Ao comparar apenas recortes Sentinel-2, os modelos de \gls{DL} são
+competitivos, mas não dominam uniformemente os clássicos em todos os
+níveis de ruído e faixas de entropia. Isso sustenta uma visão híbrida:
+a entropia pode orientar qual família de métodos priorizar em prática.
+
+Os resultados comparativos estão nas
+\Cref{fig:pareto-sentinel2,fig:dl-comparison}.
+
+\begin{figure*}[htbp]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/fig1_pareto_sentinel2_best.png}
+\caption{Sentinel-2: clássicos vs \gls{DL} no trade-off qualidade-tempo.}
+\label{fig:pareto-sentinel2}
+\end{figure*}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\columnwidth]{figures/fig11_dl_comparison_best.png}
+\caption{Comparativo entre modelos de \gls{DL} na melhor época.}
+\label{fig:dl-comparison}
+\end{figure}

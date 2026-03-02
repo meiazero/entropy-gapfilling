@@ -31,6 +31,7 @@ from data_loader import (
     select_top_n,
 )
 from scipy import stats
+from statsmodels.stats.multitest import multipletests
 
 matplotlib.use("Agg")
 
@@ -79,11 +80,153 @@ def _save(fig: plt.Figure, output_dir: Path, name: str) -> None:
     log.info("Saved %s", name)
 
 
+def _iqr_bounds(values: pd.Series) -> tuple[float, float, float]:
+    vals = values.dropna().to_numpy()
+    if vals.size == 0:
+        return float("nan"), float("nan"), float("nan")
+    q1 = float(np.percentile(vals, 25))
+    q2 = float(np.percentile(vals, 50))
+    q3 = float(np.percentile(vals, 75))
+    return q1, q2, q3
+
+
+def _cliffs_delta(a: np.ndarray, b: np.ndarray) -> float:
+    if a.size == 0 or b.size == 0:
+        return float("nan")
+    # d = (2U / (n1*n2)) - 1
+    u_stat, _ = stats.mannwhitneyu(a, b, alternative="two-sided")
+    n1, n2 = a.size, b.size
+    return float((2.0 * u_stat / (n1 * n2)) - 1.0)
+
+
 # ── Fig 1: Pareto Front (Time x Quality) ─────────────────────────────
 
 
+def _pareto_stats(subset: pd.DataFrame) -> pd.DataFrame:
+    rows = []
+    for (method, mtype), grp in subset.groupby(
+        ["method", "type"], observed=True
+    ):
+        if "elapsed_s" not in grp.columns or grp["elapsed_s"].isna().all():
+            continue
+        q1, med, q3 = _iqr_bounds(grp["elapsed_s"])
+        psnr_med = float(grp["psnr"].median())
+        rows.append({
+            "method": method,
+            "type": mtype,
+            "time_med": med,
+            "time_q1": q1,
+            "time_q3": q3,
+            "psnr_med": psnr_med,
+        })
+    return pd.DataFrame(rows)
+
+
+def _plot_pareto(
+    stats_df: pd.DataFrame,
+    output_dir: Path,
+    name: str,
+    title: str,
+    type_filter: str | None = None,
+) -> None:
+    fig, ax = plt.subplots(figsize=(5, 3.5))
+    palette = {"Clássico": "#1f77b4", "DL": "#ff7f0e"}
+    markers = {"Clássico": "o", "DL": "s"}
+
+    types = [type_filter] if type_filter else stats_df["type"].unique()
+    for mtype in types:
+        sub = stats_df[stats_df["type"] == mtype]
+        if sub.empty:
+            continue
+        xerr = np.vstack([
+            sub["time_med"] - sub["time_q1"],
+            sub["time_q3"] - sub["time_med"],
+        ])
+        ax.errorbar(
+            sub["time_med"],
+            sub["psnr_med"],
+            xerr=xerr,
+            fmt=markers.get(mtype, "o"),
+            color=palette.get(mtype, "#1f77b4"),
+            ecolor=palette.get(mtype, "#1f77b4"),
+            elinewidth=0.8,
+            capsize=2,
+            markersize=5,
+            label=mtype,
+            zorder=3,
+        )
+        for _, row in sub.iterrows():
+            ax.annotate(
+                row["method"],
+                (row["time_med"], row["psnr_med"]),
+                fontsize=FONT_SIZE - 2,
+                ha="left",
+                va="bottom",
+                xytext=(3, 2),
+                textcoords="offset points",
+            )
+
+    ax.set_xscale("log")
+    ax.set_xlabel("Tempo de Inferência (s/patch, mediana - IQR)")
+    ax.set_ylabel("PSNR (dB, mediana)")
+    ax.set_title(title)
+    ax.legend(loc="best", frameon=True, framealpha=0.85)
+    ax.grid(True, alpha=0.3, linewidth=0.5)
+    plt.tight_layout()
+    _save(fig, output_dir, name)
+    plt.close(fig)
+
+
+def _plot_pareto_variants(
+    stats_df: pd.DataFrame,
+    subset: pd.DataFrame,
+    output_dir: Path,
+    suffix: str,
+    noise: str,
+) -> None:
+    title = (
+        f"Trade-off Qualidade x Velocidade - "
+        f"{noise_label(noise) if noise != 'all' else 'Global'}"
+    )
+    _plot_pareto(stats_df, output_dir, f"fig1_pareto_{suffix}", title)
+
+    _plot_pareto(
+        stats_df,
+        output_dir,
+        f"fig1_pareto_classic_{suffix}",
+        f"Clássicos: Qualidade x Velocidade - {noise_label(noise)}",
+        type_filter="Clássico",
+    )
+
+    if "satellite" in subset.columns:
+        classic = subset[subset["type"] == "Clássico"]
+        for sat in sorted(classic["satellite"].unique()):
+            sat_df = _pareto_stats(classic[classic["satellite"] == sat])
+            if sat_df.empty:
+                continue
+            _plot_pareto(
+                sat_df,
+                output_dir,
+                f"fig1_pareto_classic_{sat}_{suffix}",
+                f"Clássicos ({sat}) - {noise_label(noise)}",
+                type_filter="Clássico",
+            )
+
+    if "satellite" in subset.columns:
+        sent2 = subset[subset["satellite"] == "sentinel2"]
+        if not sent2.empty:
+            sent_stats = _pareto_stats(sent2)
+            if not sent_stats.empty:
+                _plot_pareto(
+                    sent_stats,
+                    output_dir,
+                    f"fig1_pareto_sentinel2_{suffix}",
+                    f"Sentinel-2: Clássico vs DL - {noise_label(noise)}",
+                )
+
+
 def fig1_pareto(df: pd.DataFrame, output_dir: Path) -> None:
-    """Scatter plot of PSNR vs elapsed_s (log scale) per method."""
+    """Scatter plot of PSNR vs elapsed_s with median/IQR time."""
     if "elapsed_s" not in df.columns:
         log.warning("No elapsed_s for fig1")
         return
@@ -98,61 +241,126 @@ def fig1_pareto(df: pd.DataFrame, output_dir: Path) -> None:
             continue
         suffix = noise.replace("inf", "gap_only")
 
-        stats_df = (
-            subset
-            .groupby(["method", "type"], observed=True)
-            .agg(psnr=("psnr", "mean"), time=("elapsed_s", "mean"))
-            .reset_index()
-        )
+        stats_df = _pareto_stats(subset)
+        if stats_df.empty:
+            continue
 
-        fig, ax = plt.subplots(figsize=(5, 3.5))
-
-        for mtype, color, marker in [
-            ("Clássico", "#1f77b4", "o"),
-            ("DL", "#ff7f0e", "s"),
-        ]:
-            sub = stats_df[stats_df["type"] == mtype]
-            if sub.empty:
-                continue
-            ax.scatter(
-                sub["time"],
-                sub["psnr"],
-                c=color,
-                marker=marker,
-                s=40,
-                edgecolors="white",
-                linewidth=0.5,
-                label=mtype,
-                zorder=3,
-            )
-            for _, row in sub.iterrows():
-                ax.annotate(
-                    row["method"],
-                    (row["time"], row["psnr"]),
-                    fontsize=FONT_SIZE - 2,
-                    ha="left",
-                    va="bottom",
-                    xytext=(3, 2),
-                    textcoords="offset points",
-                )
-
-        ax.set_xscale("log")
-        ax.set_xlabel("Tempo de Inferência (s/patch, log)")
-        ax.set_ylabel("PSNR (dB)")
-        noise_title = noise_label(noise) if noise != "all" else "Global"
-        ax.set_title(f"Trade-off Qualidade x Velocidade - {noise_title}")
-        ax.legend(loc="best", frameon=True, framealpha=0.85)
-        ax.grid(True, alpha=0.3, linewidth=0.5)
-        plt.tight_layout()
-        _save(fig, output_dir, f"fig1_pareto_{suffix}")
-        plt.close(fig)
+        _plot_pareto_variants(stats_df, subset, output_dir, suffix, noise)
 
 
 # ── Fig 2: Spectral Error Radar Chart ─────────────────────────────────
 
 
-def fig2_spectral_radar(df: pd.DataFrame, output_dir: Path) -> None:
-    """Radar/spider chart of RMSE per band per method category."""
+def _cluster_bootstrap_ci(
+    values: pd.Series,
+    cluster_ids: pd.Series | None,
+    *,
+    n_boot: int = 500,
+    seed: int = 42,
+) -> float:
+    vals = values.dropna()
+    if len(vals) < 2:
+        return 0.0
+    if cluster_ids is None or cluster_ids.isna().all():
+        return float(
+            stats.t.ppf(0.975, len(vals) - 1) * vals.std() / np.sqrt(len(vals))
+        )
+
+    data = pd.DataFrame({"value": values, "cluster": cluster_ids}).dropna()
+    clusters = data["cluster"].unique().tolist()
+    if len(clusters) < 2:
+        return float(
+            stats.t.ppf(0.975, len(vals) - 1) * vals.std() / np.sqrt(len(vals))
+        )
+
+    rng = np.random.default_rng(seed)
+    boot_means = []
+    for _ in range(n_boot):
+        sampled = rng.choice(clusters, size=len(clusters), replace=True)
+        sample = data[data["cluster"].isin(sampled)]
+        boot_means.append(float(sample["value"].mean()))
+    lo, hi = np.percentile(boot_means, [2.5, 97.5])
+    return float((hi - lo) / 2.0)
+
+
+def _build_spectral_dotplot_rows(
+    subset: pd.DataFrame,
+    cat_col: str,
+    bands: list[str],
+    band_labels: list[str],
+) -> pd.DataFrame:
+    rows = []
+    for cat, cat_df in subset.groupby(cat_col, observed=True):
+        for band, label in zip(bands, band_labels, strict=False):
+            mean_val = float(cat_df[band].mean())
+            ci = _cluster_bootstrap_ci(
+                cat_df[band],
+                cat_df["patch_id"] if "patch_id" in cat_df.columns else None,
+            )
+            rows.append({
+                "category": CATEGORY_LABELS.get(cat, cat),
+                "band": label,
+                "mean": mean_val,
+                "ci": ci,
+            })
+    return pd.DataFrame(rows)
+
+
+def _plot_spectral_dotplot(
+    plot_df: pd.DataFrame,
+    band_labels: list[str],
+    noise: str,
+    output_dir: Path,
+    suffix: str,
+) -> None:
+    fig, ax = plt.subplots(figsize=(6.0, 3.8))
+    categories = plot_df["category"].unique().tolist()
+    n_bands = len(band_labels)
+    offsets = np.linspace(-0.2, 0.2, n_bands)
+    palette = sns.color_palette("Set2", n_bands)
+
+    for b_idx, band in enumerate(band_labels):
+        sub = plot_df[plot_df["band"] == band]
+        for c_idx, cat in enumerate(categories):
+            row = sub[sub["category"] == cat]
+            if row.empty:
+                continue
+            mean_val = float(row["mean"].iloc[0])
+            ci = float(row["ci"].iloc[0])
+            y = c_idx + offsets[b_idx]
+            ax.errorbar(
+                mean_val,
+                y,
+                xerr=ci,
+                fmt="o",
+                color=palette[b_idx],
+                ecolor="#555555",
+                elinewidth=0.8,
+                capsize=2,
+            )
+
+    ax.set_yticks(range(len(categories)))
+    ax.set_yticklabels(categories)
+    handles = [
+        plt.Line2D([0], [0], marker="o", color=c, linestyle="") for c in palette
+    ]
+    ax.legend(
+        handles,
+        band_labels,
+        title="Banda",
+        fontsize=FONT_SIZE - 2,
+    )
+    ax.set_xlabel(r"RMSE (IC95\%)")
+    ax.set_ylabel("Categoria")
+    ax.set_title(f"RMSE por banda — {noise_label(noise)}")
+    ax.grid(True, axis="x", alpha=0.3, linewidth=0.5)
+    plt.tight_layout()
+    _save(fig, output_dir, f"fig2_spectral_dotplot_{suffix}")
+    plt.close(fig)
+
+
+def fig2_spectral_bar(df: pd.DataFrame, output_dir: Path) -> None:
+    """Bar chart of RMSE per band with CI95 by method category."""
     bands = ["rmse_b0", "rmse_b1", "rmse_b2", "rmse_b3"]
     band_labels = ["B0\n(Azul)", "B1\n(Verde)", "B2\n(Verm.)", "B3\n(NIR)"]
 
@@ -178,49 +386,82 @@ def fig2_spectral_radar(df: pd.DataFrame, output_dir: Path) -> None:
         suffix = noise.replace("inf", "gap_only")
 
         categories = sorted(subset[cat_col].unique())
-        category_means = {}
-        for cat in categories:
-            cat_df = subset[subset[cat_col] == cat]
-            means = [float(cat_df[b].mean()) for b in bands]
-            category_means[cat] = means
-
-        N = len(bands)
-        angles = np.linspace(0, 2 * np.pi, N, endpoint=False).tolist()
-        angles += angles[:1]  # close the polygon
-
-        fig, ax = plt.subplots(figsize=(4, 4), subplot_kw={"polar": True})
         palette = sns.color_palette("Set2", len(categories))
+        x = np.arange(len(bands))
+        width = 0.8 / max(1, len(categories))
+        fig, ax = plt.subplots(figsize=(6.5, 3.5))
 
         for idx, cat in enumerate(categories):
-            values = category_means[cat] + [category_means[cat][0]]
-            label = CATEGORY_LABELS.get(cat, cat)
-            ax.plot(
-                angles,
-                values,
-                linewidth=1.5,
+            cat_df = subset[subset[cat_col] == cat]
+            means = []
+            cis = []
+            for b in bands:
+                means.append(float(cat_df[b].mean()))
+                cis.append(
+                    _cluster_bootstrap_ci(
+                        cat_df[b],
+                        cat_df["patch_id"]
+                        if "patch_id" in cat_df.columns
+                        else None,
+                    )
+                )
+            offsets = x + (idx - (len(categories) - 1) / 2) * width
+            ax.bar(
+                offsets,
+                means,
+                width=width,
+                yerr=cis,
+                label=CATEGORY_LABELS.get(cat, cat),
                 color=palette[idx],
-                label=label,
-                marker="o",
-                markersize=3,
+                edgecolor="#333333",
+                linewidth=0.5,
+                capsize=2,
             )
-            ax.fill(angles, values, alpha=0.1, color=palette[idx])
 
-        ax.set_xticks(angles[:-1])
-        ax.set_xticklabels(band_labels, fontsize=FONT_SIZE)
+        ax.set_xticks(x)
+        ax.set_xticklabels(band_labels)
+        ax.set_ylabel("RMSE")
         ax.set_title(
-            f"Perfil Espectral de Erro — {noise_label(noise)}",
+            rf"RMSE por banda (IC95\%) — {noise_label(noise)}",
             fontsize=FONT_SIZE + 1,
-            pad=20,
         )
-        ax.legend(
-            loc="upper right",
-            bbox_to_anchor=(1.35, 1.1),
-            fontsize=FONT_SIZE - 2,
-            frameon=True,
-        )
+        ax.legend(loc="best", fontsize=FONT_SIZE - 2, frameon=True)
+        ax.grid(True, axis="y", alpha=0.3, linewidth=0.5)
         plt.tight_layout()
-        _save(fig, output_dir, f"fig2_spectral_radar_{suffix}")
+        _save(fig, output_dir, f"fig2_spectral_bar_{suffix}")
         plt.close(fig)
+
+
+def fig2_spectral_dotplot(df: pd.DataFrame, output_dir: Path) -> None:
+    """Dot plot of RMSE per band with CI95 by method category."""
+    bands = ["rmse_b0", "rmse_b1", "rmse_b2", "rmse_b3"]
+    band_labels = ["B0", "B1", "B2", "B3"]
+
+    if not all(b in df.columns for b in bands):
+        log.warning("Missing band columns for fig2 dotplot")
+        return
+
+    if "method_category" in df.columns:
+        cat_col = "method_category"
+    elif "type" in df.columns:
+        cat_col = "type"
+    else:
+        log.warning("No category column for fig2 dotplot")
+        return
+
+    noises = [n for n in NOISE_ORDER if n in df["noise_level"].unique()]
+    for noise in noises:
+        subset = df[df["noise_level"] == noise]
+        if subset.empty:
+            continue
+        suffix = noise.replace("inf", "gap_only")
+
+        plot_df = _build_spectral_dotplot_rows(
+            subset, cat_col, bands, band_labels
+        )
+        if plot_df.empty:
+            continue
+        _plot_spectral_dotplot(plot_df, band_labels, noise, output_dir, suffix)
 
 
 # ── Fig 3: Entropy Sensitivity (SAM/ERGAS vs Entropy) ────────────────
@@ -421,7 +662,7 @@ def fig5_f1_threshold(df: pd.DataFrame, output_dir: Path) -> None:
 
 
 def fig6_psnr_entropy(df: pd.DataFrame, output_dir: Path) -> None:
-    """Boxplot of PSNR per entropy tercile, faceted by method category."""
+    """Boxplot of PSNR per entropy tercile, top-k per category."""
     noises = [n for n in NOISE_ORDER if n in df["noise_level"].unique()]
 
     for ws in ENTROPY_WINDOWS:
@@ -436,10 +677,33 @@ def fig6_psnr_entropy(df: pd.DataFrame, output_dir: Path) -> None:
             suffix = noise.replace("inf", "gap_only")
             binned = entropy_terciles(subset, entropy_col=ecol)
 
+            top_methods: list[str] = []
+            for mtype in ["Clássico", "DL"]:
+                mdf = binned[binned["type"] == mtype]
+                top_methods.extend(select_top_n(mdf, n=5, noise_filter=None))
+            binned = binned[binned["method"].isin(top_methods)]
+            if binned.empty:
+                continue
+
+            # Add Cliff's delta (high vs low entropy) to method labels
+            effect_labels: dict[str, str] = {}
+            for method, mdf in binned.groupby("method", observed=True):
+                low = mdf[mdf["entropy_bin"] == "baixa"]["psnr"].dropna()
+                high = mdf[mdf["entropy_bin"] == "alta"]["psnr"].dropna()
+                delta = _cliffs_delta(high.to_numpy(), low.to_numpy())
+                if np.isnan(delta):
+                    label = method
+                else:
+                    label = f"{method}\nΔ={delta:+.2f}"
+                effect_labels[method] = label
+            binned = binned.assign(
+                method_label=binned["method"].map(effect_labels)
+            )
+
             fig, ax = plt.subplots(figsize=(8, 4))
             sns.boxplot(
                 data=binned,
-                x="method",
+                x="method_label",
                 y="psnr",
                 hue="entropy_bin",
                 hue_order=["baixa", "média", "alta"],
@@ -454,7 +718,7 @@ def fig6_psnr_entropy(df: pd.DataFrame, output_dir: Path) -> None:
                     "markersize": 4,
                 },
             )
-            ax.set_xlabel("Método")
+            ax.set_xlabel("Método (Δ = Cliff's d alta vs baixa)")
             ax.set_ylabel("PSNR (dB)")
             ax.set_title(
                 f"PSNR por Faixa de Entropia ({ws}x{ws}) - {noise_label(noise)}"
@@ -470,7 +734,7 @@ def fig6_psnr_entropy(df: pd.DataFrame, output_dir: Path) -> None:
 
 
 def fig7_correlation_heatmap(df: pd.DataFrame, output_dir: Path) -> None:
-    """Heatmap of Spearman rho: methods x (entropy_window x metric)."""
+    """Heatmap of Spearman rho with FDR and effect filtering."""
     metrics = [m for m in ["psnr", "ssim", "sam", "ergas"] if m in df.columns]
     if not metrics:
         log.warning("No metrics for fig7")
@@ -484,7 +748,8 @@ def fig7_correlation_heatmap(df: pd.DataFrame, output_dir: Path) -> None:
         for m in metrics:
             col_labels.append(f"e{ws}x{m.upper()}")
 
-    matrix = np.full((len(methods), len(col_labels)), np.nan)
+    rho_matrix = np.full((len(methods), len(col_labels)), np.nan)
+    p_matrix = np.full((len(methods), len(col_labels)), np.nan)
 
     for i, method in enumerate(methods):
         mdf = df[df["method"] == method]
@@ -495,15 +760,33 @@ def fig7_correlation_heatmap(df: pd.DataFrame, output_dir: Path) -> None:
                 if ecol in mdf.columns and m in mdf.columns:
                     valid = mdf[[ecol, m]].dropna()
                     if len(valid) >= 3:
-                        rho, _ = stats.spearmanr(valid[ecol], valid[m])
-                        matrix[i, col_idx] = rho
+                        rho, p = stats.spearmanr(valid[ecol], valid[m])
+                        rho_matrix[i, col_idx] = rho
+                        p_matrix[i, col_idx] = p
                 col_idx += 1
+
+    # FDR correction across all tests
+    p_vals = p_matrix.ravel()
+    valid = ~np.isnan(p_vals)
+    corr_p = np.full_like(p_vals, np.nan, dtype=float)
+    sig = np.full_like(p_vals, False, dtype=bool)
+    if np.any(valid):
+        reject, p_corr, _, _ = multipletests(p_vals[valid], method="fdr_bh")
+        corr_p[valid] = p_corr
+        sig[valid] = reject
+    sig_matrix = sig.reshape(p_matrix.shape)
+
+    # Mask low magnitude or non-significant correlations
+    effect_mask = np.abs(rho_matrix) < 0.1
+    final = rho_matrix.copy()
+    final[~sig_matrix] = np.nan
+    final[effect_mask] = np.nan
 
     fig, ax = plt.subplots(
         figsize=(len(col_labels) * 0.8 + 1, len(methods) * 0.4 + 1)
     )
     sns.heatmap(
-        pd.DataFrame(matrix, index=methods, columns=col_labels),
+        pd.DataFrame(final, index=methods, columns=col_labels),
         annot=True,
         fmt=".2f",
         cmap="RdYlBu_r",
@@ -515,7 +798,8 @@ def fig7_correlation_heatmap(df: pd.DataFrame, output_dir: Path) -> None:
         linewidths=0.5,
     )
     ax.set_title(
-        "Correlação de Spearman: Entropia x Métricas", fontsize=FONT_SIZE + 1
+        "Correlação Spearman (FDR, |rho|>=0,1)",
+        fontsize=FONT_SIZE + 1,
     )
     ax.set_ylabel("")
     ax.tick_params(axis="x", rotation=45)
@@ -754,6 +1038,20 @@ def fig10_components(output_dir: Path) -> None:
 # ── Fig 11: DL Model Comparison Heatmap ───────────────────────────────
 
 
+def _select_best_epoch(hist: dict) -> dict:
+    epochs = hist.get("epochs", [])
+    if not epochs:
+        return {}
+    # Prefer lowest val_loss, fallback to highest val_psnr, else last epoch
+    valid_loss = [e for e in epochs if e.get("val_loss") is not None]
+    if valid_loss:
+        return min(valid_loss, key=lambda e: e.get("val_loss"))
+    valid_psnr = [e for e in epochs if e.get("val_psnr") is not None]
+    if valid_psnr:
+        return max(valid_psnr, key=lambda e: e.get("val_psnr"))
+    return epochs[-1]
+
+
 def _build_dl_comparison_frame(
     models: dict[str, dict[str, list[dict[str, float | None]]]],
     metric_keys: list[tuple[str, str, bool]],
@@ -761,8 +1059,10 @@ def _build_dl_comparison_frame(
     model_labels: list[str] = []
     rows: list[dict[str, float | None]] = []
     for model, hist in models.items():
-        last = hist["epochs"][-1]
-        row = {label: last.get(key) for key, label, _ in metric_keys}
+        best = _select_best_epoch(hist)
+        if not best:
+            continue
+        row = {label: best.get(key) for key, label, _ in metric_keys}
         rows.append(row)
         model_labels.append(model.upper())
     return pd.DataFrame(rows, index=model_labels), model_labels
@@ -845,7 +1145,7 @@ def _render_dl_comparison_heatmap(
     plt.colorbar(im, ax=ax, fraction=0.03, pad=0.03, label="Pontuação norm.")
     scenario_title = scenario.replace("_", " ").title()
     ax.set_title(
-        f"Comparação DL (última época) - {scenario_title}",
+        f"Comparação DL (melhor época) - {scenario_title}",
         fontsize=FONT_SIZE + 1,
         pad=8,
     )
@@ -921,7 +1221,8 @@ def main(argv: list[str] | None = None) -> None:
     if not df.empty:
         eval_figs = [
             ("Fig 1: Pareto", fig1_pareto),
-            ("Fig 2: Spectral Radar", fig2_spectral_radar),
+            ("Fig 2a: Spectral Bar", fig2_spectral_bar),
+            ("Fig 2b: Spectral Dotplot", fig2_spectral_dotplot),
             ("Fig 3: Entropy Sensitivity", fig3_sensitivity),
             ("Fig 4: Multi-Sensor Violin", fig4_multisensor),
             ("Fig 5: F1 Threshold", fig5_f1_threshold),

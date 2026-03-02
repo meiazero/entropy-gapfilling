@@ -1,0 +1,27 @@
+\section{Dados e Métodos}
+\label{sec:methods}
+
+\subsection{Conjunto de Dados e Preprocessamento}
+\label{sec:dataset}
+
+Utilizamos um conjunto de dados de recortes 64\,x\,64 com 4 bandas de
+Sentinel-2, Landsat-8, Landsat-9 e MODIS. As lacunas são simuladas com
+máscaras de nuvem realistas e avaliadas em quatro níveis de ruído
+(inf, 40, 30, 20 dB). Todas as métricas são calculadas estritamente sobre
+pixels de lacuna (mask = 1).
+
+\subsection{Entropia Local}
+A entropia de Shannon local é computada em janelas deslizantes de tamanho 7,
+15 e 31. Cada janela é analisada de forma independente para evitar
+confundimento entre escalas.
+
+\subsection{Métodos Clássicos}
+Avaliamos 15 métodos clássicos agrupados em seis famílias: interpolação
+espacial, métodos de kernel, krigagem geoestatística, inpainting no domínio
+da transformada, sensoriamento compressivo e métodos patch-based.
+
+\subsection{Baselines de Aprendizado Profundo}
+Cinco baselines de aprendizado profundo (\gls{AE}, \gls{VAE}, \gls{GAN}, U-Net e
+\gls{ViT}) são incluídos para comparação em Sentinel-2. Esses modelos
+não são a contribuição principal, mas fornecem contexto para desempenho
+moderno.

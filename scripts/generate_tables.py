@@ -25,6 +25,7 @@ from data_loader import (
     select_top_n,
 )
 from scipy import stats
+from statsmodels.stats.multitest import multipletests
 
 logging.basicConfig(
     level=logging.INFO,
@@ -103,6 +104,41 @@ def _ci95_half(values: pd.Series) -> float:
     return float(stats.t.ppf(0.975, n - 1) * se)
 
 
+def _bootstrap_ci_half(
+    values: pd.Series,
+    clusters: pd.Series | None,
+    *,
+    stat_fn: callable,
+    n_boot: int = 1000,
+    seed: int = 42,
+) -> float:
+    vals = values.dropna()
+    if len(vals) < 2:
+        return 0.0
+    if clusters is None or clusters.isna().all():
+        return _ci95_half(vals)
+
+    data = pd.DataFrame({"value": values, "cluster": clusters}).dropna()
+    unique_clusters = data["cluster"].unique().tolist()
+    if len(unique_clusters) < 2:
+        return _ci95_half(vals)
+
+    rng = np.random.default_rng(seed)
+    boot_stats = []
+    for _ in range(n_boot):
+        sampled = rng.choice(
+            unique_clusters, size=len(unique_clusters), replace=True
+        )
+        sample = data[data["cluster"].isin(sampled)]["value"]
+        stat = stat_fn(sample)
+        if not np.isnan(stat):
+            boot_stats.append(float(stat))
+    if not boot_stats:
+        return 0.0
+    lo, hi = np.percentile(boot_stats, [2.5, 97.5])
+    return float((hi - lo) / 2.0)
+
+
 def _wrap_table(
     body: list[str],
     *,
@@ -144,19 +180,26 @@ def _wrap_table(
 def _compute_method_stats(
     df: pd.DataFrame,
     metrics: list[str],
+    *,
+    cluster_col: str | None = "patch_id",
 ) -> pd.DataFrame:
-    """Compute mean ± CI95 for each method x metric."""
+    """Compute mean ± CI95 (cluster bootstrap) for each method x metric."""
     rows = []
     for method, grp in df.groupby("method", observed=True):
         row: dict[str, object] = {"method": method}
         if "type" in grp.columns:
             row["type"] = grp["type"].iloc[0]
+        clusters = grp[cluster_col] if cluster_col in grp.columns else None
         for m in metrics:
             if m not in grp.columns:
                 continue
             vals = grp[m].dropna()
             row[f"{m}_mean"] = float(vals.mean()) if len(vals) > 0 else np.nan
-            row[f"{m}_ci"] = _ci95_half(vals)
+            row[f"{m}_ci"] = _bootstrap_ci_half(
+                vals,
+                clusters,
+                stat_fn=np.mean,
+            )
         rows.append(row)
     return pd.DataFrame(rows)
 
@@ -233,7 +276,7 @@ def table1_global_scoreboard(
                 r"\textbf{Negrito}: melhor; \underline{sublinhado}: 2º; "
                 r"\textit{itálico}: 3º."
             ),
-            label=f"tab:global-{suffix}",
+            label=f"tab:global-scoreboard-{suffix}",
             col_spec="llccccc",
             header=header,
             env="table*",
@@ -255,11 +298,17 @@ def _build_spectral_stats(
             "method": method,
             "type": grp["type"].iloc[0] if "type" in grp.columns else "",
         }
+        clusters = grp["patch_id"] if "patch_id" in grp.columns else None
         for band in bands:
             if band in grp.columns:
                 vals = grp[band].dropna()
-                row[f"{band}_mean"] = (
-                    float(vals.mean()) if len(vals) > 0 else np.nan
+                row[f"{band}_median"] = (
+                    float(vals.median()) if len(vals) > 0 else np.nan
+                )
+                row[f"{band}_ci"] = _bootstrap_ci_half(
+                    vals,
+                    clusters,
+                    stat_fn=np.median,
                 )
         stats_rows.append(row)
 
@@ -267,13 +316,13 @@ def _build_spectral_stats(
 
     # Rank per band (lower is better)
     for band in bands:
-        col = f"{band}_mean"
+        col = f"{band}_median"
         if col in stats_df.columns:
             stats_df[f"{band}_rank"] = stats_df[col].rank(
                 ascending=True, method="min"
             )
 
-    return stats_df.sort_values("rmse_b0_mean", ascending=True)
+    return stats_df.sort_values("rmse_b0_median", ascending=True)
 
 
 def _format_spectral_body(
@@ -284,12 +333,13 @@ def _format_spectral_body(
     for _, row in stats_df.iterrows():
         cells = [str(row.get("type", "")), _tex_escape(str(row["method"]))]
         for band in bands:
-            mean_val = row.get(f"{band}_mean", np.nan)
+            med_val = row.get(f"{band}_median", np.nan)
+            ci_val = row.get(f"{band}_ci", 0.0)
             rank = int(row.get(f"{band}_rank", 99))
-            if np.isnan(mean_val):
+            if np.isnan(med_val):
                 cells.append("--")
             else:
-                cells.append(_ranked_plain(mean_val, rank, ".4f"))
+                cells.append(_ranked_cell(med_val, ci_val, rank, ".4f"))
         body.append(" & ".join(cells) + r" \\")
     return body
 
@@ -323,10 +373,10 @@ def table2_spectral(
         tex = _wrap_table(
             body,
             caption=(
-                f"RMSE por banda espectral ({noise_label(noise)}). "
+                rf"RMSE mediano por banda (IC95\%) ({noise_label(noise)}). "
                 r"Menor é melhor."
             ),
-            label=f"tab:spectral-{suffix}",
+            label=f"tab:spectral-rmse-{suffix}",
             col_spec="llcccc",
             header=header,
             resizebox=True,
@@ -366,14 +416,44 @@ def table3_degradation(
                     (df_binned["method"] == method)
                     & (df_binned["entropy_bin"] == ebin)
                 ]
-                gap_only = mdf[mdf["noise_level"] == "inf"]["psnr"].mean()
-                noisy_20 = mdf[mdf["noise_level"] == "20"]["psnr"].mean()
+                gap_only = mdf[mdf["noise_level"] == "inf"]["psnr"].dropna()
+                noisy_20 = mdf[mdf["noise_level"] == "20"]["psnr"].dropna()
+                clusters = (
+                    mdf["patch_id"] if "patch_id" in mdf.columns else None
+                )
 
-                if np.isnan(gap_only) or np.isnan(noisy_20) or gap_only == 0:
+                if gap_only.empty or noisy_20.empty:
                     cells.append("--")
                 else:
-                    drop_pct = (gap_only - noisy_20) / gap_only * 100
-                    cells.append(f"${drop_pct:.1f}\\%$")
+                    drop_pct = (
+                        (gap_only.mean() - noisy_20.mean())
+                        / gap_only.mean()
+                        * 100
+                    )
+
+                    def _drop_stat(
+                        sample: pd.Series,
+                        data: pd.DataFrame = mdf,
+                    ) -> float:
+                        idx = sample.index
+                        labels = data.loc[idx, "noise_level"]
+                        inf_vals = sample[labels == "inf"]
+                        n20_vals = sample[labels == "20"]
+                        if inf_vals.empty or n20_vals.empty:
+                            return float("nan")
+                        inf_mean = inf_vals.mean()
+                        if inf_mean == 0 or np.isnan(inf_mean):
+                            return float("nan")
+                        return float(
+                            (inf_mean - n20_vals.mean()) / inf_mean * 100
+                        )
+
+                    ci = _bootstrap_ci_half(
+                        mdf["psnr"],
+                        clusters,
+                        stat_fn=_drop_stat,
+                    )
+                    cells.append(f"${drop_pct:.1f}\\%_{{\\pm {ci:.1f}}}$")
             body.append(" & ".join(cells) + r" \\")
 
         header = "Faixa de Entropia & " + " & ".join(
@@ -382,16 +462,170 @@ def table3_degradation(
         tex = _wrap_table(
             body,
             caption=(
-                f"Queda percentual no PSNR (sem ruído → 20 dB) por faixa "
-                f"de entropia (janela {ws}x{ws}). "
-                f"Top-3 clássicos + top-3 DL."
+                rf"Queda percentual no PSNR (IC95\%) (sem ruído → 20 dB) "
+                f"por faixa de entropia (janela {ws}x{ws}). "
+                "Top-3 clássicos + top-3 DL."
             ),
-            label=f"tab:degradation-e{ws}",
+            label=f"tab:degradation-psnr-e{ws}",
             col_spec="l" + "c" * len(selected),
             header=header,
             resizebox=True,
         )
         _write_tex(tex, output_dir / f"tab3_degradation_entropy{ws}.tex")
+
+
+def _noise_slope_value(
+    mdf: pd.DataFrame,
+    noise_levels: list[str],
+    noise_numeric: np.ndarray,
+) -> tuple[float, float]:
+    def _slope_stat(
+        s: pd.Series,
+        data: pd.DataFrame = mdf,
+    ) -> float:
+        means = []
+        for nl in noise_levels:
+            means.append(s[data.loc[s.index, "noise_level"] == nl].mean())
+        if any(np.isnan(means)):
+            return float("nan")
+        coef = np.polyfit(noise_numeric, np.array(means), 1)
+        return float(coef[0])
+
+    slope = _slope_stat(mdf["psnr"])
+    ci = _bootstrap_ci_half(
+        mdf["psnr"],
+        mdf["patch_id"] if "patch_id" in mdf.columns else None,
+        stat_fn=_slope_stat,
+    )
+    return slope, ci
+
+
+def _build_noise_slope_body(
+    df_binned: pd.DataFrame,
+    selected: list[str],
+    noise_levels: list[str],
+    noise_numeric: np.ndarray,
+) -> list[str]:
+    body: list[str] = []
+    for ebin in ["baixa", "média", "alta"]:
+        cells = [ebin.capitalize()]
+        for method in selected:
+            mdf = df_binned[
+                (df_binned["method"] == method)
+                & (df_binned["entropy_bin"] == ebin)
+                & (df_binned["noise_level"].isin(noise_levels))
+            ]
+            if mdf.empty:
+                cells.append("--")
+                continue
+            slope, ci = _noise_slope_value(mdf, noise_levels, noise_numeric)
+            if np.isnan(slope):
+                cells.append("--")
+            else:
+                cells.append(rf"${slope:.3f}_{{\pm {ci:.3f}}}$")
+        body.append(" & ".join(cells) + r" \\")
+    return body
+
+
+def table3_noise_slope(
+    df: pd.DataFrame,
+    output_dir: Path,
+) -> None:
+    """Table 3b: PSNR slope vs noise level (20/30/40 dB) by entropy bin."""
+    top_classic = select_top_n(df[df["type"] == "Clássico"], n=3)
+    top_dl = select_top_n(df[df["type"] == "DL"], n=3)
+    selected = top_classic + top_dl
+    if not selected:
+        return
+
+    noise_levels = ["20", "30", "40"]
+    noise_numeric = np.array([20.0, 30.0, 40.0])
+
+    for ws in ENTROPY_WINDOWS:
+        ecol = f"entropy_{ws}"
+        if ecol not in df.columns:
+            continue
+
+        df_binned = entropy_terciles(df, entropy_col=ecol)
+        body = _build_noise_slope_body(
+            df_binned, selected, noise_levels, noise_numeric
+        )
+
+        header = "Faixa de Entropia & " + " & ".join(
+            _tex_escape(m) for m in selected
+        )
+        tex = _wrap_table(
+            body,
+            caption=(
+                rf"Inclinação do PSNR vs ruído (20/30/40 dB, IC95\%) por faixa "
+                f"de entropia (janela {ws}x{ws})."
+            ),
+            label=f"tab:noise-slope-psnr-e{ws}",
+            col_spec="l" + "c" * len(selected),
+            header=header,
+            resizebox=True,
+        )
+        _write_tex(tex, output_dir / f"tab3_slope_entropy{ws}.tex")
+
+
+# ── Helpers: Spearman table ──────────────────────────────────────────
+
+
+def _spearman_rows(
+    df: pd.DataFrame,
+    methods: list[str],
+    ecol: str,
+    metric_cols: list[str],
+) -> list[tuple[str, str, float, float]]:
+    rows: list[tuple[str, str, float, float]] = []
+    for method in methods:
+        mdf = df[df["method"] == method]
+        for mcol in metric_cols:
+            valid = mdf[[ecol, mcol]].dropna()
+            if len(valid) < 3:
+                rows.append((method, mcol, np.nan, np.nan))
+                continue
+            rho, p = stats.spearmanr(valid[ecol], valid[mcol])
+            rows.append((method, mcol, float(rho), float(p)))
+    return rows
+
+
+def _fdr_correct(rows: list[tuple[str, str, float, float]]) -> np.ndarray:
+    pvals_arr = np.array([r[3] for r in rows if not np.isnan(r[3])])
+    corrected = np.full(len(rows), np.nan)
+    if pvals_arr.size == 0:
+        return corrected
+    _reject, p_corr, _, _ = multipletests(pvals_arr, method="fdr_bh")
+    idx = 0
+    for i, (_, _, _, p) in enumerate(rows):
+        if not np.isnan(p):
+            corrected[i] = p_corr[idx]
+            idx += 1
+    return corrected
+
+
+def _build_spearman_body(
+    rows: list[tuple[str, str, float, float]],
+    corrected: np.ndarray,
+    methods: list[str],
+    metric_cols: list[str],
+) -> list[str]:
+    body: list[str] = []
+    for method in methods:
+        cells = [_tex_escape(method)]
+        for mcol in metric_cols:
+            rec = next(r for r in rows if r[0] == method and r[1] == mcol)
+            rho = rec[2]
+            if np.isnan(rho):
+                cells.append("--")
+                continue
+            corr_p = corrected[rows.index(rec)]
+            if abs(rho) < 0.1:
+                cells.append(r"$\approx 0$")
+            else:
+                cells.append(f"${rho:.3f}${_stars(corr_p)}")
+        body.append(" & ".join(cells) + r" \\")
+    return body
 
 
 # ── Table 4: Spearman Correlation ─────────────────────────────────────
@@ -416,18 +650,9 @@ def table4_correlation(
         if ecol not in df.columns:
             continue
 
-        body: list[str] = []
-        for method in methods:
-            mdf = df[df["method"] == method]
-            cells = [_tex_escape(method)]
-            for mcol in metric_cols:
-                valid = mdf[[ecol, mcol]].dropna()
-                if len(valid) < 3:
-                    cells.append("--")
-                    continue
-                rho, p = stats.spearmanr(valid[ecol], valid[mcol])
-                cells.append(f"${rho:.3f}${_stars(p)}")
-            body.append(" & ".join(cells) + r" \\")
+        rows = _spearman_rows(df, methods, ecol, metric_cols)
+        corrected = _fdr_correct(rows)
+        body = _build_spearman_body(rows, corrected, methods, metric_cols)
 
         header = "Método & " + " & ".join(
             f"$\\rho$({{\\scriptsize {m.upper()}}})" for m in metric_cols
@@ -436,10 +661,11 @@ def table4_correlation(
             body,
             caption=(
                 f"Correlação de Spearman entre entropia "
-                f"({ws}x{ws}) e métricas de qualidade. "
-                r"$^{*}p<0{,}05$; $^{**}p<0{,}01$; $^{***}p<0{,}001$."
+                f"({ws}x{ws}) e métricas de qualidade (FDR). "
+                r"$^{*}p_{FDR}<0{,}05$; $^{**}p_{FDR}<0{,}01$; "
+                r"$^{***}p_{FDR}<0{,}001$."
             ),
-            label=f"tab:spearman-e{ws}",
+            label=f"tab:spearman-entropy-e{ws}",
             col_spec="l" + "c" * len(metric_cols),
             header=header,
             env="table*",
@@ -511,9 +737,11 @@ def table5_speed(
         body,
         caption=(
             "Velocidade e viabilidade prática (sem ruído). "
-            "PSNR/s indica eficiência."
+            "PSNR/s indica eficiência. "
+            "Hardware: Rocky Linux 9.5, NVIDIA A100 80GB PCIe, "
+            "driver 550.90.07, CUDA 12.4/12.6.2."
         ),
-        label="tab:speed",
+        label="tab:runtime-speed",
         col_spec="llccc",
         header=(
             r"Tipo & Método & PSNR (dB) $\uparrow$ "
@@ -553,6 +781,7 @@ def main(argv: list[str] | None = None) -> None:
         ("Table 1: Global Scoreboard", table1_global_scoreboard),
         ("Table 2: Spectral Deconstruction", table2_spectral),
         ("Table 3: Degradation by Entropy", table3_degradation),
+        ("Table 3b: Noise Slope", table3_noise_slope),
         ("Table 4: Spearman Correlation", table4_correlation),
         ("Table 5: Speed", table5_speed),
     ]

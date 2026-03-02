@@ -1,0 +1,34 @@
+\begin{table*}[htbp]
+\centering
+\caption{Placar global multi-métrica (40 dB). \textbf{Negrito}: melhor; \underline{sublinhado}: 2º; \textit{itálico}: 3º.}
+\label{tab:global-scoreboard-best}
+\footnotesize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{llccccc}
+\toprule
+Tipo & Método & PSNR (dB) $\uparrow$ & SSIM $\uparrow$ & RMSE $\downarrow$ & SAM $\downarrow$ & ERGAS $\downarrow$ \\
+\midrule
+DL & unet & \textbf{$23.74_{\pm 0.08}$} & \textbf{$0.65_{\pm 0.00}$} & \textbf{$0.07_{\pm 0.00}$} & \textbf{$5.56_{\pm 0.05}$} & \textbf{$30.86_{\pm 1.03}$} \\
+DL & gan & \underline{$22.85_{\pm 0.08}$} & $0.60_{\pm 0.00}$ & \underline{$0.08_{\pm 0.00}$} & \textit{$6.25_{\pm 0.06}$} & \underline{$32.99_{\pm 0.74}$} \\
+DL & vit & \textit{$22.74_{\pm 0.08}$} & $0.59_{\pm 0.00}$ & \textit{$0.08_{\pm 0.00}$} & \underline{$6.19_{\pm 0.06}$} & \textit{$34.55_{\pm 1.38}$} \\
+DL & vae & $22.54_{\pm 0.08}$ & $0.59_{\pm 0.00}$ & $0.08_{\pm 0.00}$ & $6.80_{\pm 0.07}$ & $35.78_{\pm 0.89}$ \\
+DL & ae & $22.23_{\pm 0.07}$ & $0.57_{\pm 0.00}$ & $0.09_{\pm 0.00}$ & $7.02_{\pm 0.07}$ & $35.54_{\pm 0.75}$ \\
+Clássico & exemplar\_based & $21.66_{\pm 0.68}$ & \underline{$0.62_{\pm 0.02}$} & $0.10_{\pm 0.01}$ & $6.83_{\pm 0.52}$ & $38.79_{\pm 4.22}$ \\
+Clássico & spline & $21.45_{\pm 0.66}$ & \textit{$0.62_{\pm 0.02}$} & $0.10_{\pm 0.01}$ & $7.06_{\pm 0.53}$ & $40.09_{\pm 4.31}$ \\
+Clássico & rbf & $21.45_{\pm 0.66}$ & \textit{$0.62_{\pm 0.02}$} & $0.10_{\pm 0.01}$ & $7.06_{\pm 0.53}$ & $40.09_{\pm 4.31}$ \\
+Clássico & kriging & $21.41_{\pm 0.65}$ & $0.58_{\pm 0.02}$ & $0.10_{\pm 0.01}$ & $7.28_{\pm 0.67}$ & $40.32_{\pm 4.21}$ \\
+Clássico & bilinear & $20.99_{\pm 0.65}$ & $0.58_{\pm 0.02}$ & $0.10_{\pm 0.01}$ & $6.73_{\pm 0.53}$ & $42.22_{\pm 4.59}$ \\
+Clássico & nearest & $20.01_{\pm 0.58}$ & $0.55_{\pm 0.02}$ & $0.11_{\pm 0.01}$ & $6.96_{\pm 0.51}$ & $45.96_{\pm 4.69}$ \\
+Clássico & lanczos & $19.91_{\pm 0.58}$ & $0.53_{\pm 0.02}$ & $0.11_{\pm 0.01}$ & $7.52_{\pm 0.59}$ & $46.11_{\pm 4.51}$ \\
+Clássico & idw & $19.26_{\pm 0.63}$ & $0.48_{\pm 0.02}$ & $0.12_{\pm 0.01}$ & $8.78_{\pm 0.82}$ & $49.87_{\pm 4.87}$ \\
+Clássico & bicubic & $18.80_{\pm 0.61}$ & $0.49_{\pm 0.02}$ & $0.13_{\pm 0.01}$ & $9.77_{\pm 0.69}$ & $52.46_{\pm 5.16}$ \\
+Clássico & wavelet & $18.75_{\pm 0.60}$ & $0.46_{\pm 0.02}$ & $0.13_{\pm 0.01}$ & $9.30_{\pm 0.78}$ & $53.71_{\pm 5.45}$ \\
+Clássico & l1\_dct & $18.26_{\pm 0.55}$ & $0.44_{\pm 0.02}$ & $0.14_{\pm 0.01}$ & $9.49_{\pm 0.84}$ & $52.58_{\pm 4.63}$ \\
+Clássico & dct & $18.26_{\pm 0.55}$ & $0.44_{\pm 0.02}$ & $0.14_{\pm 0.01}$ & $9.50_{\pm 0.84}$ & $52.59_{\pm 4.64}$ \\
+Clássico & tv & $17.70_{\pm 0.59}$ & $0.25_{\pm 0.02}$ & $0.15_{\pm 0.01}$ & $9.81_{\pm 0.82}$ & $60.67_{\pm 6.21}$ \\
+Clássico & non\_local & $16.80_{\pm 0.62}$ & $0.37_{\pm 0.02}$ & $0.16_{\pm 0.01}$ & $11.00_{\pm 0.96}$ & $66.71_{\pm 6.64}$ \\
+Clássico & l1\_wavelet & $11.88_{\pm 0.54}$ & $0.24_{\pm 0.02}$ & $0.28_{\pm 0.02}$ & $17.76_{\pm 1.15}$ & $85.95_{\pm 2.84}$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table*}
