@@ -1,50 +1,30 @@
-"""Generate LaTeX tables from experiment results.
+"""Generate LaTeX tables from experiment results (data-driven rewrite).
 
-Produces table types for the journal paper, each exported as a
-standalone .tex file that can be included via \\input{}.
+Produces 5 table types with variations per noise level, entropy window,
+and satellite. Each table is saved as a standalone .tex file.
 
 Usage:
-    uv run python scripts/generate_tables.py --results results/paper_results
-    uv run python scripts/generate_tables.py \
-        --results results/paper_results --table 2
-    uv run python scripts/generate_tables.py \
-        --dl-results dl_models
-    uv run python scripts/generate_tables.py \
-        --results results/paper_results --dl-results dl_models
+    uv run python scripts/generate_tables.py
+    uv run python scripts/generate_tables.py --output docs/tables
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import logging
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 import pandas as pd
-
-from pdi_pipeline.aggregation import (
-    load_results,
-    summary_by_entropy_bin,
-    summary_by_noise,
-    summary_by_satellite,
+from data_loader import (
+    ENTROPY_WINDOWS,
+    NOISE_ORDER,
+    entropy_terciles,
+    load_combined,
+    noise_label,
+    select_top_n,
 )
-from pdi_pipeline.statistics import (
-    correlation_matrix,
-    method_comparison,
-    robust_regression,
-)
-
-
-def _agg_csv(agg_dir: Path | None, filename: str) -> Path | None:
-    """Return the path to *filename* in *agg_dir* if both exist, else None."""
-    if agg_dir is None:
-        return None
-    p = agg_dir / filename
-    return p if p.exists() else None
-
+from scipy import stats
 
 logging.basicConfig(
     level=logging.INFO,
@@ -53,124 +33,8 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-# Method metadata for Table 1
-METHOD_INFO = {
-    "nearest": ("Espacial", "Vizinho Mais Próximo", "None", r"$O(HW)$"),
-    "bilinear": ("Espacial", "Bilinear", "None", r"$O(N \log N)$"),
-    "bicubic": ("Espacial", "Bicúbico", "None", r"$O(N \log N)$"),
-    "lanczos": (
-        "Espacial",
-        "Lanczos (PG)",
-        "a=3",
-        r"$O(HW \log HW)$",
-    ),
-    "idw": ("Kernel", "IDW", "p=2.0", r"$O(NK)$"),
-    "rbf": ("Kernel", "RBF", "kernel TPS", r"$O(N^3)$"),
-    "spline": ("Kernel", "Spline de Placa Fina", "None", r"$O(N^3)$"),
-    "kriging": (
-        "Geoestatístico",
-        "Krigagem Ordinária",
-        "Variograma automático",
-        r"$O(N^3)$",
-    ),
-    "dct": (
-        "Transformada",
-        "DCT",
-        "iter=50, lam=0.05",
-        r"$O(HW \log HW)$",
-    ),
-    "wavelet": ("Transformada", "Wavelet", "db4, iter=50", r"$O(HW)$"),
-    "tv": ("Transformada", "Variação Total", "iter=100", r"$O(HW)$"),
-    "cs_dct": (
-        "Compressivo",
-        "L1-DCT (CS)",
-        "iter=100",
-        r"$O(HW \log HW)$",
-    ),
-    "cs_wavelet": (
-        "Compressivo",
-        "L1-Wavelet (CS)",
-        "iter=100",
-        r"$O(HW)$",
-    ),
-    "non_local": (
-        "Baseado em Recortes",
-        "Médias Não-Locais",
-        "h=0.1, p=7, s=21",
-        r"$O(HW P^2)$",
-    ),
-    "exemplar_based": (
-        "Baseado em Recortes",
-        "Baseado em Exemplar",
-        "p=9",
-        r"$O(HW P^2)$",
-    ),
-}
 
-
-# ------------------------------------------------------------------
-# LaTeX table boilerplate
-# ------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class LatexTableConfig:
-    """Specification for a LaTeX ``tabular`` environment."""
-
-    caption: str
-    label: str
-    col_spec: str
-    header: str
-    font_size: str = r"\footnotesize"
-    env: str = "table"
-    resizebox: bool = False
-
-
-def _render_latex_table(
-    config: LatexTableConfig,
-    body_lines: list[str],
-    extra_after_tabular: list[str] | None = None,
-) -> str:
-    """Render a complete LaTeX table from *config* and body rows."""
-    tabular_lines = [
-        rf"\begin{{tabular}}{{{config.col_spec}}}",
-        r"\toprule",
-        config.header + r" \\",
-        r"\midrule",
-        *body_lines,
-        r"\bottomrule",
-        r"\end{tabular}",
-    ]
-    lines = [
-        rf"\begin{{{config.env}}}[htbp]",
-        r"\centering",
-        rf"\caption{{{config.caption}}}",
-        rf"\label{{{config.label}}}",
-        config.font_size,
-    ]
-    if config.resizebox:
-        lines += [r"\resizebox{\linewidth}{!}{%", *tabular_lines, r"}"]
-    else:
-        lines += tabular_lines
-    if extra_after_tabular:
-        lines.extend(extra_after_tabular)
-    lines.append(rf"\end{{{config.env}}}")
-    return "\n".join(lines)
-
-
-# ------------------------------------------------------------------
-# Shared formatting helpers
-# ------------------------------------------------------------------
-
-
-def _format_ranked_cell(value: float, ci_half: float, rank: int) -> str:
-    """Format a metric cell with bold-best / underline-second."""
-    base = f"${value:.2f}_{{\\pm {ci_half:.2f}}}$"
-    if rank == 1:
-        return f"\\textbf{{{base}}}"
-    if rank == 2:
-        return f"\\underline{{{base}}}"
-    return base
+# ── LaTeX helpers ─────────────────────────────────────────────────────
 
 
 def _write_tex(content: str, path: Path) -> None:
@@ -178,1093 +42,529 @@ def _write_tex(content: str, path: Path) -> None:
     log.info("Saved %s", path)
 
 
-def _stars_for_p_value(p_value: float) -> str:
-    if np.isnan(p_value):
+def _tex_escape(s: str) -> str:
+    return str(s).replace("_", r"\_").replace("%", r"\%").replace("&", r"\&")
+
+
+def _format_pm(mean: float, ci_half: float, fmt: str = ".2f") -> str:
+    return f"${mean:{fmt}}_{{\\pm {ci_half:{fmt}}}}$"
+
+
+def _bold(text: str) -> str:
+    return f"\\textbf{{{text}}}"
+
+
+def _underline(text: str) -> str:
+    return f"\\underline{{{text}}}"
+
+
+def _ranked_cell(
+    value: float, ci_half: float, rank: int, fmt: str = ".2f"
+) -> str:
+    base = _format_pm(value, ci_half, fmt)
+    if rank == 1:
+        return _bold(base)
+    if rank == 2:
+        return _underline(base)
+    if rank == 3:
+        return f"\\textit{{{base}}}"
+    return base
+
+
+def _ranked_plain(value: float, rank: int, fmt: str = ".3f") -> str:
+    base = f"${value:{fmt}}$"
+    if rank == 1:
+        return _bold(base)
+    if rank == 2:
+        return _underline(base)
+    if rank == 3:
+        return f"\\textit{{{base}}}"
+    return base
+
+
+def _stars(p: float) -> str:
+    if np.isnan(p):
         return ""
-    if p_value < 0.001:
+    if p < 0.001:
         return "***"
-    if p_value < 0.01:
+    if p < 0.01:
         return "**"
-    if p_value < 0.05:
+    if p < 0.05:
         return "*"
     return ""
 
 
-def _format_table8_metric(value: float, rank: int) -> str:
-    if rank == 1:
-        return f"\\textbf{{{value:.3f}}}"
-    if rank == 2:
-        return f"\\underline{{{value:.3f}}}"
-    return f"${value:.3f}$"
+def _ci95_half(values: pd.Series) -> float:
+    """Compute half-width of 95% CI using t-distribution."""
+    n = len(values)
+    if n < 2:
+        return 0.0
+    se = float(values.std() / np.sqrt(n))
+    return float(stats.t.ppf(0.975, n - 1) * se)
 
 
-# ------------------------------------------------------------------
-# Ranking + row generation (shared by tables 2, 3, 7)
-# ------------------------------------------------------------------
-
-
-def _compute_group_rankings(
-    summary: pd.DataFrame,
-    group_col: str,
-    groups: list[str],
-) -> dict[str, dict[str, int]]:
-    """Rank methods within each *group_col* value by descending mean."""
-    rankings: dict[str, dict[str, int]] = {}
-    for group_val in groups:
-        gdf = summary[summary[group_col] == group_val]
-        ranked = gdf.sort_values("mean", ascending=False)
-        for rank, rr in enumerate(ranked.itertuples(), 1):
-            rankings.setdefault(group_val, {})[rr.method] = rank
-    return rankings
-
-
-def _build_ranked_rows(
-    summary: pd.DataFrame,
-    group_col: str,
-    groups: list[str],
-    methods: list[str],
-    rankings: dict[str, dict[str, int]],
-) -> list[str]:
-    """Build LaTeX row strings for a ranked method x group table."""
-    rows: list[str] = []
-    for method in methods:
-        mdf = summary[summary["method"] == method]
-        cells: list[str] = [method]
-        for g in groups:
-            row = mdf[mdf[group_col] == g]
-            if row.empty:
-                cells.append("--")
-            else:
-                r = row.iloc[0]
-                ci_half = (r["ci95_hi"] - r["ci95_lo"]) / 2
-                rank = rankings.get(g, {}).get(method, 99)
-                cells.append(_format_ranked_cell(r["mean"], ci_half, rank))
-        rows.append(" & ".join(cells) + r" \\")
-    return rows
-
-
-# ------------------------------------------------------------------
-# O(1) correlation cell lookup (table 4)
-# ------------------------------------------------------------------
-
-
-def _build_correlation_lookup(
-    corr_df: pd.DataFrame,
-) -> dict[tuple[str, str, str], Any]:
-    """Index *corr_df* for O(1) cell access."""
-    lookup: dict[tuple[str, str, str], Any] = {}
-    for row in corr_df.itertuples():
-        key = (row.method, row.entropy_col, row.metric_col)
-        lookup[key] = row
-    return lookup
-
-
-def _format_correlation_cell(
-    lookup: dict[tuple[str, str, str], Any],
-    method: str,
-    entropy_col: str,
-    metric_col: str,
+def _wrap_table(
+    body: list[str],
+    *,
+    caption: str,
+    label: str,
+    col_spec: str,
+    header: str,
+    font_size: str = r"\footnotesize",
+    env: str = "table",
+    resizebox: bool = False,
 ) -> str:
-    rr = lookup.get((method, entropy_col, metric_col))
-    if rr is None:
-        return "--"
-    rho = float(rr.spearman_rho)
-    p_val = float(getattr(rr, "spearman_p_corrected", None) or rr.spearman_p)
-    stars = _stars_for_p_value(p_val)
-    return f"${rho:.3f}${stars}"
+    tabular = [
+        rf"\begin{{tabular}}{{{col_spec}}}",
+        r"\toprule",
+        header + r" \\",
+        r"\midrule",
+        *body,
+        r"\bottomrule",
+        r"\end{tabular}",
+    ]
+    lines = [
+        rf"\begin{{{env}}}[htbp]",
+        r"\centering",
+        rf"\caption{{{caption}}}",
+        rf"\label{{{label}}}",
+        font_size,
+    ]
+    if resizebox:
+        lines += [r"\resizebox{\linewidth}{!}{%", *tabular, r"}"]
+    else:
+        lines += tabular
+    lines.append(rf"\end{{{env}}}")
+    return "\n".join(lines)
 
 
-# ------------------------------------------------------------------
-# DL result collection (table 8)
-# ------------------------------------------------------------------
+# ── Table 1: Global Multi-Metric Scoreboard ──────────────────────────
 
 
-def _collect_dl_rows(
-    dl_base: Path,
-) -> list[dict[str, object]]:
-    dl_rows: list[dict[str, object]] = []
-    if not dl_base.exists():
-        return dl_rows
-
-    for model_dir in sorted(dl_base.iterdir()):
-        csv_path = model_dir / "results.csv"
-        if not csv_path.exists():
-            continue
-
-        dl_df = pd.read_csv(csv_path)
-        ok = dl_df[dl_df["status"] == "ok"]
-        if ok.empty:
-            continue
-
-        dl_rows.append({
-            "method": model_dir.name,
-            "psnr": ok["psnr"].mean(),
-            "ssim": ok["ssim"].mean(),
-            "rmse": ok["rmse"].mean(),
-            "type": "Aprendizado Profundo",
-        })
-    return dl_rows
+def _compute_method_stats(
+    df: pd.DataFrame,
+    metrics: list[str],
+) -> pd.DataFrame:
+    """Compute mean ± CI95 for each method x metric."""
+    rows = []
+    for method, grp in df.groupby("method", observed=True):
+        row: dict[str, object] = {"method": method}
+        if "type" in grp.columns:
+            row["type"] = grp["type"].iloc[0]
+        for m in metrics:
+            if m not in grp.columns:
+                continue
+            vals = grp[m].dropna()
+            row[f"{m}_mean"] = float(vals.mean()) if len(vals) > 0 else np.nan
+            row[f"{m}_ci"] = _ci95_half(vals)
+        rows.append(row)
+    return pd.DataFrame(rows)
 
 
-def _add_metric_rankings(df: pd.DataFrame, metrics: list[str]) -> None:
-    for metric_col in metrics:
-        df[f"rank_{metric_col}"] = df[metric_col].rank(
-            ascending=(metric_col == "rmse"), method="min"
-        )
-
-
-# ------------------------------------------------------------------
-# Table generators
-# ------------------------------------------------------------------
-
-
-def table1_method_overview(df: pd.DataFrame, output_dir: Path) -> None:
-    """Table 1: Method overview (no data needed)."""
-    body: list[str] = []
-    prev_cat = ""
-    for _name, (cat, display, params, _cplx) in METHOD_INFO.items():
-        cat_str = cat if cat != prev_cat else ""
-        prev_cat = cat
-        body.append(f"{cat_str} & {display} & {params} \\\\")
-
-    tex = _render_latex_table(
-        LatexTableConfig(
-            caption=(
-                "Visão geral dos 15 métodos clássicos de preenchimento de "
-                "lacunas avaliados."
-            ),
-            label="tab:methods",
-            col_spec="lll",
-            header=(r"Categoria & Método & Parâmetros"),
-            resizebox=True,
-        ),
-        body,
-    )
-    _write_tex(tex, output_dir / "methods.tex")
-
-
-def table2_overall_results(
+def table1_global_scoreboard(
     df: pd.DataFrame,
     output_dir: Path,
-    *,
-    agg_dir: Path | None = None,
 ) -> None:
-    """Table 2: Mean PSNR +/- CI95% per method x noise level."""
-    csv = _agg_csv(agg_dir, "by_noise_psnr.csv")
-    if csv is not None:
-        log.info("Table 2: reading from %s", csv)
-        noise_summary = pd.read_csv(csv)
-    else:
-        noise_summary = summary_by_noise(df, metric="psnr")
-    if noise_summary.empty:
-        log.warning("No data for table2")
-        return
-    noise_summary = noise_summary.copy()
-    noise_summary["noise_level"] = noise_summary["noise_level"].astype(str)
+    """Table 1: PSNR, SSIM, RMSE, SAM, ERGAS per method (all + per noise)."""
+    metrics = ["psnr", "ssim", "rmse", "sam", "ergas"]
+    higher_better = {
+        "psnr": True,
+        "ssim": True,
+        "rmse": False,
+        "sam": False,
+        "ergas": False,
+    }
 
-    methods = sorted(noise_summary["method"].unique())
-    noise_levels = ["inf", "40", "30", "20"]
-    present = [
-        n for n in noise_levels if n in noise_summary["noise_level"].values
+    noise_levels = ["all"] + [
+        n for n in NOISE_ORDER if n in df["noise_level"].unique()
     ]
 
-    if present:
-        header = "Método & " + " & ".join(
-            f"{n} dB" if n != "inf" else "Sem ruído" for n in present
-        )
-        rankings = _compute_group_rankings(
-            noise_summary, "noise_level", present
-        )
-        body = _build_ranked_rows(
-            noise_summary, "noise_level", present, methods, rankings
-        )
-    else:
-        header = "Method"
-        body = [f"{method} \\\\" for method in methods]
-
-    tex = _render_latex_table(
-        LatexTableConfig(
-            caption=(
-                r"PSNR médio (dB) $\pm$ IC de 95\% por método "
-                r"e nível de ruído. Maior PSNR é melhor."
-            ),
-            label="tab:psnr-method-noise",
-            col_spec="l" + "c" * len(present),
-            header=header,
-        ),
-        body,
-    )
-    _write_tex(tex, output_dir / "psnr-method-noise.tex")
-
-
-def table3_entropy_stratified(
-    df: pd.DataFrame,
-    output_dir: Path,
-    *,
-    agg_dir: Path | None = None,
-) -> None:
-    """Table 3: Mean PSNR per method x entropy bin."""
-    if "entropy_15" in df.columns:
-        entropy_windows = ["entropy_15"]
-    elif "entropy_7" in df.columns:
-        entropy_windows = ["entropy_7"]
-    else:
-        entropy_windows = [c for c in df.columns if c.startswith("entropy_")]
-        if not entropy_windows:
-            entropy_windows = ["entropy_7"]
-
-    bins = ["low", "medium", "high"]
-
-    for ecol in sorted(entropy_windows):
-        ws = ecol.split("_")[-1]
-        csv = _agg_csv(agg_dir, f"by_entropy_bin_{ws}_psnr.csv")
-        if csv is not None:
-            log.info("Table 3 (%s): reading from %s", ecol, csv)
-            ent_summary = pd.read_csv(csv)
+    for noise in noise_levels:
+        if noise == "all":
+            subset = df
+            suffix = "all"
+            caption_noise = "todos os níveis de ruído"
         else:
-            ent_summary = summary_by_entropy_bin(
-                df, entropy_col=ecol, metric="psnr"
-            )
+            subset = df[df["noise_level"] == noise]
+            suffix = noise.replace("inf", "gap_only")
+            caption_noise = noise_label(noise)
 
-        if ent_summary.empty:
-            log.warning("No data for table3 (%s)", ecol)
+        if subset.empty:
             continue
 
-        methods = sorted(ent_summary["method"].unique())
-        rankings = _compute_group_rankings(ent_summary, "entropy_bin", bins)
-        body = _build_ranked_rows(
-            ent_summary, "entropy_bin", bins, methods, rankings
-        )
+        stats_df = _compute_method_stats(subset, metrics)
+        if stats_df.empty:
+            continue
 
-        label = (
-            "tab:psnr-entropy-tercile"
-            if ws == "15"
-            else f"tab:psnr-entropy-tercile-{ws}"
+        # Compute ranks per metric
+        for m in metrics:
+            col = f"{m}_mean"
+            if col in stats_df.columns:
+                stats_df[f"{m}_rank"] = stats_df[col].rank(
+                    ascending=not higher_better[m], method="min"
+                )
+
+        # Sort by PSNR descending
+        stats_df = stats_df.sort_values("psnr_mean", ascending=False)
+
+        body: list[str] = []
+        for _, row in stats_df.iterrows():
+            method_str = _tex_escape(str(row["method"]))
+            type_str = str(row.get("type", ""))
+            cells = [type_str, method_str]
+            for m in metrics:
+                mean_val = row.get(f"{m}_mean", np.nan)
+                ci_val = row.get(f"{m}_ci", 0.0)
+                rank = int(row.get(f"{m}_rank", 99))
+                if np.isnan(mean_val):
+                    cells.append("--")
+                else:
+                    cells.append(_ranked_cell(mean_val, ci_val, rank))
+            body.append(" & ".join(cells) + r" \\")
+
+        header = (
+            r"Tipo & Método & PSNR (dB) $\uparrow$ & SSIM $\uparrow$ "
+            r"& RMSE $\downarrow$ & SAM $\downarrow$ & ERGAS $\downarrow$"
         )
-        tex = _render_latex_table(
-            LatexTableConfig(
-                caption=(
-                    r"PSNR médio (dB) $\pm$ IC de 95\% estratificado "
-                    rf"por tercil de entropia "
-                    rf"(janela {ws}$\times${ws}). Maior PSNR é melhor."
-                ),
-                label=label,
-                col_spec="lccc",
-                header=(
-                    "Método & Entropia Baixa & Entropia Média & Entropia Alta"
-                ),
-                resizebox=True,
-            ),
+        tex = _wrap_table(
             body,
+            caption=(
+                f"Placar global multi-métrica ({caption_noise}). "
+                r"\textbf{Negrito}: melhor; \underline{sublinhado}: 2º; "
+                r"\textit{itálico}: 3º."
+            ),
+            label=f"tab:global-{suffix}",
+            col_spec="llccccc",
+            header=header,
+            env="table*",
+            resizebox=True,
         )
-        _write_tex(tex, output_dir / "psnr-entropy-tercile.tex")
+        _write_tex(tex, output_dir / f"tab1_global_{suffix}.tex")
+
+
+# ── Table 2: Spectral Deconstruction (RMSE per band) ─────────────────
+
+
+def _build_spectral_stats(
+    subset: pd.DataFrame,
+    bands: list[str],
+) -> pd.DataFrame:
+    stats_rows: list[dict[str, object]] = []
+    for method, grp in subset.groupby("method", observed=True):
+        row: dict[str, object] = {
+            "method": method,
+            "type": grp["type"].iloc[0] if "type" in grp.columns else "",
+        }
+        for band in bands:
+            if band in grp.columns:
+                vals = grp[band].dropna()
+                row[f"{band}_mean"] = (
+                    float(vals.mean()) if len(vals) > 0 else np.nan
+                )
+        stats_rows.append(row)
+
+    stats_df = pd.DataFrame(stats_rows)
+
+    # Rank per band (lower is better)
+    for band in bands:
+        col = f"{band}_mean"
+        if col in stats_df.columns:
+            stats_df[f"{band}_rank"] = stats_df[col].rank(
+                ascending=True, method="min"
+            )
+
+    return stats_df.sort_values("rmse_b0_mean", ascending=True)
+
+
+def _format_spectral_body(
+    stats_df: pd.DataFrame,
+    bands: list[str],
+) -> list[str]:
+    body: list[str] = []
+    for _, row in stats_df.iterrows():
+        cells = [str(row.get("type", "")), _tex_escape(str(row["method"]))]
+        for band in bands:
+            mean_val = row.get(f"{band}_mean", np.nan)
+            rank = int(row.get(f"{band}_rank", 99))
+            if np.isnan(mean_val):
+                cells.append("--")
+            else:
+                cells.append(_ranked_plain(mean_val, rank, ".4f"))
+        body.append(" & ".join(cells) + r" \\")
+    return body
+
+
+def table2_spectral(
+    df: pd.DataFrame,
+    output_dir: Path,
+) -> None:
+    """Table 2: RMSE per spectral band for each method."""
+    bands = ["rmse_b0", "rmse_b1", "rmse_b2", "rmse_b3"]
+    band_labels = ["B0 (Azul)", "B1 (Verde)", "B2 (Vermelho)", "B3 (NIR)"]
+
+    noise_levels = [n for n in NOISE_ORDER if n in df["noise_level"].unique()]
+
+    for noise in noise_levels:
+        subset = df[df["noise_level"] == noise]
+        if subset.empty:
+            continue
+
+        suffix = noise.replace("inf", "gap_only")
+
+        stats_df = _build_spectral_stats(subset, bands)
+        if stats_df.empty:
+            continue
+
+        body = _format_spectral_body(stats_df, bands)
+
+        header = "Tipo & Método & " + " & ".join(
+            f"{bl} $\\downarrow$" for bl in band_labels
+        )
+        tex = _wrap_table(
+            body,
+            caption=(
+                f"RMSE por banda espectral ({noise_label(noise)}). "
+                r"Menor é melhor."
+            ),
+            label=f"tab:spectral-{suffix}",
+            col_spec="llcccc",
+            header=header,
+            resizebox=True,
+        )
+        _write_tex(tex, output_dir / f"tab2_spectral_{suffix}.tex")
+
+
+# ── Table 3: Degradation by Entropy x Noise ──────────────────────────
+
+
+def table3_degradation(
+    df: pd.DataFrame,
+    output_dir: Path,
+) -> None:
+    """Table 3: PSNR drop (%) from gap_only to 20dB, stratified by entropy."""
+    # Select top methods
+    top_classic = select_top_n(df[df["type"] == "Clássico"], n=3)
+    top_dl = select_top_n(df[df["type"] == "DL"], n=3)
+    selected = top_classic + top_dl
+
+    if not selected:
+        log.warning("No methods available for table3")
+        return
+
+    for ws in ENTROPY_WINDOWS:
+        ecol = f"entropy_{ws}"
+        if ecol not in df.columns:
+            continue
+
+        df_binned = entropy_terciles(df, entropy_col=ecol)
+
+        body: list[str] = []
+        for ebin in ["baixa", "média", "alta"]:
+            cells = [ebin.capitalize()]
+            for method in selected:
+                mdf = df_binned[
+                    (df_binned["method"] == method)
+                    & (df_binned["entropy_bin"] == ebin)
+                ]
+                gap_only = mdf[mdf["noise_level"] == "inf"]["psnr"].mean()
+                noisy_20 = mdf[mdf["noise_level"] == "20"]["psnr"].mean()
+
+                if np.isnan(gap_only) or np.isnan(noisy_20) or gap_only == 0:
+                    cells.append("--")
+                else:
+                    drop_pct = (gap_only - noisy_20) / gap_only * 100
+                    cells.append(f"${drop_pct:.1f}\\%$")
+            body.append(" & ".join(cells) + r" \\")
+
+        header = "Faixa de Entropia & " + " & ".join(
+            _tex_escape(m) for m in selected
+        )
+        tex = _wrap_table(
+            body,
+            caption=(
+                f"Queda percentual no PSNR (sem ruído → 20 dB) por faixa "
+                f"de entropia (janela {ws}x{ws}). "
+                f"Top-3 clássicos + top-3 DL."
+            ),
+            label=f"tab:degradation-e{ws}",
+            col_spec="l" + "c" * len(selected),
+            header=header,
+            resizebox=True,
+        )
+        _write_tex(tex, output_dir / f"tab3_degradation_entropy{ws}.tex")
+
+
+# ── Table 4: Spearman Correlation ─────────────────────────────────────
 
 
 def table4_correlation(
     df: pd.DataFrame,
     output_dir: Path,
-    *,
-    agg_dir: Path | None = None,
 ) -> None:
-    """Table 4: Spearman rho for entropy x metric."""
-    csv = _agg_csv(agg_dir, "spearman_correlation.csv")
-    if csv is not None:
-        log.info("Table 4: reading from %s", csv)
-        corr_df = pd.read_csv(csv)
-        # Infer entropy and metric cols from the CSV itself.
-        entropy_cols = (
-            sorted(corr_df["entropy_col"].unique())
-            if "entropy_col" in corr_df.columns
-            else []
-        )
-        metric_cols = (
-            sorted(corr_df["metric_col"].unique())
-            if "metric_col" in corr_df.columns
-            else []
-        )
-        if not entropy_cols or not metric_cols:
-            log.warning("Cannot infer columns from spearman_correlation.csv")
-            return
-    else:
-        entropy_cols = [c for c in df.columns if c.startswith("entropy_")]
-        metric_cols = [c for c in ["psnr"] if c in df.columns]
-        if not entropy_cols or not metric_cols:
-            log.warning("Missing columns for table4")
-            return
-        corr_df = correlation_matrix(df, entropy_cols, metric_cols)
-    if corr_df.empty:
+    """Table 4: Spearman rho between entropy and multiple metrics."""
+    metric_cols = ["psnr", "ssim", "sam", "ergas"]
+    metric_cols = [m for m in metric_cols if m in df.columns]
+
+    if not metric_cols:
+        log.warning("No metric columns for table4")
         return
 
-    methods = sorted(corr_df["method"].unique())
-    lookup = _build_correlation_lookup(corr_df)
+    methods = sorted(df["method"].unique())
 
-    header_parts = [
-        r"$\rho_{H_{s}}(\mathrm{PSNR})$",
-        *[m.replace("_", r"\_") for m in methods],
-    ]
-
-    body: list[str] = []
-    for ecol in entropy_cols:
-        ws = ecol.split("_")[-1]
-        row_label = rf"$\rho_{{H_{{{ws}}}}}(\mathrm{{PSNR}})$"
-        cells: list[str] = [row_label]
-        for method in methods:
-            cells.append(_format_correlation_cell(lookup, method, ecol, "psnr"))
-        body.append(" & ".join(cells) + r" \\")
-
-    ncols = len(methods)
-    tex = _render_latex_table(
-        LatexTableConfig(
-            caption=(
-                "Correlação de Spearman entre entropia e PSNR. "
-                "Maior PSNR é melhor."
-            ),
-            label="tab:spearman-heatmap",
-            col_spec="l" + "c" * ncols,
-            header=" & ".join(header_parts),
-            env="table*",
-            resizebox=True,
-        ),
-        body,
-    )
-    _write_tex(tex, output_dir / "spearman-heatmap.tex")
-
-
-def table5_kruskal_wallis(
-    df: pd.DataFrame,
-    output_dir: Path,
-    *,
-    agg_dir: Path | None = None,
-) -> None:
-    """Table 5: Kruskal-Wallis + Dunn post-hoc summary."""
-    global_csv = _agg_csv(agg_dir, "method_comparison_global.csv")
-    pairwise_csv = _agg_csv(agg_dir, "method_comparison_pairwise.csv")
-
-    body: list[str] = []
-
-    if global_csv is not None:
-        log.info("Table 5: reading from %s", global_csv)
-        global_df = pd.read_csv(global_csv)
-        pairwise_df = (
-            pd.read_csv(pairwise_csv)
-            if pairwise_csv is not None
-            else pd.DataFrame()
-        )
-        for _, row in global_df.iterrows():
-            metric = str(row["metric"])
-            stat = float(row["kruskal_H"])
-            p_val = float(row["kruskal_p"])
-            eps = float(row["epsilon_squared"])
-            n_sig = 0
-            if not pairwise_df.empty and "significant" in pairwise_df.columns:
-                n_sig = int(pairwise_df["significant"].sum())
-            p_str = "$< 10^{-10}$" if p_val < 1e-10 else f"${p_val:.2e}$"
-            body.append(
-                f"{metric.upper()} & ${stat:.1f}$ & "
-                f"{p_str} & ${eps:.4f}$ "
-                f"& {n_sig} \\\\"
-            )
-    else:
-        for metric in ["psnr", "ssim", "rmse", "sam"]:
-            if metric not in df.columns:
-                continue
-            result = method_comparison(df, metric_col=metric)
-            n_sig = 0
-            if not result.posthoc.empty:
-                n_sig = int(result.posthoc["significant"].sum())
-            p_str = (
-                "$< 10^{-10}$"
-                if result.p_value < 1e-10
-                else f"${result.p_value:.2e}$"
-            )
-            body.append(
-                f"{metric.upper()} & ${result.statistic:.1f}$ & "
-                f"{p_str} & ${result.epsilon_squared:.4f}$ "
-                f"& {n_sig} \\\\"
-            )
-
-    tex = _render_latex_table(
-        LatexTableConfig(
-            caption=(
-                "Teste de Kruskal-Wallis e diferenças par a par significativas "
-                "(pós-hoc de Dunn, "
-                "correção de Bonferroni)."
-            ),
-            label="tab:kruskal",
-            col_spec="lcccc",
-            header=(
-                r"Métrica & Estatística H & Valor de $p$ "
-                r"& $\epsilon^2$ & Pares significativos"
-            ),
-        ),
-        body,
-    )
-    _write_tex(tex, output_dir / "table5_kruskal.tex")
-
-
-def table6_regression(  # noqa: C901
-    df: pd.DataFrame,
-    output_dir: Path,
-    *,
-    agg_dir: Path | None = None,
-) -> None:
-    """Table 6: Robust regression coefficients."""
-    coefs_csv = _agg_csv(agg_dir, "robust_regression_coefs.csv")
-    vif_csv = _agg_csv(agg_dir, "robust_regression_vif.csv")
-    summary_csv = _agg_csv(agg_dir, "robust_regression_summary.csv")
-
-    if coefs_csv is not None:
-        log.info("Table 6: reading from %s", coefs_csv)
-        coefs_df = pd.read_csv(coefs_csv)
-        vif_df = pd.read_csv(vif_csv) if vif_csv is not None else pd.DataFrame()
-        summary_df = (
-            pd.read_csv(summary_csv)
-            if summary_csv is not None
-            else pd.DataFrame()
-        )
-
-        # Infer metric from summary CSV, default to "psnr".
-        metric = "psnr"
-        r_squared_adj = float("nan")
-        n = 0
-        if not summary_df.empty:
-            metric = (
-                str(summary_df.iloc[0]["metric"])
-                if "metric" in summary_df.columns
-                else "psnr"
-            )
-            r_squared_adj = (
-                float(summary_df.iloc[0]["r_squared_adj"])
-                if "r_squared_adj" in summary_df.columns
-                else float("nan")
-            )
-            n = int(summary_df.iloc[0]["n"]) if "n" in summary_df.columns else 0
+    for ws in ENTROPY_WINDOWS:
+        ecol = f"entropy_{ws}"
+        if ecol not in df.columns:
+            continue
 
         body: list[str] = []
-        for row in coefs_df.itertuples():
-            var = (
-                str(row.variable).replace("_", r"\_")
-                if hasattr(row, "variable")
-                else "--"
-            )
-            beta = float(row.beta) if hasattr(row, "beta") else float("nan")
-            std_err = (
-                float(row.std_err) if hasattr(row, "std_err") else float("nan")
-            )
-            z_value = (
-                float(row.z_value) if hasattr(row, "z_value") else float("nan")
-            )
-            p_value = (
-                float(row.p_value) if hasattr(row, "p_value") else float("nan")
-            )
-            ci_lo = float(row.ci_lo) if hasattr(row, "ci_lo") else float("nan")
-            ci_hi = float(row.ci_hi) if hasattr(row, "ci_hi") else float("nan")
-            p_str = "$< 10^{-10}$" if p_value < 1e-10 else f"${p_value:.2e}$"
-            ci_str = f"[{ci_lo:.4f}, {ci_hi:.4f}]"
-            body.append(
-                f"{var} & ${beta:.4f}$ & ${std_err:.4f}$ & "
-                f"${z_value:.2f}$ & {p_str} & {ci_str} \\\\"
-            )
+        for method in methods:
+            mdf = df[df["method"] == method]
+            cells = [_tex_escape(method)]
+            for mcol in metric_cols:
+                valid = mdf[[ecol, mcol]].dropna()
+                if len(valid) < 3:
+                    cells.append("--")
+                    continue
+                rho, p = stats.spearmanr(valid[ecol], valid[mcol])
+                cells.append(f"${rho:.3f}${_stars(p)}")
+            body.append(" & ".join(cells) + r" \\")
 
-        extra: list[str] = []
-        if (
-            not vif_df.empty
-            and "variable" in vif_df.columns
-            and "vif" in vif_df.columns
-        ):
-            extra.append(r"\vspace{0.5em}")
-            extra.append(r"\begin{tabular}{lr}")
-            extra.append(r"\toprule")
-            extra.append(r"Variável & FIV \\")
-            extra.append(r"\midrule")
-            for vrow in vif_df.itertuples():
-                var = str(vrow.variable).replace("_", r"\_")
-                extra.append(f"{var} & ${float(vrow.vif):.2f}$ \\\\")
-            extra.append(r"\bottomrule")
-            extra.append(r"\end{tabular}")
-
-        mu = metric.upper()
-        r2_str = f"{r_squared_adj:.4f}" if np.isfinite(r_squared_adj) else "N/A"
-        n_str = str(n) if n > 0 else "N/A"
-        tex = _render_latex_table(
-            LatexTableConfig(
-                caption=(
-                    f"Regressão robusta (RLM/HuberT) para {mu}. "
-                    f"$R^2_{{adj}} = {r2_str}$, $n = {n_str}$."
-                ),
-                label="tab:robust-regression",
-                col_spec="lrrrrr",
-                header=(
-                    r"Variável & $\beta$ & Erro Padrão "
-                    r"& $z$ & $p$ & IC 95\%"
-                ),
-                font_size=r"\tiny",
-                env="table*",
-            ),
+        header = "Método & " + " & ".join(
+            f"$\\rho$({{\\scriptsize {m.upper()}}})" for m in metric_cols
+        )
+        tex = _wrap_table(
             body,
-            extra_after_tabular=extra or None,
-        )
-        _write_tex(tex, output_dir / "robust-regression.tex")
-        return
-
-    # Fallback: compute from raw data.
-    entropy_cols = sorted(c for c in df.columns if c.startswith("entropy_"))
-    if not entropy_cols:
-        log.warning("No entropy columns for table6")
-        return
-
-    for metric in ["psnr", "ssim", "rmse"]:
-        if metric not in df.columns:
-            continue
-
-        result = robust_regression(
-            df, metric_col=metric, entropy_cols=entropy_cols
-        )
-        if result.coefficients.empty:
-            log.warning("Regression failed for %s", metric)
-            continue
-
-        body = []
-        for row in result.coefficients.itertuples():
-            var = str(row.variable).replace("_", r"\_")
-            p_str = (
-                "$< 10^{-10}$"
-                if row.p_value < 1e-10
-                else f"${row.p_value:.2e}$"
-            )
-            ci_str = f"[{row.ci_lo:.4f}, {row.ci_hi:.4f}]"
-            body.append(
-                f"{var} & ${row.beta:.4f}$ & "
-                f"${row.std_err:.4f}$ & "
-                f"${row.z_value:.2f}$ & "
-                f"{p_str} & {ci_str} \\\\"
-            )
-
-        extra = []
-        if not result.vif.empty:
-            extra.append(r"\vspace{0.5em}")
-            extra.append(r"\begin{tabular}{lr}")
-            extra.append(r"\toprule")
-            extra.append(r"Variável & FIV \\")
-            extra.append(r"\midrule")
-            for vrow in result.vif.itertuples():
-                var = str(vrow.variable).replace("_", r"\_")
-                extra.append(f"{var} & ${vrow.vif:.2f}$ \\\\")
-            extra.append(r"\bottomrule")
-            extra.append(r"\end{tabular}")
-
-        mu = metric.upper()
-        label = (
-            "tab:robust-regression"
-            if metric == "psnr"
-            else f"tab:robust-regression-{metric}"
-        )
-        tex = _render_latex_table(
-            LatexTableConfig(
-                caption=(
-                    f"Regressão robusta (RLM/HuberT) para {mu}. "
-                    f"$R^2_{{adj}} = {result.r_squared_adj:.4f}$"
-                    f", $n = {result.n}$."
-                ),
-                label=label,
-                col_spec="lrrrrr",
-                header=(
-                    r"Variável & $\beta$ & Erro Padrão "
-                    r"& $z$ & $p$ & IC 95\%"
-                ),
-                font_size=r"\tiny",
-                env="table*",
-            ),
-            body,
-            extra_after_tabular=extra or None,
-        )
-        filename = (
-            "robust-regression.tex"
-            if metric == "psnr"
-            else f"table6_regression_{metric}.tex"
-        )
-        _write_tex(tex, output_dir / filename)
-
-
-def table7_satellite(
-    df: pd.DataFrame,
-    output_dir: Path,
-    *,
-    agg_dir: Path | None = None,
-) -> None:
-    """Table 7: Mean PSNR per method x satellite."""
-    csv = _agg_csv(agg_dir, "by_satellite_psnr.csv")
-    if csv is not None:
-        log.info("Table 7: reading from %s", csv)
-        sat_summary = pd.read_csv(csv)
-    else:
-        sat_summary = summary_by_satellite(df, metric="psnr")
-
-    if sat_summary.empty:
-        log.warning("No data for table7")
-        return
-
-    methods = sorted(sat_summary["method"].unique())
-    satellites = sorted(sat_summary["satellite"].unique())
-
-    header = "Método & " + " & ".join(s.replace("_", r"\_") for s in satellites)
-    rankings = _compute_group_rankings(sat_summary, "satellite", satellites)
-    body = _build_ranked_rows(
-        sat_summary, "satellite", satellites, methods, rankings
-    )
-
-    tex = _render_latex_table(
-        LatexTableConfig(
             caption=(
-                r"PSNR médio (dB) $\pm$ IC de 95\% por método "
-                r"e sensor de satélite. Maior PSNR é melhor."
+                f"Correlação de Spearman entre entropia "
+                f"({ws}x{ws}) e métricas de qualidade. "
+                r"$^{*}p<0{,}05$; $^{**}p<0{,}01$; $^{***}p<0{,}001$."
             ),
-            label="tab:psnr-satellite",
-            col_spec="l" + "c" * len(satellites),
+            label=f"tab:spearman-e{ws}",
+            col_spec="l" + "c" * len(metric_cols),
             header=header,
             env="table*",
-        ),
-        body,
-    )
-    _write_tex(tex, output_dir / "psnr-satellite.tex")
+            resizebox=True,
+        )
+        _write_tex(tex, output_dir / f"tab4_spearman_entropy{ws}.tex")
 
 
-def table8_dl_comparison(
+# ── Table 5: Speed and Practical Viability ────────────────────────────
+
+
+def table5_speed(
     df: pd.DataFrame,
     output_dir: Path,
-    *,
-    results_dir: Path | None = None,
-    agg_dir: Path | None = None,
 ) -> None:
-    """Table 8: Classical vs. DL method comparison."""
-    csv = _agg_csv(agg_dir, "combined_comparison.csv")
-    if csv is not None:
-        log.info("Table 8: reading from %s", csv)
-        raw = pd.read_csv(csv)
-        # combined_comparison.csv has columns: type, method, noise_level, n,
-        # psnr_mean, psnr_ci95_lo, psnr_ci95_hi, ssim_mean, rmse_mean, ...
-        # Aggregate across noise levels to get overall mean per method.
-        present_m = [
-            m for m in ["psnr", "ssim", "rmse"] if f"{m}_mean" in raw.columns
-        ]
-        if not present_m:
-            log.warning(
-                "No metric columns in combined_comparison.csv for table8"
-            )
-            return
-        agg_cols = {f"{m}_mean": "mean" for m in present_m}
-        combined = (
-            raw
-            .groupby(["type", "method"], observed=True)
-            .agg(agg_cols)
-            .reset_index()
-        )
-        # Rename type labels to Portuguese.
-        combined["type"] = (
-            combined["type"]
-            .map({"classical": "Clássico", "dl": "Aprendizado Profundo"})
-            .fillna(combined["type"])
-        )
-        for m in present_m:
-            combined[m] = combined[f"{m}_mean"]
-        combined = combined.sort_values("psnr", ascending=False)
-        _add_metric_rankings(combined, present_m)
+    """Table 5: PSNR vs inference time per method."""
+    # Use gap_only for timing (noise doesn't affect elapsed_s)
+    subset = df[df["noise_level"] == "inf"]
+    if subset.empty:
+        subset = df
 
-        body: list[str] = []
-        prev_type = ""
-        for row in combined.itertuples():
-            row_type = str(row.type)
-            type_str = row_type if row_type != prev_type else ""
-            prev_type = row_type
-            method_str = str(row.method).replace("_", r"\_")
-            cells: list[str] = [type_str, method_str]
-            for m_col in present_m:
-                val = float(getattr(row, m_col))
-                rank = int(getattr(row, f"rank_{m_col}"))
-                cells.append(_format_table8_metric(val, rank))
-            body.append(" & ".join(cells) + r" \\")
-        present = present_m
-    else:
-        classical_summary = (
-            df
-            .groupby("method", observed=True)[["psnr", "ssim", "rmse"]]
-            .mean()
-            .reset_index()
-        )
-        classical_summary["type"] = "Clássico"
-
-        dl_base = (
-            results_dir.parent / "dl_eval"
-            if results_dir is not None
-            else Path(".")
-        )
-        dl_rows = _collect_dl_rows(dl_base)
-
-        if not dl_rows:
-            log.info(
-                "No DL results at %s. Skipping table8.",
-                dl_base,
-            )
-            return
-
-        dl_summary = pd.DataFrame(dl_rows)
-        combined = pd.concat([classical_summary, dl_summary], ignore_index=True)
-        combined = combined.sort_values("psnr", ascending=False)
-
-        present = [m for m in ["psnr", "ssim", "rmse"] if m in combined.columns]
-
-        _add_metric_rankings(combined, present)
-
-        body = []
-        prev_type = ""
-        for row in combined.itertuples():
-            row_type = str(row.type)
-            type_str = row_type if row_type != prev_type else ""
-            prev_type = row_type
-            method_str = str(row.method).replace("_", r"\_")
-            cells: list[str] = [type_str, method_str]
-            for m_col in present:
-                val = float(getattr(row, m_col))
-                rank = int(getattr(row, f"rank_{m_col}"))
-                cells.append(_format_table8_metric(val, rank))
-            body.append(" & ".join(cells) + r" \\")
-
-    tex = _render_latex_table(
-        LatexTableConfig(
-            caption=(
-                "Comparação de desempenho: interpolação clássica "
-                r"vs.\ métodos de aprendizado profundo. "
-                "Maior PSNR e SSIM são melhores; menor RMSE é melhor."
-            ),
-            label="tab:dl-results",
-            col_spec="ll" + "c" * len(present),
-            header=(
-                "Tipo & Método & " + " & ".join(m.upper() for m in present)
-            ),
-        ),
-        body,
-    )
-    _write_tex(tex, output_dir / "dl-results.tex")
-
-
-# ------------------------------------------------------------------
-# DL metrics table (table 9)
-# ------------------------------------------------------------------
-
-_DL_MODELS: tuple[str, ...] = ("ae", "vae", "gan", "unet", "vit")
-
-_DL_COLUMN_SPECS: list[tuple[str, str, bool, str]] = [
-    ("val_psnr", "PSNR (dB)", True, ".2f"),
-    ("val_ssim", "SSIM", True, ".4f"),
-    ("val_rmse", "RMSE", False, ".4f"),
-    ("val_pixel_acc_002", r"Acur. @0,02", True, ".4f"),
-    ("val_f1_002", r"F1 @0,02", True, ".4f"),
-    ("val_pixel_acc_005", r"Acur. @0,05", True, ".4f"),
-    ("val_f1_005", r"F1 @0,05", True, ".4f"),
-    ("val_pixel_acc_01", r"Acur. @0,10", True, ".4f"),
-    ("val_f1_01", r"F1 @0,10", True, ".4f"),
-]
-
-
-def _load_dl_history(dl_results_dir: Path, model: str) -> dict | None:
-    path = dl_results_dir / f"{model}_history.json"
-    if not path.exists():
-        log.debug("History not found: %s", path)
-        return None
-    with path.open(encoding="utf-8") as fh:
-        return json.load(fh)
-
-
-def _format_dl_metric(value: float, rank: int, fmt: str) -> str:
-    formatted = f"{value:{fmt}}"
-    if rank == 1:
-        return f"\\textbf{{{formatted}}}"
-    if rank == 2:
-        return f"\\underline{{{formatted}}}"
-    return formatted
-
-
-def table_dl_metrics(  # noqa: C901
-    dl_results_dir: Path | None,
-    output_dir: Path,
-    *,
-    agg_dir: Path | None = None,
-) -> None:
-    """Table DL: Final-epoch metrics summary for all DL models."""
-    csv = _agg_csv(agg_dir, "dl_training_history.csv")
-    if csv is not None:
-        log.info("Table DL: reading from %s", csv)
-        hist_df = pd.read_csv(csv)
-        if "model" not in hist_df.columns:
-            log.warning("dl_training_history.csv has no 'model' column")
-            return
-        # Last epoch per model.
-        available: dict[str, dict] = {}
-        for model, grp in hist_df.groupby("model", sort=False):
-            # Sort by epoch if available, take last row.
-            if "epoch" in grp.columns:
-                grp = grp.sort_values("epoch")
-            last_row = grp.iloc[-1].to_dict()
-            available[str(model)] = {
-                "model_name": str(model),
-                "epochs": [last_row],
-            }
-    else:
-        if dl_results_dir is None:
-            log.warning(
-                "No dl_results_dir or dl_training_history.csv"
-                " for table_dl_metrics"
-            )
-            return
-        histories = {m: _load_dl_history(dl_results_dir, m) for m in _DL_MODELS}
-        available = {
-            m: h for m, h in histories.items() if h and h.get("epochs")
-        }
-    if not available:
-        log.warning("No DL histories found. Skipping table_dl_metrics.")
+    if "elapsed_s" not in subset.columns:
+        log.warning("No elapsed_s column for table5")
         return
 
-    # Build rows: model -> {col_key: value}
-    rows: dict[str, dict[str, float | None]] = {}
-    for model, hist in available.items():
-        last = hist["epochs"][-1]
-        rows[model] = {key: last.get(key) for key, _, _, _ in _DL_COLUMN_SPECS}
-
-    # Compute per-column ranks
-    col_ranks: dict[str, dict[str, int]] = {}
-    for key, _, higher_is_better, _ in _DL_COLUMN_SPECS:
-        vals = {
-            m: v
-            for m, v in ((m, rows[m].get(key)) for m in available)
-            if v is not None and np.isfinite(v)
-        }
-        sorted_models = sorted(
-            vals, key=lambda m: vals[m], reverse=higher_is_better
+    rows = []
+    for method, grp in subset.groupby("method", observed=True):
+        psnr_mean = (
+            float(grp["psnr"].mean()) if "psnr" in grp.columns else np.nan
         )
-        col_ranks[key] = {m: i + 1 for i, m in enumerate(sorted_models)}
+        time_mean = float(grp["elapsed_s"].mean())
+        efficiency = psnr_mean / time_mean if time_mean > 0 else np.nan
+        rows.append({
+            "method": method,
+            "type": grp["type"].iloc[0] if "type" in grp.columns else "",
+            "psnr": psnr_mean,
+            "time": time_mean,
+            "efficiency": efficiency,
+        })
+
+    stats_df = pd.DataFrame(rows)
+
+    # Rank: PSNR higher better, time lower better, efficiency higher better
+    stats_df["psnr_rank"] = stats_df["psnr"].rank(ascending=False, method="min")
+    stats_df["time_rank"] = stats_df["time"].rank(ascending=True, method="min")
+    stats_df["eff_rank"] = stats_df["efficiency"].rank(
+        ascending=False, method="min"
+    )
+
+    stats_df = stats_df.sort_values("efficiency", ascending=False)
 
     body: list[str] = []
-    for model in available:
-        cells: list[str] = [model.upper()]
-        for key, _, _, fmt in _DL_COLUMN_SPECS:
-            val = rows[model].get(key)
-            if val is None or not np.isfinite(val):
-                cells.append("--")
-            else:
-                rank = col_ranks[key].get(model, 99)
-                cells.append(_format_dl_metric(val, rank, fmt))
-        body.append(" & ".join(cells) + r" \\")
+    for _, row in stats_df.iterrows():
+        psnr_cell = _ranked_plain(row["psnr"], int(row["psnr_rank"]), ".2f")
+        if row["time"] < 0.01:
+            time_str = f"${row['time']:.4f}$"
+        elif row["time"] < 1:
+            time_str = f"${row['time']:.3f}$"
+        else:
+            time_str = f"${row['time']:.2f}$"
+        _ranked_plain(row["time"], int(row["time_rank"]), ".3f")
+        eff_cell = _ranked_plain(row["efficiency"], int(row["eff_rank"]), ".1f")
+        body.append(
+            f"{row['type']} & {_tex_escape(str(row['method']))} & "
+            f"{psnr_cell} & {time_str} & {eff_cell} \\\\"
+        )
 
-    col_header = "Modelo & " + " & ".join(
-        label for _, label, _, _ in _DL_COLUMN_SPECS
-    )
-    ncols = 1 + len(_DL_COLUMN_SPECS)
-    tex = _render_latex_table(
-        LatexTableConfig(
-            caption=(
-                "Métricas de avaliação dos modelos de aprendizado profundo "
-                r"na última época de treinamento. "
-                "Maior PSNR, SSIM e acurácia são melhores; menor RMSE é melhor."
-                r"\textbf{Negrito}: melhor; \underline{sublinhado}: segundo "
-                "melhor."
-            ),
-            label="tab:dl-metrics",
-            col_spec="l" + "c" * (ncols - 1),
-            header=col_header,
-            font_size=r"\footnotesize",
-            env="table*",
-        ),
+    tex = _wrap_table(
         body,
+        caption=(
+            "Velocidade e viabilidade prática (sem ruído). "
+            "PSNR/s indica eficiência."
+        ),
+        label="tab:speed",
+        col_spec="llccc",
+        header=(
+            r"Tipo & Método & PSNR (dB) $\uparrow$ "
+            r"& Tempo (s/patch) $\downarrow$ & PSNR/s $\uparrow$"
+        ),
+        resizebox=True,
     )
-    _write_tex(tex, output_dir / "dl-metrics.tex")
+    _write_tex(tex, output_dir / "tab5_speed.tex")
 
 
-# ------------------------------------------------------------------
-# Dispatch table and CLI
-# ------------------------------------------------------------------
+# ── CLI ───────────────────────────────────────────────────────────────
 
 
-def _make_table_dispatch(
-    df: pd.DataFrame,
-    results_dir: Path,
-    output_dir: Path,
-    agg_dir: Path | None = None,
-) -> dict[int, tuple[str, Any]]:
-    """Build dispatch table mapping number -> (name, callable).
-
-    Each callable takes no arguments (partial application).
-    """
-    return {
-        1: (
-            "method_overview",
-            lambda: table1_method_overview(df, output_dir),
-        ),
-        2: (
-            "overall_results",
-            lambda: table2_overall_results(df, output_dir, agg_dir=agg_dir),
-        ),
-        3: (
-            "entropy_stratified",
-            lambda: table3_entropy_stratified(df, output_dir, agg_dir=agg_dir),
-        ),
-        4: (
-            "correlation",
-            lambda: table4_correlation(df, output_dir, agg_dir=agg_dir),
-        ),
-        5: (
-            "kruskal_wallis",
-            lambda: table5_kruskal_wallis(df, output_dir, agg_dir=agg_dir),
-        ),
-        6: (
-            "regression",
-            lambda: table6_regression(df, output_dir, agg_dir=agg_dir),
-        ),
-        7: (
-            "satellite",
-            lambda: table7_satellite(df, output_dir, agg_dir=agg_dir),
-        ),
-        8: (
-            "dl_comparison",
-            lambda: table8_dl_comparison(
-                df, output_dir, results_dir=results_dir, agg_dir=agg_dir
-            ),
-        ),
-    }
-
-
-def parse_args(
-    argv: list[str] | None = None,
-) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description=("Generate LaTeX tables from experiment results."),
-    )
-    parser.add_argument(
-        "--results",
-        type=Path,
-        default=None,
-        help="Path to classical experiment results directory.",
-    )
-    parser.add_argument(
-        "--dl-results",
-        type=Path,
-        default=None,
-        help="Path to DL models directory containing *_history.json files.",
-    )
-    parser.add_argument(
-        "--aggregated-dir",
-        type=Path,
-        default=None,
-        dest="aggregated_dir",
-        help=(
-            "Directory with pre-computed aggregated CSVs from "
-            "aggregate_results.py. Enables fast table generation without "
-            "re-running statistical computations. Auto-detected from "
-            "{results}/aggregated/ if that directory exists."
-        ),
-    )
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Generate LaTeX tables.")
     parser.add_argument(
         "--output",
         type=Path,
         default=None,
-        help=("Output directory for tables. Default: results_dir/tables/"),
-    )
-    parser.add_argument(
-        "--table",
-        type=int,
-        default=None,
-        help="Generate only this table number (1-8).",
+        help="Output directory. Defaults to paper_assets/tables/",
     )
     return parser.parse_args(argv)
 
 
-def _setup_file_logging(log_path: Path) -> None:
-    """Add a file handler to the root logger."""
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    handler = logging.FileHandler(log_path, encoding="utf-8")
-    handler.setLevel(logging.DEBUG)
-    handler.setFormatter(
-        logging.Formatter(
-            "%(asctime)s [%(levelname)s] %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
-    )
-    logging.getLogger().addHandler(handler)
-
-
-def main(argv: list[str] | None = None) -> None:  # noqa: C901
+def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
 
-    if (
-        args.results is None
-        and args.dl_results is None
-        and args.aggregated_dir is None
-    ):
-        log.error(
-            "Provide at least one of --results, "
-            "--dl-results, or --aggregated-dir."
-        )
+    df = load_combined()
+    if df.empty:
+        log.error("No data loaded. Check paper_assets/ paths.")
         return
 
-    # Resolve aggregated dir: explicit arg > auto-detect from results/.
-    agg_dir: Path | None = args.aggregated_dir
-    if agg_dir is None and args.results is not None:
-        auto = args.results / "aggregated"
-        if auto.exists():
-            agg_dir = auto
-            log.info("Auto-detected aggregated dir: %s", agg_dir)
-    if agg_dir is not None:
-        log.info("Using aggregated CSVs from: %s", agg_dir)
-
-    base_dir = args.results or args.dl_results or args.aggregated_dir
-    output_dir = args.output or base_dir / "tables"
+    output_dir = args.output or Path("paper_assets/tables")
     output_dir.mkdir(parents=True, exist_ok=True)
-    _setup_file_logging(base_dir / "tables.log")
 
-    if args.results is not None:
-        results_dir = args.results
-        df = load_results(results_dir)
-        dispatch = _make_table_dispatch(
-            df, results_dir, output_dir, agg_dir=agg_dir
-        )
+    generators = [
+        ("Table 1: Global Scoreboard", table1_global_scoreboard),
+        ("Table 2: Spectral Deconstruction", table2_spectral),
+        ("Table 3: Degradation by Entropy", table3_degradation),
+        ("Table 4: Spearman Correlation", table4_correlation),
+        ("Table 5: Speed", table5_speed),
+    ]
 
-        if args.table is not None:
-            if args.table not in dispatch:
-                log.error("Invalid table number: %d", args.table)
-                return
-            _, fn = dispatch[args.table]
-            fn()
-        else:
-            for num, (name, fn) in dispatch.items():
-                try:
-                    fn()
-                except Exception:
-                    log.exception("Error generating table %d (%s)", num, name)
-    elif agg_dir is not None:
-        # No raw results but aggregated CSVs available. All table functions
-        # either have a fast path (read from agg_dir CSV) or will gracefully
-        # skip if the relevant CSV is missing. Table 1 is always safe because
-        # it uses only static metadata (METHOD_INFO).
-        _empty_df = pd.DataFrame()
-        dispatch = _make_table_dispatch(
-            _empty_df, Path("."), output_dir, agg_dir=agg_dir
-        )
-        for num, (name, fn) in dispatch.items():
-            try:
-                fn()
-            except Exception:
-                log.exception("Error generating table %d (%s)", num, name)
-
-    # DL metrics table: use agg_dir CSV or JSON history.
-    has_dl_csv = (
-        agg_dir is not None and (agg_dir / "dl_training_history.csv").exists()
-    )
-    if args.dl_results is not None or has_dl_csv:
+    for name, func in generators:
         try:
-            table_dl_metrics(args.dl_results, output_dir, agg_dir=agg_dir)
+            log.info("Generating %s...", name)
+            func(df, output_dir)
         except Exception:
-            log.exception("Error generating DL metrics table")
+            log.exception("Error generating %s", name)
 
-    log.info("Tables saved to: %s", output_dir)
+    log.info("All tables saved to: %s", output_dir)
 
 
 if __name__ == "__main__":

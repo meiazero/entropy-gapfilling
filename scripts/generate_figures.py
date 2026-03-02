@@ -1,24 +1,18 @@
 """Generate publication-quality figures from experiment results.
 
-Produces figure types for the journal paper. All figures use
-matplotlib + seaborn with consistent styling.
+Data-driven rewrite. Produces 11 figure types with variations per noise
+level, entropy window, model, and entropy scenario.
 
 Usage:
-    uv run python scripts/generate_figures.py --results results/paper_results
-    uv run python scripts/generate_figures.py \
-        --results results/paper_results --figure 2
-    uv run python scripts/generate_figures.py \
-        --dl-results dl_models
-    uv run python scripts/generate_figures.py \
-        --results results/paper_results --dl-results dl_models
+    uv run python scripts/generate_figures.py
+    uv run python scripts/generate_figures.py --output docs/figures
+    uv run python scripts/generate_figures.py --png-only
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import logging
-import math
 from pathlib import Path
 
 import matplotlib
@@ -26,81 +20,36 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from matplotlib.axes import Axes
-
-from pdi_pipeline.aggregation import (
-    load_results,
+from data_loader import (
+    CATEGORY_LABELS,
+    ENTROPY_WINDOWS,
+    NOISE_ORDER,
+    entropy_terciles,
+    load_all_dl_histories,
+    load_combined,
+    noise_label,
+    select_top_n,
 )
-from pdi_pipeline.logging_utils import setup_file_logging, setup_logging
-from pdi_pipeline.visualization import to_display_rgb
+from scipy import stats
 
 matplotlib.use("Agg")
 
-setup_logging()
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%H:%M:%S",
+)
 log = logging.getLogger(__name__)
 
-# Publication styling
-FIGSIZE_SINGLE = (3.5, 3.0)
-FIGSIZE_DOUBLE = (7.0, 4.0)
-FIGSIZE_GRID = (7.0, 8.0)
-DPI = 300
-FONT_SIZE = 8
-
-# Shared boxplot keyword arguments (reference: fig3)
-_BOXPLOT_KW: dict[str, object] = {
-    "fliersize": 6,
-    "linewidth": 1.2,
-    "showmeans": True,
-    "boxprops": {
-        "edgecolor": "#333333",
-        "linewidth": 1.2,
-    },
-    "whiskerprops": {
-        "color": "#333333",
-        "linewidth": 1.0,
-    },
-    "capprops": {
-        "color": "#333333",
-        "linewidth": 1.0,
-    },
-    "medianprops": {
-        "color": "#ff7f0e",
-        "linewidth": 1.0,
-    },
-    "meanprops": {
-        "marker": "x",
-        "markeredgecolor": "#333333",
-        "markersize": 5,
-    },
-    "flierprops": {
-        "markeredgecolor": "#d62728",
-        "markerfacecolor": "#d62728",
-        "markersize": 6,
-    },
-}
-
-# Shared legend keyword arguments
-_LEGEND_KW: dict[str, object] = {
-    "loc": "best",
-    "frameon": True,
-    "framealpha": 0.85,
-    "fontsize": FONT_SIZE - 1,
-}
-
-# Shared scatter keyword arguments
-_SCATTER_KW: dict[str, object] = {
-    "s": 12,
-    "alpha": 0.7,
-    "edgecolor": "white",
-    "linewidth": 0.3,
-    "rasterized": True,
-}
+# ── Styling ───────────────────────────────────────────────────────────
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _STYLE_PATH = _PROJECT_ROOT / "images" / "style.mplstyle"
 
-# Publication font-size overrides applied on top of the .mplstyle file
-_PUB_FONT_OVERRIDES = {
+DPI = 300
+FONT_SIZE = 8
+
+_PUB_FONT = {
     "font.size": FONT_SIZE,
     "axes.titlesize": FONT_SIZE + 1,
     "axes.labelsize": FONT_SIZE,
@@ -113,1310 +62,756 @@ _PUB_FONT_OVERRIDES = {
     "savefig.pad_inches": 0.05,
 }
 
-
-_SETTINGS: dict[str, object] = {"png_only": False, "agg_dir": None}
-
-_PATCH_SPLITS: dict[int, str] = {}
-
-DL_MODELS: tuple[str, ...] = ("ae", "vae", "gan", "unet", "vit")
-
-
-def _load_patch_splits() -> dict[int, str]:
-    """Load patch_id -> split mapping from the manifest (cached)."""
-    if _PATCH_SPLITS:
-        return _PATCH_SPLITS
-
-    manifest_path = _PROJECT_ROOT / "preprocessed" / "manifest.csv"
-    if not manifest_path.exists():
-        return _PATCH_SPLITS
-
-    df = pd.read_csv(manifest_path, usecols=["patch_id", "split"])
-    for _, row in df.iterrows():
-        _PATCH_SPLITS[int(row["patch_id"])] = str(row["split"])
-    return _PATCH_SPLITS
-
-
-def _patch_split(patch_id: int) -> str:
-    """Return the split for a given patch_id, defaulting to 'train'."""
-    splits = _load_patch_splits()
-    return splits.get(patch_id, "train")
-
-
-def _collect_numeric_stems(base_dir: Path, pattern: str) -> set[int]:
-    ids: set[int] = set()
-    if not base_dir.exists():
-        return ids
-
-    for method_dir in base_dir.iterdir():
-        if not method_dir.is_dir() or method_dir.name.startswith("_"):
-            continue
-        for path in method_dir.glob(pattern):
-            try:
-                ids.add(int(path.stem))
-            except ValueError:
-                continue
-    return ids
-
-
-def _available_recon_patch_ids(
-    recon_dir: Path,
-    noise_level: str = "inf",
-) -> set[int]:
-    """Return patch IDs that have reconstruction arrays or PNGs."""
-    npy_base = recon_dir.parent / "reconstruction_arrays" / noise_level
-    if npy_base.exists():
-        return _collect_numeric_stems(npy_base, "*.npy")
-    return _collect_numeric_stems(recon_dir, "*.png")
-
-
-def _has_preprocessed_clean(
-    preprocessed: Path,
-    satellite: str,
-    patch_id: int,
-) -> bool:
-    """Check whether the preprocessed clean/mask files exist for a patch."""
-    split = _patch_split(patch_id)
-    base = preprocessed / split / satellite
-    clean = base / f"{patch_id:07d}_clean.npy"
-    mask = base / f"{patch_id:07d}_mask.npy"
-    return clean.exists() and mask.exists()
-
-
-def _pick_entropy_representatives(
-    df: pd.DataFrame,
-    percentiles: dict[str, float],
-    extra_col: str,
-) -> list[tuple[str, int, str]]:
-    reps: list[tuple[str, int, str]] = []
-    for label, q in percentiles.items():
-        target = float(df["entropy_7"].quantile(q))
-        closest = df.iloc[(df["entropy_7"] - target).abs().argsort()[:1]].iloc[
-            0
-        ]
-        reps.append((label, int(closest["patch_id"]), str(closest[extra_col])))
-    return reps
-
-
-def _load_clean_and_mask(
-    preprocessed: Path,
-    satellite: str,
-    patch_id: int,
-) -> tuple[np.ndarray, np.ndarray] | None:
-    split = _patch_split(patch_id)
-    clean_path = preprocessed / split / satellite / f"{patch_id:07d}_clean.npy"
-    mask_path = preprocessed / split / satellite / f"{patch_id:07d}_mask.npy"
-    if not clean_path.exists() or not mask_path.exists():
-        return None
-
-    clean = np.load(clean_path)
-    mask = np.load(mask_path)
-    if mask.ndim == 3:
-        mask = mask[:, :, 0]
-    return clean, mask
-
-
-def _compute_error_map(clean: np.ndarray, recon: np.ndarray) -> np.ndarray:
-    recon_matched = recon
-    clean_matched = clean
-    if clean.ndim == 3 and recon.ndim == 3:
-        common_channels = min(clean.shape[2], recon.shape[2])
-        clean_matched = clean[:, :, :common_channels]
-        recon_matched = recon[:, :, :common_channels]
-
-    return np.mean(
-        (clean_matched.astype(np.float32) - recon_matched.astype(np.float32))
-        ** 2,
-        axis=2 if clean_matched.ndim == 3 else None,
-    )
-
-
-def _choose_fig5_methods(valid: pd.DataFrame) -> list[str] | None:
-    method_means = (
-        valid
-        .groupby("method", observed=True)["psnr"]
-        .mean()
-        .sort_values(ascending=False)
-    )
-    if len(method_means) < 2:
-        return None
-
-    best_method = str(method_means.index[0])
-    mid_method = str(method_means.index[len(method_means) // 2])
-    return [best_method, mid_method]
-
-
-def _render_fig5_row(
-    axes: np.ndarray,
-    row_idx: int,
-    ncols: int,
-    results_dir: Path,
-    preprocessed: Path,
-    patch_id: int,
-    satellite: str,
-    label: str,
-    selected_methods: list[str],
-    cmap: matplotlib.colors.Colormap,
-) -> None:
-    from pdi_pipeline.statistics import spatial_autocorrelation
-
-    loaded = _load_clean_and_mask(preprocessed, satellite, patch_id)
-    if loaded is None:
-        log.warning("Patch files not found for patch_id=%d", patch_id)
-        for c in range(ncols):
-            axes[row_idx, c].set_visible(False)
-        return
-
-    clean, mask = loaded
-    for col_idx, method in enumerate(selected_methods):
-        ax = axes[row_idx, col_idx]
-        recon = _load_recon_array(results_dir, method, patch_id)
-        if recon is None:
-            ax.set_visible(False)
-            continue
-
-        error_map = _compute_error_map(clean, recon)
-        if col_idx == 0:
-            ax.imshow(error_map, cmap="hot")
-            ax.set_title(f"{method}\n(EQM)", fontsize=FONT_SIZE - 1)
-            ax.set_ylabel(f"{label}\nrecorte {patch_id}", fontsize=FONT_SIZE)
-            ax.axis("off")
-            continue
-
-        ax.set_title(f"{method}\n(LISA)", fontsize=FONT_SIZE - 1)
-        try:
-            result = spatial_autocorrelation(error_map, mask)
-            ax.imshow(result.lisa_labels, cmap=cmap, vmin=0, vmax=4)
-        except Exception:
-            log.warning("LISA failed for patch=%d method=%s", patch_id, method)
-            ax.text(
-                0.5,
-                0.5,
-                "LISA falhou",
-                ha="center",
-                va="center",
-                transform=ax.transAxes,
-                fontsize=FONT_SIZE,
-            )
-        ax.axis("off")
-
-
-def _render_fig6_row(
-    axes: np.ndarray,
-    row_idx: int,
-    ncols: int,
-    preprocessed: Path,
-    sat: str,
-    patch_id: int,
-    noise_level: str,
-    results_dir: Path,
-    top_methods: list[str],
-    patch_metrics: pd.DataFrame,
-    label: str,
-) -> None:
-    split = _patch_split(patch_id)
-    clean_path = preprocessed / split / sat / f"{patch_id:07d}_clean.npy"
-    degraded_path = (
-        preprocessed
-        / split
-        / sat
-        / f"{patch_id:07d}_degraded_{noise_level}.npy"
-    )
-    mask_path = preprocessed / split / sat / f"{patch_id:07d}_mask.npy"
-
-    if not clean_path.exists() or not degraded_path.exists():
-        log.warning("Patch files not found for patch_id=%d", patch_id)
-        for c in range(ncols):
-            axes[row_idx, c].set_visible(False)
-        return
-
-    clean = np.load(clean_path)
-    degraded = np.load(degraded_path)
-    mask = np.load(mask_path) if mask_path.exists() else None
-    if mask is not None and mask.ndim == 3:
-        mask = mask[:, :, 0]
-
-    axes[row_idx, 0].imshow(to_display_rgb(clean))
-    axes[row_idx, 0].set_title("Limpa", fontsize=FONT_SIZE)
-    axes[row_idx, 0].axis("off")
-    axes[row_idx, 0].set_ylabel(label, fontsize=FONT_SIZE)
-
-    axes[row_idx, 1].imshow(to_display_rgb(degraded))
-    axes[row_idx, 1].set_title("Degradada", fontsize=FONT_SIZE)
-    axes[row_idx, 1].axis("off")
-
-    if mask is not None:
-        axes[row_idx, 2].imshow(mask, cmap="gray", vmin=0, vmax=1)
-    else:
-        axes[row_idx, 2].text(
-            0.5,
-            0.5,
-            "N/D",
-            ha="center",
-            va="center",
-            transform=axes[row_idx, 2].transAxes,
-        )
-    axes[row_idx, 2].set_title("Máscara", fontsize=FONT_SIZE)
-    axes[row_idx, 2].axis("off")
-
-    for offset, method in enumerate(top_methods):
-        col = 3 + offset
-        recon = _load_recon_array(results_dir, method, patch_id, noise_level)
-        if recon is not None:
-            axes[row_idx, col].imshow(to_display_rgb(recon))
-            method_row = patch_metrics[patch_metrics["method"] == method]
-            if not method_row.empty:
-                psnr_val = float(method_row.iloc[0]["psnr"])
-                title = f"{method}\n{psnr_val:.1f} dB"
-            else:
-                title = method
-            axes[row_idx, col].set_title(title, fontsize=FONT_SIZE - 1)
-        else:
-            axes[row_idx, col].set_title(method, fontsize=FONT_SIZE - 1)
-        axes[row_idx, col].axis("off")
-
-
-def _load_recon_array(
-    results_dir: Path,
-    method: str,
-    patch_id: int,
-    noise_level: str = "inf",
-) -> np.ndarray | None:
-    """Load a reconstruction array, preferring raw .npy over PNG.
-
-    Returns None if no reconstruction is found.
-    """
-    npy_path = (
-        results_dir
-        / "reconstruction_arrays"
-        / noise_level
-        / method
-        / f"{patch_id:07d}.npy"
-    )
-    if npy_path.exists():
-        return np.load(npy_path)
-    png_path = (
-        results_dir / "reconstruction_images" / method / f"{patch_id:07d}.png"
-    )
-    if png_path.exists():
-        return plt.imread(str(png_path))[:, :, :3]
-    return None
-
-
-def _load_dl_history(dl_results_dir: Path, model: str) -> dict | None:
-    """Load training history JSON for *model* from *dl_results_dir*."""
-    path = dl_results_dir / f"{model}_history.json"
-    if not path.exists():
-        log.debug("History not found: %s", path)
-        return None
-    with path.open() as fh:
-        return json.load(fh)
-
-
-def _load_histories_from_csv(agg_dir: Path) -> dict[str, dict]:
-    """Load dl_training_history.csv and convert to model->hist dict.
-
-    Returns an empty dict if the CSV does not exist or has no model column.
-    """
-    csv_path = agg_dir / "dl_training_history.csv"
-    if not csv_path.exists():
-        return {}
-    df = pd.read_csv(csv_path)
-    if "model" not in df.columns:
-        return {}
-    result: dict[str, dict] = {}
-    for model, grp in df.groupby("model", sort=False):
-        result[str(model)] = {
-            "model_name": str(model),
-            "epochs": grp.to_dict(orient="records"),
-        }
-    return result
-
-
-def _get_dl_histories(dl_results_dir: Path | None) -> dict[str, dict]:
-    """Return {model: hist_dict} from the aggregated CSV or JSON fallback.
-
-    Tries the pre-computed dl_training_history.csv in agg_dir first. Falls
-    back to loading individual JSON files from dl_results_dir.
-    """
-    agg_dir = _SETTINGS.get("agg_dir")
-    if agg_dir is not None:
-        from_csv = _load_histories_from_csv(agg_dir)  # type: ignore[arg-type]
-        if from_csv:
-            return from_csv
-    if dl_results_dir is None:
-        return {}
-    return {
-        m: h
-        for m in DL_MODELS
-        if (h := _load_dl_history(dl_results_dir, m)) is not None
-    }
-
-
-def _save_figure(fig: plt.Figure, output_dir: Path, name: str) -> None:
-    """Save figure in configured formats (PNG always, PDF unless --png-only)."""
-    fig.savefig(output_dir / f"{name}.png", dpi=DPI, bbox_inches="tight")
-    if not _SETTINGS["png_only"]:
-        fig.savefig(output_dir / f"{name}.pdf", bbox_inches="tight")
-
-
-def _choose_entropy_column(df: pd.DataFrame) -> tuple[str, int] | None:
-    if "entropy_7" in df.columns:
-        return "entropy_7", 7
-    if "entropy_15" in df.columns:
-        return "entropy_15", 15
-
-    entropy_cols = sorted(c for c in df.columns if c.startswith("entropy_"))
-    if not entropy_cols:
-        return None
-
-    entropy_col = entropy_cols[0]
-    try:
-        window_size = int(entropy_col.split("_")[-1])
-    except ValueError:
-        window_size = 0
-    return entropy_col, window_size
-
-
-def _scatter_grid(
-    n_items: int, min_cols: int = 2, max_cols: int = 4
-) -> tuple[int, int]:
-    if n_items <= 0:
-        return 1, 1
-    cols = min(max_cols, max(min_cols, math.ceil(math.sqrt(n_items))))
-    rows = math.ceil(n_items / cols)
-    if rows / cols > 1.35 and cols < max_cols:
-        cols += 1
-        rows = math.ceil(n_items / cols)
-    return rows, cols
-
-
-def _add_entropy_psnr_fit(
-    ax: Axes, mdf: pd.DataFrame, entropy_col: str
-) -> None:
-    if len(mdf) < 3:
-        return
-
-    x_vals = mdf[entropy_col].to_numpy()
-    y_vals = mdf["psnr"].to_numpy()
-
-    beta, alpha = np.polyfit(x_vals, y_vals, 1)
-    y_pred = beta * x_vals + alpha
-    ss_res = float(np.sum((y_vals - y_pred) ** 2))
-    ss_tot = float(np.sum((y_vals - np.mean(y_vals)) ** 2))
-    r2 = 1.0 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
-    n = len(y_vals)
-    r2_adj = 1.0 - (1.0 - r2) * (n - 1) / (n - 2) if n > 2 else r2
-
-    sns.regplot(
-        data=mdf,
-        x=entropy_col,
-        y="psnr",
-        scatter=False,
-        ci=None,
-        ax=ax,
-        color="#555555",
-        line_kws={"linewidth": 1.0, "linestyle": "--", "label": "Ajuste"},
-    )
-
-    stats_text = (
-        f"y = {alpha:.2f} + {beta:.2f}x\n"
-        f"$r^2$ = {r2:.3f}\n"
-        f"$r^2_{{adj}}$ = {r2_adj:.3f}\n"
-        f"$\\beta$ = {beta:.2f}"
-    )
-    ax.text(
-        0.03,
-        0.97,
-        stats_text,
-        transform=ax.transAxes,
-        va="top",
-        ha="left",
-        fontsize=FONT_SIZE - 2,
-        bbox={
-            "boxstyle": "round,pad=0.2",
-            "facecolor": "white",
-            "alpha": 0.75,
-        },
-    )
+_SETTINGS: dict[str, bool] = {"png_only": False}
 
 
 def _setup_style() -> None:
     if _STYLE_PATH.exists():
         plt.style.use(str(_STYLE_PATH))
-    plt.rcParams.update(_PUB_FONT_OVERRIDES)
+    plt.rcParams.update(_PUB_FONT)
     sns.set_palette("Set2")
 
 
-def fig1_entropy_examples(results_dir: Path, output_dir: Path) -> None:
-    """Fig 1: Entropy map examples at 3 scales, 2 satellites."""
-    from pdi_pipeline.entropy import shannon_entropy
+def _save(fig: plt.Figure, output_dir: Path, name: str) -> None:
+    fig.savefig(output_dir / f"{name}.png", dpi=DPI, bbox_inches="tight")
+    if not _SETTINGS["png_only"]:
+        fig.savefig(output_dir / f"{name}.pdf", bbox_inches="tight")
+    log.info("Saved %s", name)
 
-    log.info("Figure 1: entropy map examples (computed on-the-fly)")
 
-    preprocessed = _PROJECT_ROOT / "preprocessed"
+# ── Fig 1: Pareto Front (Time x Quality) ─────────────────────────────
 
-    satellites = ["sentinel2", "landsat8"]
-    window_sizes = [7, 15, 31]
 
-    # Find which satellites actually have data (check all splits)
-    _splits = ("test", "val", "train")
-    available_sats: list[str] = []
-    _sat_split: dict[str, str] = {}
-    for sat in satellites:
-        for split in _splits:
-            sat_dir = preprocessed / split / sat
-            if sat_dir.exists() and list(sat_dir.glob("*_clean.npy")):
-                available_sats.append(sat)
-                _sat_split[sat] = split
-                break
-
-    if not available_sats:
-        log.warning("No preprocessed data found. Skipping fig1.")
+def fig1_pareto(df: pd.DataFrame, output_dir: Path) -> None:
+    """Scatter plot of PSNR vs elapsed_s (log scale) per method."""
+    if "elapsed_s" not in df.columns:
+        log.warning("No elapsed_s for fig1")
         return
 
-    nrows = len(available_sats)
-    ncols = len(window_sizes)
+    noises = ["all"] + [
+        n for n in NOISE_ORDER if n in df["noise_level"].unique()
+    ]
 
-    fig_width = 2.3 * ncols
-    fig_height = 2.3 * nrows
-    fig, axes = plt.subplots(
-        nrows,
-        ncols,
-        figsize=(fig_width, fig_height),
-        squeeze=False,
-    )
-
-    for row_idx, sat in enumerate(available_sats):
-        clean_files = sorted(
-            (preprocessed / _sat_split[sat] / sat).glob("*_clean.npy")
-        )
-        if not clean_files:
+    for noise in noises:
+        subset = df if noise == "all" else df[df["noise_level"] == noise]
+        if subset.empty:
             continue
-        # Use first available patch
-        clean = np.load(clean_files[0])
+        suffix = noise.replace("inf", "gap_only")
 
-        for col_idx, ws in enumerate(window_sizes):
-            ax = axes[row_idx, col_idx]
-            ent = shannon_entropy(clean, ws)
-            im = ax.imshow(ent, cmap="RdYlBu_r")
-            plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-            ax.set_title(f"{sat} - {ws}x{ws}")
-            if col_idx == 0:
-                ax.set_ylabel("Entropia")
-            ax.axis("off")
+        stats_df = (
+            subset
+            .groupby(["method", "type"], observed=True)
+            .agg(psnr=("psnr", "mean"), time=("elapsed_s", "mean"))
+            .reset_index()
+        )
 
-    plt.tight_layout()
-    _save_figure(fig, output_dir, "fig1_entropy_examples")
-    plt.close(fig)
-    log.info("Saved fig1_entropy_examples")
+        fig, ax = plt.subplots(figsize=(5, 3.5))
+
+        for mtype, color, marker in [
+            ("Clássico", "#1f77b4", "o"),
+            ("DL", "#ff7f0e", "s"),
+        ]:
+            sub = stats_df[stats_df["type"] == mtype]
+            if sub.empty:
+                continue
+            ax.scatter(
+                sub["time"],
+                sub["psnr"],
+                c=color,
+                marker=marker,
+                s=40,
+                edgecolors="white",
+                linewidth=0.5,
+                label=mtype,
+                zorder=3,
+            )
+            for _, row in sub.iterrows():
+                ax.annotate(
+                    row["method"],
+                    (row["time"], row["psnr"]),
+                    fontsize=FONT_SIZE - 2,
+                    ha="left",
+                    va="bottom",
+                    xytext=(3, 2),
+                    textcoords="offset points",
+                )
+
+        ax.set_xscale("log")
+        ax.set_xlabel("Tempo de Inferência (s/patch, log)")
+        ax.set_ylabel("PSNR (dB)")
+        noise_title = noise_label(noise) if noise != "all" else "Global"
+        ax.set_title(f"Trade-off Qualidade x Velocidade - {noise_title}")
+        ax.legend(loc="best", frameon=True, framealpha=0.85)
+        ax.grid(True, alpha=0.3, linewidth=0.5)
+        plt.tight_layout()
+        _save(fig, output_dir, f"fig1_pareto_{suffix}")
+        plt.close(fig)
 
 
-def fig2_entropy_vs_psnr(results_dir: Path, output_dir: Path) -> None:
-    """Fig 2: Scatterplot of entropy vs PSNR per method.
+# ── Fig 2: Spectral Error Radar Chart ─────────────────────────────────
 
-    One figure per window size.
-    """
-    df = load_results(results_dir)
 
-    entropy_cols = sorted(c for c in df.columns if c.startswith("entropy_"))
-    if not entropy_cols:
-        log.warning("No entropy columns for fig2")
+def fig2_spectral_radar(df: pd.DataFrame, output_dir: Path) -> None:
+    """Radar/spider chart of RMSE per band per method category."""
+    bands = ["rmse_b0", "rmse_b1", "rmse_b2", "rmse_b3"]
+    band_labels = ["B0\n(Azul)", "B1\n(Verde)", "B2\n(Verm.)", "B3\n(NIR)"]
+
+    if not all(b in df.columns for b in bands):
+        log.warning("Missing band columns for fig2")
+        return
+
+    # Build category display names
+    if "method_category" in df.columns:
+        cat_col = "method_category"
+    elif "type" in df.columns:
+        cat_col = "type"
+    else:
+        log.warning("No category column for fig2")
+        return
+
+    noises = [n for n in NOISE_ORDER if n in df["noise_level"].unique()]
+
+    for noise in noises:
+        subset = df[df["noise_level"] == noise]
+        if subset.empty:
+            continue
+        suffix = noise.replace("inf", "gap_only")
+
+        categories = sorted(subset[cat_col].unique())
+        category_means = {}
+        for cat in categories:
+            cat_df = subset[subset[cat_col] == cat]
+            means = [float(cat_df[b].mean()) for b in bands]
+            category_means[cat] = means
+
+        N = len(bands)
+        angles = np.linspace(0, 2 * np.pi, N, endpoint=False).tolist()
+        angles += angles[:1]  # close the polygon
+
+        fig, ax = plt.subplots(figsize=(4, 4), subplot_kw={"polar": True})
+        palette = sns.color_palette("Set2", len(categories))
+
+        for idx, cat in enumerate(categories):
+            values = category_means[cat] + [category_means[cat][0]]
+            label = CATEGORY_LABELS.get(cat, cat)
+            ax.plot(
+                angles,
+                values,
+                linewidth=1.5,
+                color=palette[idx],
+                label=label,
+                marker="o",
+                markersize=3,
+            )
+            ax.fill(angles, values, alpha=0.1, color=palette[idx])
+
+        ax.set_xticks(angles[:-1])
+        ax.set_xticklabels(band_labels, fontsize=FONT_SIZE)
+        ax.set_title(
+            f"Perfil Espectral de Erro — {noise_label(noise)}",
+            fontsize=FONT_SIZE + 1,
+            pad=20,
+        )
+        ax.legend(
+            loc="upper right",
+            bbox_to_anchor=(1.35, 1.1),
+            fontsize=FONT_SIZE - 2,
+            frameon=True,
+        )
+        plt.tight_layout()
+        _save(fig, output_dir, f"fig2_spectral_radar_{suffix}")
+        plt.close(fig)
+
+
+# ── Fig 3: Entropy Sensitivity (SAM/ERGAS vs Entropy) ────────────────
+
+
+def fig3_sensitivity(df: pd.DataFrame, output_dir: Path) -> None:
+    """Regression plots of SAM/ERGAS vs entropy for top methods."""
+    top_classic = select_top_n(df[df["type"] == "Clássico"], n=3)
+    top_dl = select_top_n(df[df["type"] == "DL"], n=3)
+    selected = top_classic + top_dl
+
+    if not selected:
+        log.warning("No methods for fig3")
+        return
+
+    metrics_to_plot = [m for m in ["sam", "ergas"] if m in df.columns]
+    noises = [n for n in NOISE_ORDER if n in df["noise_level"].unique()]
+    palette = sns.color_palette("Set2", len(selected))
+
+    for metric in metrics_to_plot:
+        for ws in ENTROPY_WINDOWS:
+            ecol = f"entropy_{ws}"
+            if ecol not in df.columns:
+                continue
+            for noise in noises:
+                subset = df[df["noise_level"] == noise]
+                if subset.empty:
+                    continue
+                suffix = noise.replace("inf", "gap_only")
+
+                fig, ax = plt.subplots(figsize=(5, 3.5))
+
+                for idx, method in enumerate(selected):
+                    mdf = subset[subset["method"] == method][
+                        [ecol, metric]
+                    ].dropna()
+                    if len(mdf) < 10:
+                        continue
+                    sns.regplot(
+                        data=mdf,
+                        x=ecol,
+                        y=metric,
+                        ax=ax,
+                        color=palette[idx],
+                        scatter_kws={"s": 8, "alpha": 0.4, "rasterized": True},
+                        line_kws={"linewidth": 1.5},
+                        label=method,
+                        ci=95,
+                    )
+
+                ax.set_xlabel(f"Entropia ({ws}x{ws})")
+                ax.set_ylabel(metric.upper())
+                ax.set_title(
+                    f"Sensibilidade à Entropia — {metric.upper()} "
+                    f"({noise_label(noise)})"
+                )
+                ax.legend(loc="best", fontsize=FONT_SIZE - 2, frameon=True)
+                ax.grid(True, alpha=0.2, linewidth=0.5)
+                plt.tight_layout()
+                _save(
+                    fig, output_dir, f"fig3_sensitivity_{metric}_{suffix}_e{ws}"
+                )
+                plt.close(fig)
+
+
+# ── Fig 4: Multi-Sensor Violin (Classic Only) ────────────────────────
+
+
+def fig4_multisensor(df: pd.DataFrame, output_dir: Path) -> None:
+    """Violin plot of SSIM per satellite for top classic methods."""
+    classic = df[df["type"] == "Clássico"]
+    if classic.empty:
+        log.warning("No classic data for fig4")
+        return
+
+    top = select_top_n(classic, n=3)
+    if not top:
+        return
+
+    noises = [n for n in NOISE_ORDER if n in classic["noise_level"].unique()]
+
+    for noise in noises:
+        subset = classic[
+            (classic["noise_level"] == noise) & (classic["method"].isin(top))
+        ]
+        if subset.empty:
+            continue
+        suffix = noise.replace("inf", "gap_only")
+
+        fig, ax = plt.subplots(figsize=(6, 3.5))
+        sns.violinplot(
+            data=subset,
+            x="satellite",
+            y="ssim",
+            hue="method",
+            palette="Set2",
+            ax=ax,
+            inner="quartile",
+            linewidth=0.8,
+        )
+        ax.set_xlabel("Satélite")
+        ax.set_ylabel("SSIM")
+        ax.set_title(
+            f"Distribuição SSIM por Sensor — {noise_label(noise)} "
+            f"(Top-3 Clássicos)"
+        )
+        ax.legend(title="Método", loc="best", fontsize=FONT_SIZE - 2)
+        ax.grid(True, axis="y", alpha=0.3, linewidth=0.5)
+        plt.tight_layout()
+        _save(fig, output_dir, f"fig4_multisensor_{suffix}")
+        plt.close(fig)
+
+
+# ── Fig 5: F1 Score by Threshold ──────────────────────────────────────
+
+
+def fig5_f1_threshold(df: pd.DataFrame, output_dir: Path) -> None:
+    """Grouped bar chart of F1 scores per model at each threshold."""
+    thresholds = [
+        ("f1_002", r"$\tau=0{,}02$"),
+        ("f1_005", r"$\tau=0{,}05$"),
+        ("f1_01", r"$\tau=0{,}10$"),
+    ]
+    available_thresholds = [
+        (key, label) for key, label in thresholds if key in df.columns
+    ]
+    if not available_thresholds:
+        log.warning("No F1 columns for fig5")
         return
 
     methods = sorted(df["method"].unique())
-    n_methods = len(methods)
-    nrows, ncols = 5, 3
-
-    palette = sns.color_palette("Set2", n_methods)
-
-    for entropy_col in entropy_cols:
-        try:
-            ws = int(entropy_col.split("_")[-1])
-        except ValueError:
-            ws = 0
-
-        fig, axes = plt.subplots(
-            nrows,
-            ncols,
-            figsize=(ncols * 2.2, nrows * 1.6),
-            squeeze=False,
-            constrained_layout=True,
-        )
-        axes_flat = axes.flatten()
-
-        for idx, method in enumerate(methods):
-            ax = axes_flat[idx]
-            mdf = df.loc[df["method"] == method, [entropy_col, "psnr"]].dropna()
-            if mdf.empty:
-                ax.set_title(method)
-                continue
-
-            sns.scatterplot(
-                data=mdf,
-                x=entropy_col,
-                y="psnr",
-                color=palette[idx % len(palette)],
-                ax=ax,
-                label="Dados",
-                **_SCATTER_KW,
-            )
-
-            _add_entropy_psnr_fit(ax, mdf, entropy_col)
-
-            ax.set_xlabel(f"Entropia ({ws}x{ws})")
-            ax.set_ylabel("PSNR (dB)")
-            ax.set_title(method)
-            ax.grid(True, alpha=0.2, linewidth=0.5)
-            ax.legend(
-                loc="upper right",
-                frameon=True,
-                framealpha=0.85,
-                fontsize=FONT_SIZE - 2,
-            )
-
-        for idx in range(n_methods, len(axes_flat)):
-            axes_flat[idx].set_visible(False)
-
-        # First entropy column is the canonical figure the paper references.
-        # Subsequent windows are saved with a size suffix for supplementary use.
-        is_canonical = entropy_col == entropy_cols[0]
-        name = (
-            "fig2_entropy_vs_psnr"
-            if is_canonical
-            else f"fig2_entropy_vs_psnr_{ws}x{ws}"
-        )
-        _save_figure(fig, output_dir, name)
-        plt.close(fig)
-        log.info("Saved %s", name)
-
-
-def fig3_psnr_by_entropy_bin(results_dir: Path, output_dir: Path) -> None:
-    """Fig 3: Boxplot of PSNR per method grouped by entropy bin."""
-    df = load_results(results_dir)
-
-    # Add entropy bin column
-    valid = df.loc[:, ["entropy_7", "psnr", "method"]].dropna()
-    if valid.empty:
-        log.warning("No valid data for fig3")
-        return
-
-    t1 = float(valid["entropy_7"].quantile(1 / 3))
-    t2 = float(valid["entropy_7"].quantile(2 / 3))
-
-    valid = valid.copy()
-    valid["entropy_bin"] = pd.cut(
-        valid["entropy_7"],
-        bins=[-np.inf, t1, t2, np.inf],
-        labels=["baixa", "média", "alta"],
-        right=True,
-    )
-
-    fig, ax = plt.subplots(figsize=FIGSIZE_DOUBLE)
-    sns.boxplot(
-        data=valid,
-        x="method",
-        y="psnr",
-        hue="entropy_bin",
-        hue_order=["baixa", "média", "alta"],
-        palette="Set2",
-        ax=ax,
-        **_BOXPLOT_KW,
-    )
-    ax.set_xlabel("Método")
-    ax.set_ylabel("PSNR (dB)")
-    ax.tick_params(axis="x", rotation=45)
-    ax.legend(title="Faixa de Entropia", **_LEGEND_KW)
-
-    plt.tight_layout()
-    _save_figure(fig, output_dir, "fig3_psnr_by_entropy_bin")
-    plt.close(fig)
-    log.info("Saved fig3_psnr_by_entropy_bin")
-
-
-def fig4_psnr_by_noise(results_dir: Path, output_dir: Path) -> None:
-    """Fig 4: Boxplot of PSNR per method grouped by noise level."""
-    df = load_results(results_dir)
-
-    valid = df.dropna(subset=["psnr", "noise_level", "method"])
-    if valid.empty:
-        log.info("No valid data for fig4")
-        return
-
-    hue_order = [
-        level
-        for level in ["inf", "40", "30", "20"]
-        if level in set(valid["noise_level"].astype(str))
-    ]
-    if not hue_order:
-        log.info("No noise levels available for fig4")
-        return
-
-    fig, ax = plt.subplots(figsize=FIGSIZE_DOUBLE)
-    if len(hue_order) == 1:
-        sns.boxplot(
-            data=valid,
-            x="method",
-            y="psnr",
-            hue="method",
-            palette="Set2",
-            legend=False,
-            ax=ax,
-            **_BOXPLOT_KW,
-        )
-    else:
-        sns.boxplot(
-            data=valid,
-            x="method",
-            y="psnr",
-            hue="noise_level",
-            hue_order=hue_order,
-            palette="Set2",
-            ax=ax,
-            **_BOXPLOT_KW,
-        )
-    ax.set_xlabel("Método")
-    ax.set_ylabel("PSNR (dB)")
-    ax.tick_params(axis="x", rotation=45)
-    if len(hue_order) > 1:
-        ax.legend(title="Ruído (dB)", **_LEGEND_KW)
-
-    plt.tight_layout()
-    _save_figure(fig, output_dir, "fig4_psnr_by_noise")
-    plt.close(fig)
-    log.info("Saved fig4_psnr_by_noise")
-
-
-def fig5_lisa_clusters(results_dir: Path, output_dir: Path) -> None:
-    """Fig 5: LISA cluster maps computed on-the-fly from reconstruction errors.
-
-    Selects 3 representative patches at entropy percentiles P10, P50, P90
-    and 2 methods (best and mid-range by mean PSNR). For each combination,
-    computes the squared error map and runs spatial autocorrelation (LISA).
-    """
-    from matplotlib.colors import ListedColormap
-    from matplotlib.patches import Patch
-
-    log.info("Figure 5: LISA clusters (on-the-fly computation)")
-
-    df = load_results(results_dir)
-    preprocessed = _PROJECT_ROOT / "preprocessed"
-    recon_dir = results_dir / "reconstruction_images"
-    arrays_dir = results_dir / "reconstruction_arrays"
-
-    if not recon_dir.exists() and not arrays_dir.exists():
-        log.info("No reconstruction data found. Skipping fig5.")
-        return
-
-    valid = df.dropna(subset=["entropy_7", "psnr"])
-    if valid.empty:
-        log.info("No valid data for fig5")
-        return
-
-    # Constrain to patches that have reconstruction data
-    avail_ids = _available_recon_patch_ids(recon_dir)
-    valid = valid[valid["patch_id"].isin(avail_ids)]
-    if valid.empty:
-        log.info("No patches with reconstruction data for fig5")
-        return
-
-    # Constrain to patches that have preprocessed clean/mask files
-    valid = valid[
-        valid.apply(
-            lambda r: _has_preprocessed_clean(
-                preprocessed, str(r["satellite"]), int(r["patch_id"])
-            ),
-            axis=1,
-        )
-    ]
-    if valid.empty:
-        log.info("No patches with preprocessed files for fig5")
-        return
-
-    percentiles = {"P10": 0.10, "P50": 0.50, "P90": 0.90}
-    representatives = _pick_entropy_representatives(
-        valid,
-        percentiles,
-        extra_col="satellite",
-    )
-
-    selected_methods = _choose_fig5_methods(valid)
-    if selected_methods is None:
-        log.warning("Need at least 2 methods for fig5")
-        return
-
-    # LISA label names: 0=NS, 1=HH, 2=LH, 3=LL, 4=HL
-    lisa_names = ["NS", "HH", "LH", "LL", "HL"]
-    lisa_colors = ["#d9d9d9", "#e41a1c", "#377eb8", "#4daf4a", "#ff7f00"]
-    cmap = ListedColormap(lisa_colors)
-
-    nrows = len(representatives)
-    ncols = 1 + len(selected_methods)  # error_map(best) + LISA per method
-    fig, axes = plt.subplots(
-        nrows,
-        ncols,
-        figsize=(ncols * 2.5, nrows * 2.5),
-        squeeze=False,
-    )
-
-    for row_idx, (label, patch_id, satellite) in enumerate(representatives):
-        _render_fig5_row(
-            axes,
-            row_idx,
-            ncols,
-            results_dir,
-            preprocessed,
-            patch_id,
-            satellite,
-            label,
-            selected_methods,
-            cmap,
-        )
-
-    # Legend
-    legend_patches = [
-        Patch(facecolor=c, label=n)
-        for n, c in zip(lisa_names, lisa_colors, strict=True)
-    ]
-    fig.legend(
-        handles=legend_patches,
-        loc="lower center",
-        ncol=5,
-        frameon=_LEGEND_KW["frameon"],
-        framealpha=_LEGEND_KW["framealpha"],
-        fontsize=_LEGEND_KW["fontsize"],
-    )
-
-    plt.tight_layout()
-    fig.subplots_adjust(bottom=0.08)
-    _save_figure(fig, output_dir, "fig5_lisa_clusters")
-    plt.close(fig)
-    log.info("Saved fig5_lisa_clusters")
-
-
-def fig6_visual_examples(results_dir: Path, output_dir: Path) -> None:
-    """Fig 6: Visual reconstruction examples.
-
-    Shows clean / degraded / mask / top-4 methods for 3 patches at
-    entropy percentiles P10, P50, P90. Produces one composite figure
-    per satellite.
-    """
-    df = load_results(results_dir)
-
-    preprocessed = _PROJECT_ROOT / "preprocessed"
-    recon_dir = results_dir / "reconstruction_images"
-    arrays_dir = results_dir / "reconstruction_arrays"
-
-    if not recon_dir.exists() and not arrays_dir.exists():
-        log.warning(
-            "No reconstruction data found. "
-            "Run experiment with --save-reconstructions first.",
-        )
-        return
-
-    valid = df.dropna(subset=["entropy_7", "psnr"])
-    if valid.empty:
-        log.warning("No valid data for fig6")
-        return
-
-    # Constrain to patches that have reconstruction data
-    avail_ids = _available_recon_patch_ids(recon_dir)
-    valid_with_recon = valid[valid["patch_id"].isin(avail_ids)]
-
-    # Top 4 methods by global mean PSNR (consistent across all rows)
-    method_ranking = (
-        valid
-        .groupby("method", observed=True)["psnr"]
-        .mean()
-        .sort_values(ascending=False)
-    )
-    top_methods = method_ranking.head(4).index.tolist()
-    n_show = len(top_methods)
-
-    if n_show == 0:
-        log.warning("No methods with PSNR data for fig6")
-        return
-
-    satellites = [
-        s for s in sorted(valid["satellite"].unique()) if s == "sentinel2"
-    ]
-    if not satellites:
-        log.warning("No Sentinel-2 data available for fig6")
-        return
-
-    for sat in satellites:
-        sat_df = valid_with_recon[valid_with_recon["satellite"] == sat]
-        if sat_df.empty:
-            log.warning(
-                "No patches with reconstruction images for fig6 (%s)", sat
-            )
-            continue
-
-        # Constrain to patches that have preprocessed clean/mask files
-        sat_df = sat_df[
-            sat_df["patch_id"].apply(
-                lambda pid, sat=sat: _has_preprocessed_clean(
-                    preprocessed,
-                    sat,
-                    int(pid),
-                )
-            )
-        ]
-        if sat_df.empty:
-            log.warning("No patches with preprocessed files for fig6 (%s)", sat)
-            continue
-
-        percentiles = {
-            "P10 (baixa)": 0.10,
-            "P50 (mediana)": 0.50,
-            "P90 (alta)": 0.90,
-        }
-        representatives = _pick_entropy_representatives(
-            sat_df,
-            percentiles,
-            extra_col="noise_level",
-        )
-
-        # Columns: Clean | Degraded | Mask | Method1..MethodN
-        ncols = 3 + n_show
-        nrows = len(representatives)
-
-        fig, axes = plt.subplots(
-            nrows,
-            ncols,
-            figsize=(ncols * 1.8, nrows * 2.0),
-            squeeze=False,
-        )
-
-        for row_idx, (label, patch_id, noise_level) in enumerate(
-            representatives
-        ):
-            patch_metrics = valid[
-                (valid["patch_id"] == patch_id)
-                & (valid["noise_level"] == noise_level)
-            ]
-
-            _render_fig6_row(
-                axes,
-                row_idx,
-                ncols,
-                preprocessed,
-                sat,
-                patch_id,
-                noise_level,
-                results_dir,
-                top_methods,
-                patch_metrics,
-                label,
-            )
-
-        plt.tight_layout()
-        _save_figure(fig, output_dir, f"fig6_visual_examples_{sat}")
-        plt.close(fig)
-        log.info("Saved fig6_visual_examples_%s", sat)
-
-    log.info("Saved fig6_visual_examples (all satellites)")
-
-
-def fig7_correlation_heatmap(
-    results_dir: Path | None, output_dir: Path
-) -> None:
-    """Fig 7: Correlation heatmap (method x entropy_window x metric)."""
-    # Fast path: read from pre-computed aggregated CSV.
-    corr_df: pd.DataFrame | None = None
-    agg_dir = _SETTINGS.get("agg_dir")
-    if agg_dir is not None:
-        corr_csv = agg_dir / "spearman_correlation.csv"  # type: ignore[operator]
-        if corr_csv.exists():
-            corr_df = pd.read_csv(corr_csv)
-            log.info("Figure 7: reading correlation from %s", corr_csv)
-        else:
-            log.warning(
-                "spearman_correlation.csv not found in %s; "
-                "falling back to on-the-fly computation",
-                agg_dir,
-            )
-
-    if corr_df is None:
-        if results_dir is None:
-            log.warning("No results_dir or spearman_correlation.csv for fig7")
-            return
-        from pdi_pipeline.statistics import correlation_matrix
-
-        df = load_results(results_dir)
-        entropy_cols = [c for c in df.columns if c.startswith("entropy_")]
-        metric_cols = [c for c in ["psnr"] if c in df.columns]
-        if not entropy_cols or not metric_cols:
-            log.warning("Missing entropy or metric columns for fig7")
-            return
-        corr_df = correlation_matrix(df, entropy_cols, metric_cols)
-
-    if corr_df.empty:
-        log.warning("Empty correlation matrix for fig7")
-        return
-
-    # metric_cols may come from raw df or be inferred from the CSV.
-    metric_cols = (
-        sorted(corr_df["metric_col"].unique())
-        if "metric_col" in corr_df.columns
-        else ["psnr"]
-    )
-
-    methods = sorted(corr_df["method"].unique())
-
-    for mcol in metric_cols:
-        subset = corr_df[corr_df["metric_col"] == mcol]
+    noises = [n for n in NOISE_ORDER if n in df["noise_level"].unique()]
+    palette = sns.color_palette("Set2", len(methods))
+
+    for noise in noises:
+        subset = df[df["noise_level"] == noise]
         if subset.empty:
             continue
+        suffix = noise.replace("inf", "gap_only")
 
-        pivot = subset.pivot_table(
-            index="method",
-            columns="entropy_col",
-            values="spearman_rho",
-        )
-        pivot = (
-            pivot
-            .reindex(index=methods)
-            .dropna(how="all")
-            .dropna(axis=1, how="all")
-        )
+        means = {}
+        for method in methods:
+            mdf = subset[subset["method"] == method]
+            means[method] = [
+                float(mdf[k].mean()) if k in mdf.columns else 0.0
+                for k, _ in available_thresholds
+            ]
 
-        if pivot.empty or pivot.shape[0] < 2 or pivot.shape[1] < 1:
-            log.warning(
-                "Insufficient data for fig7 heatmap (%s): %s",
-                mcol,
-                pivot.shape,
+        n_t = len(available_thresholds)
+        n_m = len(methods)
+        x = np.arange(n_t)
+        width = 0.75 / n_m
+        offsets = np.linspace(-(n_m - 1) / 2, (n_m - 1) / 2, n_m) * width
+
+        fig, ax = plt.subplots(figsize=(6, 3.5))
+
+        for i, method in enumerate(methods):
+            bars = ax.bar(
+                x + offsets[i],
+                means[method],
+                width=width,
+                label=method,
+                color=palette[i],
+                edgecolor="#333333",
+                linewidth=0.5,
             )
-            continue
+            for bar, val in zip(bars, means[method], strict=False):
+                if val > 0:
+                    ax.text(
+                        bar.get_x() + bar.get_width() / 2,
+                        bar.get_height() + 0.005,
+                        f"{val:.3f}",
+                        ha="center",
+                        va="bottom",
+                        fontsize=FONT_SIZE - 3,
+                        rotation=90,
+                    )
 
-        fig, ax = plt.subplots(figsize=FIGSIZE_SINGLE)
-        sns.heatmap(
-            pivot,
-            annot=True,
-            fmt=".2f",
-            cmap="RdYlBu_r",
-            center=0,
-            ax=ax,
-            annot_kws={"size": FONT_SIZE - 2},
-            vmin=-1,
-            vmax=1,
+        ax.set_xticks(x)
+        ax.set_xticklabels([label for _, label in available_thresholds])
+        ax.set_xlabel("Limiar de erro")
+        ax.set_ylabel("F1 Score")
+        ax.set_title(f"F1 por Limiar — {noise_label(noise)}")
+        ax.set_ylim(0, 1.15)
+        ax.legend(
+            fontsize=FONT_SIZE - 2,
+            loc="upper left",
+            frameon=True,
+            ncol=min(4, n_m),
         )
-        ax.set_title(f"Spearman $\\rho$: Entropia vs {mcol.upper()}")
-        ax.set_ylabel("")
-        ax.tick_params(axis="x", rotation=45)
-        ax.tick_params(axis="y", rotation=0)
-
+        ax.grid(True, axis="y", alpha=0.3, linewidth=0.5)
         plt.tight_layout()
-        _save_figure(fig, output_dir, f"fig7_corr_heatmap_{mcol}")
+        _save(fig, output_dir, f"fig5_f1_threshold_{suffix}")
         plt.close(fig)
 
-    log.info("Saved fig7_correlation_heatmap(s)")
+
+# ── Fig 6: Boxplot PSNR by Entropy Bin ────────────────────────────────
 
 
-def fig_dl_loss_curves(dl_results_dir: Path | None, output_dir: Path) -> None:
-    """Fig DL-1: Train vs val loss curves per model."""
-    log.info("Figure DL-1: training loss curves")
+def fig6_psnr_entropy(df: pd.DataFrame, output_dir: Path) -> None:
+    """Boxplot of PSNR per entropy tercile, faceted by method category."""
+    noises = [n for n in NOISE_ORDER if n in df["noise_level"].unique()]
 
-    available = _get_dl_histories(dl_results_dir)
-    if not available:
-        log.warning(
-            "No DL training histories found. Skipping fig_dl_loss_curves."
-        )
+    for ws in ENTROPY_WINDOWS:
+        ecol = f"entropy_{ws}"
+        if ecol not in df.columns:
+            continue
+
+        for noise in noises:
+            subset = df[df["noise_level"] == noise]
+            if subset.empty:
+                continue
+            suffix = noise.replace("inf", "gap_only")
+            binned = entropy_terciles(subset, entropy_col=ecol)
+
+            fig, ax = plt.subplots(figsize=(8, 4))
+            sns.boxplot(
+                data=binned,
+                x="method",
+                y="psnr",
+                hue="entropy_bin",
+                hue_order=["baixa", "média", "alta"],
+                palette="Set2",
+                ax=ax,
+                fliersize=3,
+                linewidth=0.8,
+                showmeans=True,
+                meanprops={
+                    "marker": "x",
+                    "markeredgecolor": "#333",
+                    "markersize": 4,
+                },
+            )
+            ax.set_xlabel("Método")
+            ax.set_ylabel("PSNR (dB)")
+            ax.set_title(
+                f"PSNR por Faixa de Entropia ({ws}x{ws}) - {noise_label(noise)}"
+            )
+            ax.tick_params(axis="x", rotation=45)
+            ax.legend(title="Entropia", loc="best", fontsize=FONT_SIZE - 2)
+            plt.tight_layout()
+            _save(fig, output_dir, f"fig6_psnr_entropy_{suffix}_e{ws}")
+            plt.close(fig)
+
+
+# ── Fig 7: Correlation Heatmap ────────────────────────────────────────
+
+
+def fig7_correlation_heatmap(df: pd.DataFrame, output_dir: Path) -> None:
+    """Heatmap of Spearman rho: methods x (entropy_window x metric)."""
+    metrics = [m for m in ["psnr", "ssim", "sam", "ergas"] if m in df.columns]
+    if not metrics:
+        log.warning("No metrics for fig7")
         return
 
-    n = len(available)
-    ncols = min(3, n)
-    nrows = math.ceil(n / ncols)
+    methods = sorted(df["method"].unique())
 
-    fig, axes = plt.subplots(
-        nrows,
-        ncols,
-        figsize=(ncols * 2.8, nrows * 2.2),
-        squeeze=False,
-        constrained_layout=True,
+    # Build matrix: rows=methods, cols=entropy_ws x metric
+    col_labels = []
+    for ws in ENTROPY_WINDOWS:
+        for m in metrics:
+            col_labels.append(f"e{ws}x{m.upper()}")
+
+    matrix = np.full((len(methods), len(col_labels)), np.nan)
+
+    for i, method in enumerate(methods):
+        mdf = df[df["method"] == method]
+        col_idx = 0
+        for ws in ENTROPY_WINDOWS:
+            ecol = f"entropy_{ws}"
+            for m in metrics:
+                if ecol in mdf.columns and m in mdf.columns:
+                    valid = mdf[[ecol, m]].dropna()
+                    if len(valid) >= 3:
+                        rho, _ = stats.spearmanr(valid[ecol], valid[m])
+                        matrix[i, col_idx] = rho
+                col_idx += 1
+
+    fig, ax = plt.subplots(
+        figsize=(len(col_labels) * 0.8 + 1, len(methods) * 0.4 + 1)
     )
-    axes_flat = axes.flatten()
-
-    for idx, (model, hist) in enumerate(available.items()):
-        ax = axes_flat[idx]
-        epochs_data = hist["epochs"]
-        epochs = [e["epoch"] for e in epochs_data]
-        train_loss = [e.get("train_loss") for e in epochs_data]
-        val_loss = [e.get("val_loss") for e in epochs_data]
-
-        every = max(1, len(epochs) // 6)
-        ax.plot(
-            epochs,
-            train_loss,
-            label="Treino",
-            linewidth=1.2,
-            color="#1f77b4",
-            marker="o",
-            markevery=every,
-            markersize=3,
-        )
-        ax.plot(
-            epochs,
-            val_loss,
-            label="Validação",
-            linewidth=1.2,
-            color="#ff7f0e",
-            linestyle="--",
-            marker="s",
-            markevery=every,
-            markersize=3,
-        )
-        ax.set_title(model.upper(), fontsize=FONT_SIZE + 1)
-        ax.set_xlabel("Época", fontsize=FONT_SIZE)
-        ax.set_ylabel("Perda", fontsize=FONT_SIZE)
-        ax.legend(fontsize=FONT_SIZE - 1, loc="best")
-        ax.grid(True, alpha=0.3, linewidth=0.5)
-
-    for idx in range(n, len(axes_flat)):
-        axes_flat[idx].set_visible(False)
-
-    _save_figure(fig, output_dir, "fig_dl_loss_curves")
+    sns.heatmap(
+        pd.DataFrame(matrix, index=methods, columns=col_labels),
+        annot=True,
+        fmt=".2f",
+        cmap="RdYlBu_r",
+        center=0,
+        ax=ax,
+        annot_kws={"size": FONT_SIZE - 2},
+        vmin=-1,
+        vmax=1,
+        linewidths=0.5,
+    )
+    ax.set_title(
+        "Correlação de Spearman: Entropia x Métricas", fontsize=FONT_SIZE + 1
+    )
+    ax.set_ylabel("")
+    ax.tick_params(axis="x", rotation=45)
+    ax.tick_params(axis="y", rotation=0)
+    plt.tight_layout()
+    _save(fig, output_dir, "fig7_correlation_heatmap")
     plt.close(fig)
-    log.info("Saved fig_dl_loss_curves")
 
 
-def fig_dl_val_metrics(dl_results_dir: Path | None, output_dir: Path) -> None:
-    """Fig DL-2: Validation PSNR, SSIM and RMSE comparison across models."""
-    log.info("Figure DL-2: validation metrics comparison")
+# ── Fig 8: DL Loss Curves (per model) ────────────────────────────────
 
-    available = _get_dl_histories(dl_results_dir)
-    if not available:
-        log.warning(
-            "No DL training histories found. Skipping fig_dl_val_metrics."
-        )
-        return
 
+def fig8_dl_loss(output_dir: Path) -> None:
+    """Train vs val loss per model, one figure per scenario x model."""
+    histories = load_all_dl_histories()
+
+    for scenario, models in histories.items():
+        for model, hist in models.items():
+            epochs_data = hist.get("epochs", [])
+            if not epochs_data:
+                continue
+
+            epochs = [e["epoch"] for e in epochs_data]
+            train_loss = [e.get("train_loss") for e in epochs_data]
+            val_loss = [e.get("val_loss") for e in epochs_data]
+
+            fig, ax = plt.subplots(figsize=(4, 2.8))
+
+            every = max(1, len(epochs) // 8)
+            ax.plot(
+                epochs,
+                train_loss,
+                label="Treino",
+                linewidth=1.2,
+                color="#1f77b4",
+                marker="o",
+                markevery=every,
+                markersize=3,
+            )
+            ax.plot(
+                epochs,
+                val_loss,
+                label="Validação",
+                linewidth=1.2,
+                color="#ff7f0e",
+                linestyle="--",
+                marker="s",
+                markevery=every,
+                markersize=3,
+            )
+            ax.set_xlabel("Época")
+            ax.set_ylabel("Perda")
+            ax.set_title(
+                f"{model.upper()} — {scenario.replace('_', ' ').title()}"
+            )
+            ax.legend(fontsize=FONT_SIZE - 1, loc="best")
+            ax.grid(True, alpha=0.3, linewidth=0.5)
+            plt.tight_layout()
+            _save(fig, output_dir, f"fig8_dl_loss_{scenario}_{model}")
+            plt.close(fig)
+
+
+# ── Fig 9: DL Validation Metrics (per model x metric) ────────────────
+
+
+def fig9_dl_val_metrics(output_dir: Path) -> None:
+    """Val PSNR/SSIM/RMSE per epoch.
+
+    One figure per scenario x metric x model.
+    """
+    histories = load_all_dl_histories()
     metric_specs = [
         ("val_psnr", "PSNR (dB)"),
         ("val_ssim", "SSIM"),
         ("val_rmse", "RMSE"),
     ]
-    palette = sns.color_palette("Set2", len(available))
 
-    fig, axes = plt.subplots(
-        1,
-        3,
-        figsize=(7.0, 2.8),
-        constrained_layout=True,
-    )
-
-    _markers = ["o", "s", "^", "D", "v"]
-
-    for ax, (key, label) in zip(axes, metric_specs, strict=False):
-        for i, (color, (model, hist)) in enumerate(
-            zip(palette, available.items(), strict=False)
-        ):
-            epochs_data = hist["epochs"]
+    for scenario, models in histories.items():
+        for model, hist in models.items():
+            epochs_data = hist.get("epochs", [])
+            if not epochs_data:
+                continue
             epochs = [e["epoch"] for e in epochs_data]
-            values = [e.get(key) for e in epochs_data]
-            if any(v is not None for v in values):
+
+            for key, ylabel in metric_specs:
+                values = [e.get(key) for e in epochs_data]
+                if not any(v is not None for v in values):
+                    continue
+
+                fig, ax = plt.subplots(figsize=(4, 2.8))
                 every = max(1, len(epochs) // 8)
                 ax.plot(
                     epochs,
                     values,
-                    label=model.upper(),
                     linewidth=1.2,
-                    color=color,
-                    marker=_markers[i % len(_markers)],
+                    color="#2ca02c",
+                    marker="o",
                     markevery=every,
                     markersize=3,
                 )
-        ax.set_xlabel("Época", fontsize=FONT_SIZE)
-        ax.set_ylabel(label, fontsize=FONT_SIZE)
-        ax.set_title(label, fontsize=FONT_SIZE + 1)
-        ax.grid(True, alpha=0.3, linewidth=0.5)
-
-    # Place legend above the panels so it never overlaps the x-axis labels.
-    handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(
-        handles,
-        labels,
-        loc="upper center",
-        bbox_to_anchor=(0.5, 1.08),
-        ncol=len(available),
-        fontsize=FONT_SIZE - 1,
-        frameon=True,
-        borderaxespad=0.0,
-    )
-
-    _save_figure(fig, output_dir, "fig_dl_val_metrics")
-    plt.close(fig)
-    log.info("Saved fig_dl_val_metrics")
+                ax.set_xlabel("Época")
+                ax.set_ylabel(ylabel)
+                ax.set_title(
+                    f"{model.upper()} — {ylabel} "
+                    f"({scenario.replace('_', ' ').title()})"
+                )
+                ax.grid(True, alpha=0.3, linewidth=0.5)
+                plt.tight_layout()
+                metric_name = key.replace("val_", "")
+                _save(
+                    fig,
+                    output_dir,
+                    f"fig9_dl_val_metrics_{scenario}_{metric_name}_{model}",
+                )
+                plt.close(fig)
 
 
-def fig_dl_vae_components(
-    dl_results_dir: Path | None, output_dir: Path
-) -> None:
-    """Fig DL-3: VAE loss decomposition (reconstruction + KL) over epochs."""
-    log.info("Figure DL-3: VAE loss components")
-
-    hist = _get_dl_histories(dl_results_dir).get("vae")
-    if not hist or not hist.get("epochs"):
-        log.info("No VAE history found. Skipping fig_dl_vae_components.")
-        return
-
-    epochs_data = hist["epochs"]
-    if not any("train_recon_loss" in e for e in epochs_data):
-        log.info(
-            "VAE component keys not in history. Skipping fig_dl_vae_components."
-        )
-        return
-
-    epochs = [e["epoch"] for e in epochs_data]
-
-    fig, axes = plt.subplots(1, 2, figsize=(7.0, 2.8), constrained_layout=True)
-
-    train_recon = [e.get("train_recon_loss") for e in epochs_data]
-    val_recon = [e.get("val_recon_loss") for e in epochs_data]
-    axes[0].plot(
-        epochs, train_recon, label="Treino", linewidth=1.2, color="#1f77b4"
-    )
-    axes[0].plot(
-        epochs,
-        val_recon,
-        label="Validação",
-        linewidth=1.2,
-        color="#ff7f0e",
-        linestyle="--",
-    )
-    axes[0].set_title("Perda de Reconstrução (VAE)", fontsize=FONT_SIZE + 1)
-    axes[0].set_xlabel("Época", fontsize=FONT_SIZE)
-    axes[0].set_ylabel("Perda", fontsize=FONT_SIZE)
-    axes[0].legend(fontsize=FONT_SIZE - 1)
-    axes[0].grid(True, alpha=0.3, linewidth=0.5)
-
-    train_kl = [e.get("train_kl_loss") for e in epochs_data]
-    val_kl = [e.get("val_kl_loss") for e in epochs_data]
-    axes[1].plot(
-        epochs, train_kl, label="Treino", linewidth=1.2, color="#1f77b4"
-    )
-    axes[1].plot(
-        epochs,
-        val_kl,
-        label="Validação",
-        linewidth=1.2,
-        color="#ff7f0e",
-        linestyle="--",
-    )
-    axes[1].set_title("Divergência KL (VAE)", fontsize=FONT_SIZE + 1)
-    axes[1].set_xlabel("Época", fontsize=FONT_SIZE)
-    axes[1].set_ylabel("Perda", fontsize=FONT_SIZE)
-    axes[1].legend(fontsize=FONT_SIZE - 1)
-    axes[1].grid(True, alpha=0.3, linewidth=0.5)
-
-    _save_figure(fig, output_dir, "fig_dl_vae_components")
-    plt.close(fig)
-    log.info("Saved fig_dl_vae_components")
+# ── Fig 10: VAE/GAN Component Decomposition ──────────────────────────
 
 
-def fig_dl_gan_components(
-    dl_results_dir: Path | None, output_dir: Path
-) -> None:
-    """Fig DL-4: GAN generator and discriminator loss over epochs."""
-    log.info("Figure DL-4: GAN loss components")
+def fig10_components(output_dir: Path) -> None:
+    """VAE reconstruction+KL and GAN generator+discriminator decomposition."""
+    histories = load_all_dl_histories()
 
-    hist = _get_dl_histories(dl_results_dir).get("gan")
-    if not hist or not hist.get("epochs"):
-        log.info("No GAN history found. Skipping fig_dl_gan_components.")
-        return
+    for scenario, models in histories.items():
+        # VAE decomposition
+        vae_hist = models.get("vae")
+        if vae_hist and vae_hist.get("epochs"):
+            epochs_data = vae_hist["epochs"]
+            if any("train_recon_loss" in e for e in epochs_data):
+                epochs = [e["epoch"] for e in epochs_data]
+                fig, axes = plt.subplots(
+                    1, 2, figsize=(7, 2.8), constrained_layout=True
+                )
 
-    epochs_data = hist["epochs"]
-    if not any("train_g_loss" in e for e in epochs_data):
-        log.info(
-            "GAN component keys not in history. Skipping fig_dl_gan_components."
-        )
-        return
+                axes[0].plot(
+                    epochs,
+                    [e.get("train_recon_loss") for e in epochs_data],
+                    label="Treino",
+                    linewidth=1.2,
+                    color="#1f77b4",
+                )
+                axes[0].plot(
+                    epochs,
+                    [e.get("val_recon_loss") for e in epochs_data],
+                    label="Validação",
+                    linewidth=1.2,
+                    color="#ff7f0e",
+                    linestyle="--",
+                )
+                axes[0].set_title("Perda de Reconstrução")
+                axes[0].set_xlabel("Época")
+                axes[0].set_ylabel("Perda")
+                axes[0].legend(fontsize=FONT_SIZE - 1)
+                axes[0].grid(True, alpha=0.3, linewidth=0.5)
 
-    epochs = [e["epoch"] for e in epochs_data]
+                axes[1].plot(
+                    epochs,
+                    [e.get("train_kl_loss") for e in epochs_data],
+                    label="Treino",
+                    linewidth=1.2,
+                    color="#1f77b4",
+                )
+                axes[1].plot(
+                    epochs,
+                    [e.get("val_kl_loss") for e in epochs_data],
+                    label="Validação",
+                    linewidth=1.2,
+                    color="#ff7f0e",
+                    linestyle="--",
+                )
+                axes[1].set_title("Divergência KL")
+                axes[1].set_xlabel("Época")
+                axes[1].set_ylabel("Perda")
+                axes[1].legend(fontsize=FONT_SIZE - 1)
+                axes[1].grid(True, alpha=0.3, linewidth=0.5)
 
-    fig, axes = plt.subplots(1, 3, figsize=(7.0, 2.8), constrained_layout=True)
+                fig.suptitle(
+                    f"VAE — {scenario.replace('_', ' ').title()}",
+                    fontsize=FONT_SIZE + 1,
+                )
+                _save(fig, output_dir, f"fig10_vae_components_{scenario}")
+                plt.close(fig)
 
-    g_loss = [e.get("train_g_loss") for e in epochs_data]
-    axes[0].plot(epochs, g_loss, linewidth=1.2, color="#2ca02c")
-    axes[0].set_title("Perda do Gerador", fontsize=FONT_SIZE + 1)
-    axes[0].set_xlabel("Época", fontsize=FONT_SIZE)
-    axes[0].set_ylabel("Perda", fontsize=FONT_SIZE)
-    axes[0].grid(True, alpha=0.3, linewidth=0.5)
+        # GAN decomposition
+        gan_hist = models.get("gan")
+        if gan_hist and gan_hist.get("epochs"):
+            epochs_data = gan_hist["epochs"]
+            if any("train_g_loss" in e for e in epochs_data):
+                epochs = [e["epoch"] for e in epochs_data]
+                fig, axes = plt.subplots(
+                    1, 3, figsize=(9, 2.8), constrained_layout=True
+                )
 
-    d_loss = [e.get("train_d_loss") for e in epochs_data]
-    axes[1].plot(epochs, d_loss, linewidth=1.2, color="#d62728")
-    axes[1].set_title("Perda do Discriminador", fontsize=FONT_SIZE + 1)
-    axes[1].set_xlabel("Época", fontsize=FONT_SIZE)
-    axes[1].set_ylabel("Perda", fontsize=FONT_SIZE)
-    axes[1].grid(True, alpha=0.3, linewidth=0.5)
+                axes[0].plot(
+                    epochs,
+                    [e.get("train_g_loss") for e in epochs_data],
+                    linewidth=1.2,
+                    color="#2ca02c",
+                )
+                axes[0].set_title("Perda do Gerador")
+                axes[0].set_xlabel("Época")
+                axes[0].set_ylabel("Perda")
+                axes[0].grid(True, alpha=0.3, linewidth=0.5)
 
-    val_loss = [e.get("val_loss") for e in epochs_data]
-    axes[2].plot(epochs, val_loss, linewidth=1.2, color="#9467bd")
-    axes[2].set_title("Perda de Validação (G)", fontsize=FONT_SIZE + 1)
-    axes[2].set_xlabel("Época", fontsize=FONT_SIZE)
-    axes[2].set_ylabel("Perda", fontsize=FONT_SIZE)
-    axes[2].grid(True, alpha=0.3, linewidth=0.5)
+                axes[1].plot(
+                    epochs,
+                    [e.get("train_d_loss") for e in epochs_data],
+                    linewidth=1.2,
+                    color="#d62728",
+                )
+                axes[1].set_title("Perda do Discriminador")
+                axes[1].set_xlabel("Época")
+                axes[1].set_ylabel("Perda")
+                axes[1].grid(True, alpha=0.3, linewidth=0.5)
 
-    _save_figure(fig, output_dir, "fig_dl_gan_components")
-    plt.close(fig)
-    log.info("Saved fig_dl_gan_components")
+                axes[2].plot(
+                    epochs,
+                    [e.get("val_loss") for e in epochs_data],
+                    linewidth=1.2,
+                    color="#9467bd",
+                )
+                axes[2].set_title("Perda de Validação (G)")
+                axes[2].set_xlabel("Época")
+                axes[2].set_ylabel("Perda")
+                axes[2].grid(True, alpha=0.3, linewidth=0.5)
+
+                fig.suptitle(
+                    f"GAN — {scenario.replace('_', ' ').title()}",
+                    fontsize=FONT_SIZE + 1,
+                )
+                _save(fig, output_dir, f"fig10_gan_components_{scenario}")
+                plt.close(fig)
 
 
-def fig_dl_comparison_matrix(
-    dl_results_dir: Path | None, output_dir: Path
-) -> None:
-    """Fig DL-5: Heatmap comparing all models across final-epoch metrics.
+# ── Fig 11: DL Model Comparison Heatmap ───────────────────────────────
 
-    Rows = models, columns = metrics (PSNR, SSIM, RMSE, F1 at each threshold).
-    Values are taken from the last epoch of each available history file.
-    """
-    log.info("Figure DL-5: model comparison matrix")
 
-    available = _get_dl_histories(dl_results_dir)
-    if not available:
-        log.warning("No DL histories found. Skipping fig_dl_comparison_matrix.")
-        return
-
-    metric_keys = [
-        ("val_psnr", "PSNR (dB)", True),
-        ("val_ssim", "SSIM", True),
-        ("val_rmse", "RMSE", False),
-        ("val_f1_002", "F1 @0.02", True),
-        ("val_f1_005", "F1 @0.05", True),
-        ("val_f1_01", "F1 @0.10", True),
-    ]
-
-    rows: list[dict[str, float]] = []
+def _build_dl_comparison_frame(
+    models: dict[str, dict[str, list[dict[str, float | None]]]],
+    metric_keys: list[tuple[str, str, bool]],
+) -> tuple[pd.DataFrame, list[str]]:
     model_labels: list[str] = []
-    for model, hist in available.items():
+    rows: list[dict[str, float | None]] = []
+    for model, hist in models.items():
         last = hist["epochs"][-1]
         row = {label: last.get(key) for key, label, _ in metric_keys}
         rows.append(row)
         model_labels.append(model.upper())
+    return pd.DataFrame(rows, index=model_labels), model_labels
 
-    df = pd.DataFrame(rows, index=model_labels)
-    col_labels = [label for _, label, _ in metric_keys]
-    higher_is_better = {label: hib for _, label, hib in metric_keys}
 
-    # Normalise each column to [0, 1] so heatmap color is always
-    # "green = best" regardless of metric direction.
-    normed = pd.DataFrame(index=df.index, columns=df.columns, dtype=float)
-    for col in df.columns:
-        col_min = df[col].min()
-        col_max = df[col].max()
+def _normalize_dl_metrics(
+    raw_df: pd.DataFrame,
+    higher_better: dict[str, bool],
+) -> pd.DataFrame:
+    normed = pd.DataFrame(
+        index=raw_df.index, columns=raw_df.columns, dtype=float
+    )
+    for col in raw_df.columns:
+        col_min = raw_df[col].min()
+        col_max = raw_df[col].max()
         rng = col_max - col_min
         if rng < 1e-12:
             normed[col] = 0.5
-        elif higher_is_better[col]:
-            normed[col] = (df[col] - col_min) / rng
+        elif higher_better.get(col, True):
+            normed[col] = (raw_df[col] - col_min) / rng
         else:
-            normed[col] = (col_max - df[col]) / rng
+            normed[col] = (col_max - raw_df[col]) / rng
+    return normed
 
+
+def _format_dl_cell_value(col: str, raw_val: float | None) -> str:
+    if raw_val is None or (isinstance(raw_val, float) and np.isnan(raw_val)):
+        return "N/D"
+    if col == "PSNR":
+        return f"{raw_val:.2f}"
+    return f"{raw_val:.4f}"
+
+
+def _render_dl_comparison_heatmap(
+    raw_df: pd.DataFrame,
+    normed: pd.DataFrame,
+    col_labels: list[str],
+    model_labels: list[str],
+    scenario: str,
+    output_dir: Path,
+) -> None:
     fig, ax = plt.subplots(
-        figsize=(len(col_labels) * 1.1 + 0.8, len(model_labels) * 0.65 + 0.8),
+        figsize=(
+            len(col_labels) * 1.0 + 0.8,
+            len(model_labels) * 0.6 + 0.8,
+        ),
         constrained_layout=True,
     )
 
-    # Background heatmap on normalised values
     im = ax.imshow(
         normed.values.astype(float),
         cmap="RdYlGn",
@@ -1430,17 +825,12 @@ def fig_dl_comparison_matrix(
     ax.set_yticks(range(len(model_labels)))
     ax.set_yticklabels(model_labels, fontsize=FONT_SIZE)
 
-    # Annotate each cell with the raw value
-    for r_idx, _model in enumerate(model_labels):
+    for r_idx in range(len(model_labels)):
         for c_idx, col in enumerate(col_labels):
-            raw = df.iloc[r_idx][col]
-            if raw is None or (isinstance(raw, float) and np.isnan(raw)):
-                cell_text = "N/D"
-            elif col == "PSNR (dB)":
-                cell_text = f"{raw:.2f}"
-            else:
-                cell_text = f"{raw:.4f}"
-            bg = float(normed.iloc[r_idx][col])
+            raw_val = raw_df.iloc[r_idx][col]
+            cell_text = _format_dl_cell_value(col, raw_val)
+            bg_val = normed.iloc[r_idx][col]
+            bg = 0.5 if pd.isna(bg_val) else float(bg_val)
             text_color = "black" if 0.25 < bg < 0.85 else "white"
             ax.text(
                 c_idx,
@@ -1452,249 +842,116 @@ def fig_dl_comparison_matrix(
                 color=text_color,
             )
 
-    plt.colorbar(
-        im, ax=ax, fraction=0.03, pad=0.03, label="Pontuação normalizada"
-    )
+    plt.colorbar(im, ax=ax, fraction=0.03, pad=0.03, label="Pontuação norm.")
+    scenario_title = scenario.replace("_", " ").title()
     ax.set_title(
-        "Comparação de modelos (última época)",
+        f"Comparação DL (última época) - {scenario_title}",
         fontsize=FONT_SIZE + 1,
         pad=8,
     )
-
-    _save_figure(fig, output_dir, "fig_dl_comparison_matrix")
+    _save(fig, output_dir, f"fig11_dl_comparison_{scenario}")
     plt.close(fig)
-    log.info("Saved fig_dl_comparison_matrix")
 
 
-def fig_dl_f1_scores(dl_results_dir: Path | None, output_dir: Path) -> None:
-    """Fig DL-6: Grouped bar chart of F1 scores per model at each threshold."""
-    log.info("Figure DL-6: F1 scores by threshold")
+def fig11_dl_comparison(output_dir: Path) -> None:
+    """Heatmap comparing all DL models across final-epoch metrics."""
+    histories = load_all_dl_histories()
 
-    available = _get_dl_histories(dl_results_dir)
-    if not available:
-        log.warning("No DL histories found. Skipping fig_dl_f1_scores.")
-        return
-
-    thresholds = [
-        ("val_f1_002", r"$\tau=0{,}02$"),
-        ("val_f1_005", r"$\tau=0{,}05$"),
-        ("val_f1_01", r"$\tau=0{,}10$"),
+    metric_keys = [
+        ("val_psnr", "PSNR", True),
+        ("val_ssim", "SSIM", True),
+        ("val_rmse", "RMSE", False),
+        ("val_sam", "SAM", False),
+        ("val_ergas", "ERGAS", False),
+        ("val_f1_002", "F1@0.02", True),
+        ("val_f1_005", "F1@0.05", True),
+        ("val_f1_01", "F1@0.10", True),
     ]
 
-    models = list(available.keys())
-    n_models = len(models)
-    n_thresholds = len(thresholds)
-    palette = sns.color_palette("Set2", n_models)
+    for scenario, models in histories.items():
+        if not models:
+            continue
 
-    # Check if any model has F1 data at all
-    has_f1 = any(
-        any(e.get(key) is not None for e in h["epochs"])
-        for key, _ in thresholds
-        for h in available.values()
-    )
-    if not has_f1:
-        log.info("No F1 data in DL histories. Skipping fig_dl_f1_scores.")
-        return
-
-    fig, ax = plt.subplots(figsize=(5.5, 3.2), constrained_layout=True)
-
-    x = np.arange(n_thresholds)
-    width = 0.75 / n_models
-    offsets = (
-        np.linspace(-(n_models - 1) / 2, (n_models - 1) / 2, n_models) * width
-    )
-
-    for i, (model, color) in enumerate(zip(models, palette, strict=False)):
-        hist = available[model]
-        last = hist["epochs"][-1]
-        values = [last.get(key) for key, _ in thresholds]
-        values_filled = [v if v is not None else 0.0 for v in values]
-        bars = ax.bar(
-            x + offsets[i],
-            values_filled,
-            width=width,
-            label=model.upper(),
-            color=color,
-            edgecolor="#333333",
-            linewidth=0.6,
+        raw_df, model_labels = _build_dl_comparison_frame(models, metric_keys)
+        col_labels = [label for _, label, _ in metric_keys]
+        higher_better = {label: higher for _, label, higher in metric_keys}
+        normed = _normalize_dl_metrics(raw_df, higher_better)
+        _render_dl_comparison_heatmap(
+            raw_df,
+            normed,
+            col_labels,
+            model_labels,
+            scenario,
+            output_dir,
         )
-        for bar, val in zip(bars, values, strict=False):
-            if val is not None:
-                ax.text(
-                    bar.get_x() + bar.get_width() / 2,
-                    bar.get_height() + 0.005,
-                    f"{val:.3f}",
-                    ha="center",
-                    va="bottom",
-                    fontsize=FONT_SIZE - 3,
-                    rotation=90,
-                )
-
-    ax.set_xticks(x)
-    ax.set_xticklabels([label for _, label in thresholds], fontsize=FONT_SIZE)
-    ax.set_xlabel(
-        "Limiar de erro (intervalo de pixel normalizado [0, 1])",
-        fontsize=FONT_SIZE,
-    )
-    ax.set_ylabel("Pontuação F1", fontsize=FONT_SIZE)
-    ax.set_title(
-        "F1 em nível de pixel por limiar (última época)",
-        fontsize=FONT_SIZE + 1,
-    )
-    ax.set_ylim(0, 1.12)
-    ax.grid(True, axis="y", alpha=0.3, linewidth=0.5)
-    ax.legend(
-        fontsize=FONT_SIZE - 1,
-        loc="upper left",
-        frameon=True,
-        framealpha=0.85,
-        ncol=min(3, n_models),
-    )
-
-    _save_figure(fig, output_dir, "fig_dl_f1_scores")
-    plt.close(fig)
-    log.info("Saved fig_dl_f1_scores")
 
 
-ALL_DL_FIGURES = {
-    "loss_curves": fig_dl_loss_curves,
-    "val_metrics": fig_dl_val_metrics,
-    "vae_components": fig_dl_vae_components,
-    "gan_components": fig_dl_gan_components,
-    "comparison_matrix": fig_dl_comparison_matrix,
-    "f1_scores": fig_dl_f1_scores,
-}
-
-
-ALL_FIGURES = {
-    1: fig1_entropy_examples,
-    2: fig2_entropy_vs_psnr,
-    3: fig3_psnr_by_entropy_bin,
-    4: fig4_psnr_by_noise,
-    5: fig5_lisa_clusters,
-    6: fig6_visual_examples,
-    7: fig7_correlation_heatmap,
-}
+# ── CLI ───────────────────────────────────────────────────────────────
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate publication-quality figures.",
-    )
-    parser.add_argument(
-        "--results",
-        type=Path,
-        default=None,
-        help="Path to classical experiment results directory.",
-    )
-    parser.add_argument(
-        "--dl-results",
-        type=Path,
-        default=None,
-        help="Path to DL models directory containing *_history.json files.",
-    )
-    parser.add_argument(
-        "--aggregated-dir",
-        type=Path,
-        default=None,
-        dest="aggregated_dir",
-        help=(
-            "Directory with pre-computed aggregated CSVs from "
-            "aggregate_results.py. Enables fast figure generation without "
-            "re-running experiments. Auto-detected from "
-            "{results}/aggregated/ if that directory exists."
-        ),
+        description="Generate publication figures."
     )
     parser.add_argument(
         "--output",
         type=Path,
         default=None,
-        help="Output directory for figures. Default: results_dir/figures/",
-    )
-    parser.add_argument(
-        "--figure",
-        type=int,
-        default=None,
-        help="Generate only this classical figure number (1-7).",
+        help="Output directory. Defaults to paper_assets/figures/",
     )
     parser.add_argument(
         "--png-only",
         action="store_true",
-        help="Save figures in PNG only (skip PDF). Use for quick validation.",
+        help="Save PNG only (skip PDF).",
     )
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> None:  # noqa: C901
+def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
-
-    if (
-        args.results is None
-        and args.dl_results is None
-        and args.aggregated_dir is None
-    ):
-        log.error(
-            "Provide at least one of --results, "
-            "--dl-results, or --aggregated-dir."
-        )
-        return
-
     _SETTINGS["png_only"] = args.png_only
     _setup_style()
 
-    # Resolve aggregated dir: explicit arg > auto-detect from results/.
-    agg_dir: Path | None = args.aggregated_dir
-    if agg_dir is None and args.results is not None:
-        auto = args.results / "aggregated"
-        if auto.exists():
-            agg_dir = auto
-            log.info("Auto-detected aggregated dir: %s", agg_dir)
-    if agg_dir is not None:
-        _SETTINGS["agg_dir"] = agg_dir
-        log.info("Using aggregated CSVs from: %s", agg_dir)
-
-    base_dir = args.results or args.dl_results or args.aggregated_dir
-    output_dir = args.output or base_dir / "figures"
+    output_dir = args.output or Path("paper_assets/figures")
     output_dir.mkdir(parents=True, exist_ok=True)
-    if base_dir is not None:
-        setup_file_logging(base_dir, name="figures")
 
-    if args.results is not None:
-        results_dir = args.results
-        if args.figure is not None:
-            if args.figure not in ALL_FIGURES:
-                log.error("Invalid figure number: %d", args.figure)
-                return
-            ALL_FIGURES[args.figure](results_dir, output_dir)
-        else:
-            for num, func in ALL_FIGURES.items():
-                try:
-                    func(results_dir, output_dir)
-                except Exception:
-                    log.exception("Error generating figure %d", num)
-    elif agg_dir is not None:
-        # No raw results - only run fig7 which can work from aggregated
-        # CSV alone.
-        if args.figure is None or args.figure == 7:
+    df = load_combined()
+
+    # ── Evaluation data figures ──
+    if not df.empty:
+        eval_figs = [
+            ("Fig 1: Pareto", fig1_pareto),
+            ("Fig 2: Spectral Radar", fig2_spectral_radar),
+            ("Fig 3: Entropy Sensitivity", fig3_sensitivity),
+            ("Fig 4: Multi-Sensor Violin", fig4_multisensor),
+            ("Fig 5: F1 Threshold", fig5_f1_threshold),
+            ("Fig 6: PSNR by Entropy", fig6_psnr_entropy),
+            ("Fig 7: Correlation Heatmap", fig7_correlation_heatmap),
+        ]
+        for name, func in eval_figs:
             try:
-                fig7_correlation_heatmap(None, output_dir)
+                log.info("Generating %s...", name)
+                func(df, output_dir)
             except Exception:
-                log.exception("Error generating figure 7 from aggregated dir")
+                log.exception("Error generating %s", name)
+    else:
+        log.warning("No evaluation data loaded. Skipping eval figures.")
 
-    # Run DL figures when dl_results are provided OR when agg_dir has
-    # history CSV.
-    has_dl_csv = (
-        agg_dir is not None and (agg_dir / "dl_training_history.csv").exists()
-    )
-    if args.dl_results is not None or has_dl_csv:
-        dl_results_dir: Path | None = args.dl_results
-        for name, func in ALL_DL_FIGURES.items():
-            try:
-                func(dl_results_dir, output_dir)
-            except Exception:
-                log.exception("Error generating DL figure %s", name)
+    # ── DL training history figures ──
+    dl_figs = [
+        ("Fig 8: DL Loss Curves", fig8_dl_loss),
+        ("Fig 9: DL Val Metrics", fig9_dl_val_metrics),
+        ("Fig 10: VAE/GAN Components", fig10_components),
+        ("Fig 11: DL Comparison", fig11_dl_comparison),
+    ]
+    for name, func in dl_figs:
+        try:
+            log.info("Generating %s...", name)
+            func(output_dir)
+        except Exception:
+            log.exception("Error generating %s", name)
 
-    log.info("Figures saved to: %s", output_dir)
+    log.info("All figures saved to: %s", output_dir)
 
 
 if __name__ == "__main__":
