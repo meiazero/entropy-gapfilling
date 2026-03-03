@@ -1,3 +1,7 @@
+% ========================================================================
+% Referências existentes (do artigo original)
+% ========================================================================
+
 @inproceedings{jayakumar2023Evaluation,
   title={An Evaluation of Denoising Methods for Satellite Imagery: A Comparative Analysis},
   author={Jayakumar, Malavika and Gudivada, Rahul and Nair, Harsh and Jenicka, S},
@@ -12,10 +16,7 @@
   booktitle={2021 7th International Conference on Contemporary Information Technology and Mathematics (ICCITM)},
   title={Enhancing Spatial Characteristics of Satellite Images},
   year={2021},
-  volume={},
-  number={},
   pages={191-196},
-  keywords={Satellites;Wiener filters;Brightness;Cameras;Real-time systems;Mathematics;Security;Satellite images processing;noise reduction;contrast enhancement;gamma correction;log transformation},
   doi={10.1109/ICCITM53167.2021.9677703}
 }
 
@@ -55,4 +56,485 @@
   pages={208},
   year={2021},
   publisher={MDPI}
+}
+
+% ========================================================================
+% Interpolação espacial clássica
+% ========================================================================
+
+@article{shepard1968two,
+  title={A two-dimensional interpolation function for irregularly-spaced data},
+  author={Shepard, Donald},
+  journal={Proceedings of the 1968 23rd ACM National Conference},
+  pages={517--524},
+  year={1968},
+  publisher={ACM}
+}
+
+@book{duchon1977splines,
+  title={Splines minimizing rotation-invariant semi-norms in {S}obolev spaces},
+  author={Duchon, Jean},
+  booktitle={Constructive Theory of Functions of Several Variables},
+  pages={85--100},
+  year={1977},
+  publisher={Springer}
+}
+
+@book{deboor1978practical,
+  title={A Practical Guide to Splines},
+  author={de~Boor, Carl},
+  year={1978},
+  publisher={Springer-Verlag},
+  address={New York}
+}
+
+% ========================================================================
+% Geoestatística e Krigagem
+% ========================================================================
+
+@book{cressie1993statistics,
+  title={Statistics for Spatial Data},
+  author={Cressie, Noel A.~C.},
+  year={1993},
+  publisher={John Wiley \& Sons},
+  edition={revised}
+}
+
+@article{matheron1963principles,
+  title={Principles of geostatistics},
+  author={Matheron, Georges},
+  journal={Economic Geology},
+  volume={58},
+  number={8},
+  pages={1246--1266},
+  year={1963}
+}
+
+% ========================================================================
+% Variação Total e Regularização
+% ========================================================================
+
+@article{rudin1992nonlinear,
+  title={Nonlinear total variation based noise removal algorithms},
+  author={Rudin, Leonid I. and Osher, Stanley and Fatemi, Emad},
+  journal={Physica D: Nonlinear Phenomena},
+  volume={60},
+  number={1--4},
+  pages={259--268},
+  year={1992}
+}
+
+% ========================================================================
+% Transformada Discreta de Cosseno e wavelets
+% ========================================================================
+
+@article{ahmed1974discrete,
+  title={Discrete cosine transform},
+  author={Ahmed, Nasir and Natarajan, T. and Rao, K.~R.},
+  journal={IEEE Transactions on Computers},
+  volume={C-23},
+  number={1},
+  pages={90--93},
+  year={1974}
+}
+
+@article{mallat1989theory,
+  title={A theory for multiresolution signal decomposition: the wavelet representation},
+  author={Mallat, St{\'e}phane G.},
+  journal={IEEE Transactions on Pattern Analysis and Machine Intelligence},
+  volume={11},
+  number={7},
+  pages={674--693},
+  year={1989}
+}
+
+@article{daubechies1988orthonormal,
+  title={Orthonormal bases of compactly supported wavelets},
+  author={Daubechies, Ingrid},
+  journal={Communications on Pure and Applied Mathematics},
+  volume={41},
+  number={7},
+  pages={909--996},
+  year={1988}
+}
+
+% ========================================================================
+% Sensoriamento compressivo
+% ========================================================================
+
+@article{donoho2006compressed,
+  title={Compressed sensing},
+  author={Donoho, David L.},
+  journal={IEEE Transactions on Information Theory},
+  volume={52},
+  number={4},
+  pages={1289--1306},
+  year={2006}
+}
+
+@article{candes2006robust,
+  title={Robust uncertainty principles: exact signal reconstruction from highly incomplete frequency information},
+  author={Cand{\`e}s, Emmanuel J. and Romberg, Justin and Tao, Terence},
+  journal={IEEE Transactions on Information Theory},
+  volume={52},
+  number={2},
+  pages={489--509},
+  year={2006}
+}
+
+% ========================================================================
+% Métodos patch-based / Non-Local Means
+% ========================================================================
+
+@inproceedings{buades2005non,
+  title={A non-local algorithm for image denoising},
+  author={Buades, Antoni and Coll, Bartomeu and Morel, Jean-Michel},
+  booktitle={2005 IEEE Computer Society Conference on Computer Vision and Pattern Recognition (CVPR)},
+  volume={2},
+  pages={60--65},
+  year={2005},
+  organization={IEEE}
+}
+
+@article{criminisi2004region,
+  title={Region filling and object removal by exemplar-based image inpainting},
+  author={Criminisi, Antonio and P{\'e}rez, Patrick and Toyama, Kentaro},
+  journal={IEEE Transactions on Image Processing},
+  volume={13},
+  number={9},
+  pages={1200--1212},
+  year={2004}
+}
+
+% ========================================================================
+% Aprendizado profundo — Arquiteturas
+% ========================================================================
+
+@inproceedings{ronneberger2015unet,
+  title={{U-Net}: Convolutional Networks for Biomedical Image Segmentation},
+  author={Ronneberger, Olaf and Fischer, Philipp and Brox, Thomas},
+  booktitle={Medical Image Computing and Computer-Assisted Intervention (MICCAI)},
+  pages={234--241},
+  year={2015},
+  publisher={Springer}
+}
+
+@inproceedings{goodfellow2014generative,
+  title={Generative Adversarial Nets},
+  author={Goodfellow, Ian and Pouget-Abadie, Jean and Mirza, Mehdi and Xu, Bing and Warde-Farley, David and Ozair, Sherjil and Courville, Aaron and Bengio, Yoshua},
+  booktitle={Advances in Neural Information Processing Systems (NeurIPS)},
+  volume={27},
+  year={2014}
+}
+
+@inproceedings{kingma2014auto,
+  title={Auto-Encoding Variational {B}ayes},
+  author={Kingma, Diederik P. and Welling, Max},
+  booktitle={Proceedings of the 2nd International Conference on Learning Representations (ICLR)},
+  year={2014}
+}
+
+@inproceedings{dosovitskiy2021image,
+  title={An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale},
+  author={Dosovitskiy, Alexey and Beyer, Lucas and Kolesnikov, Alexander and Weissenborn, Dirk and Zhai, Xiaohua and Unterthiner, Thomas and Dehghani, Mostafa and Minderer, Matthias and Heigold, Georg and Gelly, Sylvain and Uszkoreit, Jakob and Houlsby, Neil},
+  booktitle={Proceedings of the 9th International Conference on Learning Representations (ICLR)},
+  year={2021}
+}
+
+@article{hinton2006reducing,
+  title={Reducing the dimensionality of data with neural networks},
+  author={Hinton, Geoffrey E. and Salakhutdinov, Ruslan R.},
+  journal={Science},
+  volume={313},
+  number={5786},
+  pages={504--507},
+  year={2006}
+}
+
+% ========================================================================
+% Métricas de qualidade de imagem
+% ========================================================================
+
+@article{wang2004image,
+  title={Image quality assessment: from error visibility to structural similarity},
+  author={Wang, Zhou and Bovik, Alan C. and Sheikh, Hamid R. and Simoncelli, Eero P.},
+  journal={IEEE Transactions on Image Processing},
+  volume={13},
+  number={4},
+  pages={600--612},
+  year={2004}
+}
+
+@article{wald2000quality,
+  title={Quality of high resolution synthesised images: Is there a simple criterion?},
+  author={Wald, Lucien},
+  journal={International Journal of Remote Sensing},
+  volume={21},
+  number={8},
+  pages={1691--1706},
+  year={2000}
+}
+
+@inproceedings{yuhas1992discrimination,
+  title={Discrimination among semi-arid landscape endmembers using the {S}pectral {A}ngle {M}apper ({SAM}) algorithm},
+  author={Yuhas, Robert H. and Goetz, Alexander F.~H. and Boardman, Joe W.},
+  booktitle={Summaries of the 3rd Annual JPL Airborne Geoscience Workshop},
+  pages={147--149},
+  year={1992}
+}
+
+% ========================================================================
+% Entropia de Shannon
+% ========================================================================
+
+@article{shannon1948mathematical,
+  title={A mathematical theory of communication},
+  author={Shannon, Claude E.},
+  journal={The Bell System Technical Journal},
+  volume={27},
+  number={3},
+  pages={379--423},
+  year={1948}
+}
+
+% ========================================================================
+% Estatística — Spearman, Kruskal-Wallis, LISA, FDR
+% ========================================================================
+
+@article{spearman1904proof,
+  title={The proof and measurement of association between two things},
+  author={Spearman, Charles},
+  journal={American Journal of Psychology},
+  volume={15},
+  number={1},
+  pages={72--101},
+  year={1904}
+}
+
+@article{kruskal1952use,
+  title={Use of ranks in one-criterion variance analysis},
+  author={Kruskal, William H. and Wallis, W. Allen},
+  journal={Journal of the American Statistical Association},
+  volume={47},
+  number={260},
+  pages={583--621},
+  year={1952}
+}
+
+@article{anselin1995local,
+  title={Local indicators of spatial association --- {LISA}},
+  author={Anselin, Luc},
+  journal={Geographical Analysis},
+  volume={27},
+  number={2},
+  pages={93--115},
+  year={1995}
+}
+
+@article{benjamini1995controlling,
+  title={Controlling the false discovery rate: a practical and powerful approach to multiple testing},
+  author={Benjamini, Yoav and Hochberg, Yosef},
+  journal={Journal of the Royal Statistical Society: Series B (Methodological)},
+  volume={57},
+  number={1},
+  pages={289--300},
+  year={1995}
+}
+
+@article{huber1964robust,
+  title={Robust estimation of a location parameter},
+  author={Huber, Peter J.},
+  journal={The Annals of Mathematical Statistics},
+  volume={35},
+  number={1},
+  pages={73--101},
+  year={1964}
+}
+
+% ========================================================================
+% Preenchimento de lacunas em sensoriamento remoto
+% ========================================================================
+
+@article{shen2015missing,
+  title={Missing information reconstruction of remote sensing data: A technical review},
+  author={Shen, Huanfeng and Li, Xinghua and Cheng, Qing and Zeng, Chao and Yang, Gang and Li, Huifang and Zhang, Liangpei},
+  journal={IEEE Geoscience and Remote Sensing Magazine},
+  volume={3},
+  number={3},
+  pages={61--85},
+  year={2015}
+}
+
+@article{zhang2018missing,
+  title={Missing data reconstruction in remote sensing image with a unified spatial--temporal--spectral deep convolutional neural network},
+  author={Zhang, Qiang and Yuan, Qiangqiang and Zeng, Chao and Li, Xinghua and Wei, Yancong},
+  journal={IEEE Transactions on Geoscience and Remote Sensing},
+  volume={56},
+  number={8},
+  pages={4274--4288},
+  year={2018}
+}
+
+@article{zeng2013recovering,
+  title={Recovering missing pixels for {L}andsat {ETM+} {SLC}-off imagery using multi-temporal regression analysis and a regularization method},
+  author={Zeng, Chao and Shen, Huanfeng and Zhang, Liangpei},
+  journal={Remote Sensing of Environment},
+  volume={131},
+  pages={182--194},
+  year={2013}
+}
+
+@article{li2014recovering,
+  title={Recovering quantitative remote sensing products contaminated by thick clouds and shadows using multitemporal dictionary learning},
+  author={Li, Xinghua and Shen, Huanfeng and Zhang, Liangpei and Zhang, Huifang and Yuan, Qiangqiang and Yang, Gang},
+  journal={IEEE Transactions on Geoscience and Remote Sensing},
+  volume={52},
+  number={11},
+  pages={7086--7098},
+  year={2014}
+}
+
+% ========================================================================
+% Inpainting
+% ========================================================================
+
+@article{bertalmio2000image,
+  title={Image Inpainting},
+  author={Bertalmio, Marcelo and Sapiro, Guillermo and Caselles, Vicent and Ballester, Coloma},
+  journal={Proceedings of the 27th Annual Conference on Computer Graphics and Interactive Techniques (SIGGRAPH)},
+  pages={417--424},
+  year={2000}
+}
+
+% ========================================================================
+% DINEOF
+% ========================================================================
+
+@article{beckers2003eof,
+  title={{EOF} calculations and data filling from incomplete oceanographic datasets},
+  author={Beckers, Jean-Marie and Rixen, Michel},
+  journal={Journal of Atmospheric and Oceanic Technology},
+  volume={20},
+  number={12},
+  pages={1839--1856},
+  year={2003}
+}
+
+% ========================================================================
+% Sentinel-2 / Landsat / MODIS
+% ========================================================================
+
+@article{drusch2012sentinel,
+  title={Sentinel-2: {ESA}'s optical high-resolution mission for {GMES} operational services},
+  author={Drusch, Matthias and Del~Bello, Umberto and Carlier, S{\'e}bastien and Colin, Olivier and Fernandez, Veronica and Gascon, Ferran and Hoersch, Bianca and Isola, Claudia and Laberinti, Paolo and Martimort, Philippe and others},
+  journal={Remote Sensing of Environment},
+  volume={120},
+  pages={25--36},
+  year={2012}
+}
+
+@article{roy2014landsat,
+  title={{L}andsat-8: Science and product vision for terrestrial global change research},
+  author={Roy, David P. and Wulder, Michael A. and Loveland, Thomas R. and others},
+  journal={Remote Sensing of Environment},
+  volume={145},
+  pages={154--172},
+  year={2014}
+}
+
+% ========================================================================
+% Treinamento de redes / Otimização
+% ========================================================================
+
+@article{kingma2015adam,
+  title={Adam: A method for stochastic optimization},
+  author={Kingma, Diederik P. and Ba, Jimmy},
+  journal={Proceedings of the 3rd International Conference on Learning Representations (ICLR)},
+  year={2015}
+}
+
+@inproceedings{loshchilov2019decoupled,
+  title={Decoupled weight decay regularization},
+  author={Loshchilov, Ilya and Hutter, Frank},
+  booktitle={Proceedings of the 7th International Conference on Learning Representations (ICLR)},
+  year={2019}
+}
+
+@inproceedings{he2015delving,
+  title={Delving deep into rectifiers: Surpassing human-level performance on {ImageNet} classification},
+  author={He, Kaiming and Zhang, Xiangyu and Ren, Shaoqing and Sun, Jian},
+  booktitle={Proceedings of the IEEE International Conference on Computer Vision (ICCV)},
+  pages={1026--1034},
+  year={2015}
+}
+
+@article{hendrycks2016gaussian,
+  title={Gaussian error linear units ({GELUs})},
+  author={Hendrycks, Dan and Gimpel, Kevin},
+  journal={arXiv preprint arXiv:1606.08415},
+  year={2016}
+}
+
+% ========================================================================
+% Funções de base radial (RBF)
+% ========================================================================
+
+@article{buhmann2003radial,
+  title={Radial Basis Functions: Theory and Implementations},
+  author={Buhmann, Martin D.},
+  journal={Cambridge Monographs on Applied and Computational Mathematics},
+  year={2003},
+  publisher={Cambridge University Press}
+}
+
+% ========================================================================
+% Autocorrelação espacial — Moran
+% ========================================================================
+
+@article{moran1950notes,
+  title={Notes on continuous stochastic phenomena},
+  author={Moran, Patrick A.~P.},
+  journal={Biometrika},
+  volume={37},
+  number={1/2},
+  pages={17--23},
+  year={1950}
+}
+
+% ========================================================================
+% Isola et al. — pix2pix (GAN para imagem-a-imagem)
+% ========================================================================
+
+@inproceedings{isola2017image,
+  title={Image-to-image translation with conditional adversarial networks},
+  author={Isola, Phillip and Zhu, Jun-Yan and Zhou, Tinghui and Efros, Alexei A.},
+  booktitle={Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR)},
+  pages={1125--1134},
+  year={2017}
+}
+
+% ========================================================================
+% Batch Normalization
+% ========================================================================
+
+@inproceedings{ioffe2015batch,
+  title={Batch normalization: Accelerating deep network training by reducing internal covariate shift},
+  author={Ioffe, Sergey and Szegedy, Christian},
+  booktitle={Proceedings of the 32nd International Conference on Machine Learning (ICML)},
+  pages={448--456},
+  year={2015}
+}
+
+% ========================================================================
+% Preenchimento de lacunas em SR — temporal / DINEOF
+% ========================================================================
+
+@article{alvera2005reconstruction,
+  title={Reconstruction of incomplete oceanographic data sets using empirical orthogonal functions: application to the {A}driatic {S}ea surface temperature},
+  author={Alvera-Azc{\'a}rate, Aida and Barth, Alexander and Rixen, Michel and Beckers, Jean-Marie},
+  journal={Ocean Modelling},
+  volume={9},
+  number={4},
+  pages={325--346},
+  year={2005}
 }

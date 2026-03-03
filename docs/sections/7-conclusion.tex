@@ -4,9 +4,11 @@
 Este trabalho apresentou um benchmark multi-sensor para preenchimento de
 lacunas, avaliando 15 métodos clássicos sob múltiplos níveis de ruído e
 relacionando desempenho a uma medida local de complexidade baseada em entropia
-de Shannon em diferentes escalas. Como referência contemporânea, foram
-incluídos baselines de aprendizado profundo no sensor Sentinel-2, sob o mesmo
-protocolo de métricas calculadas estritamente em pixels ausentes.
+de Shannon~\cite{shannon1948mathematical} em diferentes escalas. Como referência
+contemporânea, foram incluídos baselines de aprendizado
+profundo~\cite{ronneberger2015unet,goodfellow2014generative,kingma2014auto,dosovitskiy2021image}
+no sensor Sentinel-2, sob o mesmo protocolo de métricas calculadas estritamente
+em pixels ausentes.
 
 Os resultados mostram que a associação entre entropia local e qualidade de
 reconstrução depende do método e da janela adotada, o que favorece análises
@@ -17,6 +19,7 @@ contexto de aquisição e restrições práticas.
 
 Como continuidade natural, destacam-se: (i) ampliar a cobertura amostral para
 métodos clássicos sob diferentes padrões de lacuna; (ii) incorporar modelos
-temporais quando séries estejam disponíveis; e (iii) investigar estratégias de
-treinamento e seleção de modelos de \gls{DL} que utilizem entropia como sinal
-auxiliar, respeitando dependência de escala e variações entre sensores.
+temporais~\cite{beckers2003eof,alvera2005reconstruction} quando séries estejam
+disponíveis; e (iii) investigar estratégias de treinamento e seleção de modelos
+de \gls{DL} que utilizem entropia como sinal auxiliar, respeitando dependência
+de escala e variações entre sensores.

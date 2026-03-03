@@ -4,12 +4,37 @@
 Os resultados apresentados ao longo da \Cref{sec:results} permitem discutir a
 entropia local como um indicador operacional de complexidade de cena e, por
 extensão, de \emph{dificuldade relativa} para preenchimento de lacunas.
-Entretanto, a evidência empírica sugere que essa relação não é universal nem
-invariante à escala: a direção e a intensidade da associação variam com a
-janela adotada e com a família de métodos (\Cref{fig:spearman-heatmap,fig:entropy-vs-psnr-windows}).
-Assim, tratar a entropia como um único número global tende a ser uma
-aproximação excessivamente grosseira; análises multi-escala são mais
-compatíveis com o comportamento observado.
+
+\subsection{Verificação das Hipóteses}
+
+\paragraph{H1 (dependência de método e escala).}
+A hipótese é sustentada pela evidência. O heatmap de correlação de
+Spearman (\Cref{fig:spearman-heatmap}) mostra que a direção e a intensidade
+da associação entropia--qualidade variam com a janela adotada e com a família
+de métodos. Métodos de kernel e geoestatísticos apresentam correlações próximas
+de zero ou positivas com PSNR em algumas escalas, enquanto modelos de \gls{DL}
+exibem correlações consistentemente negativas. Isso confirma que tratar a
+entropia como um único número global é uma aproximação excessivamente
+grosseira; análises multi-escala são mais compatíveis com o comportamento
+observado.
+
+\paragraph{H2 (sensibilidade diferenciada por família).}
+A análise da \Cref{tab:degradation-psnr-best} mostra que modelos de \gls{DL}
+são substancialmente menos sensíveis à degradação por ruído do que métodos
+clássicos, especialmente em faixas de alta entropia. Contudo, a evidência
+para diferenciação entre famílias clássicas na faixa de baixa entropia é
+mais sutil: métodos como RBF, spline e krigagem mantêm desempenho próximo
+entre si. Uma análise mais detalhada com testes de diferença entre
+coeficientes de sensibilidade seria necessária para conclusões definitivas.
+
+\paragraph{H3 (entropia como preditor significativo).}
+A \Cref{tab:spearman-entropy-best} demonstra que, para cada janela analisada,
+a entropia é um preditor estatisticamente significativo ($p_{\text{FDR}} < 0{,}05$)
+para a maioria das combinações método--métrica. As correlações, embora de
+magnitude modesta ($|\rho|$ entre 0,1 e 0,5), são altamente significativas
+devido ao tamanho amostral.
+
+\subsection{Métodos Clássicos vs.\ Aprendizado Profundo}
 
 Do ponto de vista metodológico, a comparação entre técnicas reforça que
 conclusões sobre superioridade devem ser contextualizadas pelo sensor, pelo
@@ -18,20 +43,30 @@ Além disso, resultados de trade-off qualidade-tempo (\Cref{fig:pareto,tab:runti
 indicam que o custo computacional é uma dimensão relevante de decisão, e não
 apenas uma consideração de implementação.
 
-\paragraph{Limitações e ameaças à validade.}
-Primeiro, as lacunas são introduzidas por máscaras sintéticas e a fração de
-ausência é aproximadamente fixa, o que não cobre toda a variedade de padrões
-observados em cenários reais. Segundo, a entropia é calculada a partir da
-média das bandas, o que reduz a dimensão espectral a uma projeção escalar e
-pode sub-representar complexidades específicas de banda. Terceiro, a avaliação
-de aprendizado profundo restringe-se ao sensor Sentinel-2, o que limita
-generalizações para outros sensores. Por fim, o benchmark clássico depende de
-amostragem por semente e por sensor para manter a execução viável; ainda que
-balanceada, tal amostragem pode limitar a precisão de estimativas para
-subgrupos raros.
+\subsection{Limitações e Ameaças à Validade}
 
-\paragraph{Implicações práticas.}
-Mesmo com as restrições, a evidência sugere que a entropia local pode ser
-utilizada como sinal auxiliar para priorização de recortes e para seleção
-exploratória de famílias de métodos em pipelines operacionais, desde que sua
-interpretação seja condicionada à escala e ao método.
+\begin{enumerate}
+  \item \textbf{Lacunas sintéticas.} As lacunas são introduzidas por máscaras
+  sintéticas e a fração de ausência é aproximadamente fixa ($\approx$10\%),
+  o que não cobre toda a variedade de padrões observados em cenários reais.
+  \item \textbf{Projeção espectral escalar.} A entropia é calculada a partir da
+  média das bandas, o que reduz a dimensão espectral a uma projeção escalar e
+  pode sub-representar complexidades específicas de banda.
+  \item \textbf{DL restrito ao Sentinel-2.} A avaliação de aprendizado profundo
+  restringe-se ao sensor Sentinel-2, o que limita generalizações para outros
+  sensores.
+  \item \textbf{Amostragem balanceada.} O benchmark clássico depende de
+  amostragem por semente e por sensor para manter a execução viável; ainda que
+  balanceada, tal amostragem pode limitar a precisão de estimativas para
+  subgrupos raros. O MODIS (com apenas 60 recortes totais) apresenta potência
+  estatística limitada.
+\end{enumerate}
+
+\subsection{Implicações Práticas}
+
+A evidência sugere que a entropia local pode ser utilizada como sinal auxiliar
+para priorização de recortes e para seleção exploratória de famílias de métodos
+em pipelines operacionais, desde que sua interpretação seja condicionada à
+escala e ao método. Em cenas de baixa entropia, métodos clássicos eficientes
+(e.g., bilinear) podem ser suficientes; em cenas de alta entropia, modelos de
+\gls{DL} com conexões de salto (U-Net, GAN) oferecem qualidade superior.

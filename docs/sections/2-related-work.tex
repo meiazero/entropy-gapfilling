@@ -1,19 +1,37 @@
 \section{Trabalhos Relacionados}
 \label{sec:related}
 
-O preenchimento de lacunas (\emph{gap filling}) em imagens de satélite é um problema recorrente em sensoriamento remoto, especialmente quando dados são ocluídos por nuvens, degradados por efeitos atmosféricos ou comprometidos por falhas instrumentais.
-Em termos metodológicos, as abordagens existentes podem ser organizadas, de forma ampla, por
-(i) métodos estritamente espaciais que exploram vizinhanças locais e suavidade;
-(ii) métodos baseados em kernel e geoestatística, que incorporam noções explícitas de proximidade e correlação espacial;
-(iii) formulações no domínio de transformadas e regularização, que impõem parcimônia em bases frequenciais;
-(iv) estratégias patch-based, que exploram auto-similaridade e busca de exemplares; e
-(v) formulações de sensoriamento compressivo, que resolvem problemas inversos com restrições de esparsidade.
+O preenchimento de lacunas (\emph{gap filling}) em imagens de satélite é um problema recorrente em sensoriamento remoto, especialmente quando dados são ocluídos por nuvens, degradados por efeitos atmosféricos ou comprometidos por falhas instrumentais~\cite{shen2015missing}.
+Em termos metodológicos, as abordagens existentes podem ser organizadas por categorias conforme descrito a seguir.
 
-Nos últimos anos, modelos de aprendizado profundo passaram a ser utilizados como alternativas competitivas para preenchimento, sobretudo em contextos mono-sensor e com grandes volumes de treinamento.
-Ainda que essas abordagens possam capturar priors complexos, seu desempenho depende fortemente do alinhamento entre as distribuições de treino e teste e, em geral, traz desafios adicionais de interpretabilidade e custo computacional.
+\subsection{Métodos Espaciais}
+
+Os métodos espaciais exploram a vizinhança local para reconstruir pixels ausentes. A interpolação por vizinho mais próximo, bilinear e bicúbica são técnicas determinísticas amplamente utilizadas por sua simplicidade~\cite{deboor1978practical}. A ponderação pelo inverso da distância (IDW)~\cite{shepard1968two} estima valores ausentes como uma média ponderada de observações válidas, com pesos decrescentes em função da distância. Métodos baseados em funções de base radial (RBF)~\cite{buhmann2003radial} e splines de placa fina~\cite{duchon1977splines} oferecem superfícies interpolantes mais suaves, minimizando a energia de curvatura.
+
+\subsection{Geoestatística}
+
+A krigagem ordinária~\cite{cressie1993statistics,matheron1963principles} incorpora a estrutura de correlação espacial por meio de um semivariograma ajustado, fornecendo o melhor preditor linear não-viesado. Embora ofereça fundamentos teóricos sólidos, a krigagem apresenta custo computacional elevado para imagens de alta resolução.
+
+\subsection{Domínio de Transformadas e Regularização}
+
+Métodos baseados na Transformada Discreta de Cosseno (DCT)~\cite{ahmed1974discrete} promovem esparsidade no domínio da frequência por meio de algoritmos iterativos de limiarização (ISTA). A decomposição wavelet~\cite{mallat1989theory,daubechies1988orthonormal} opera em múltiplas escalas, penalizando detalhes de alta frequência enquanto preserva a estrutura de grande escala. A regularização por Variação Total (TV)~\cite{rudin1992nonlinear} promove reconstruções suaves por partes, controlando o gradiente total da imagem.
+
+\subsection{Sensoriamento Compressivo}
+
+As formulações de sensoriamento compressivo~\cite{donoho2006compressed,candes2006robust} recuperam sinais esparsos a partir de amostragens incompletas, resolvendo problemas inversos com restrições de esparsidade em bases de DCT ou wavelet. Essas abordagens são particularmente adequadas quando a fração de dados observados é reduzida.
+
+\subsection{Métodos Patch-Based}
+
+Os métodos patch-based exploram a auto-similaridade global da imagem. As médias não-locais (NLM)~\cite{buades2005non} estimam cada pixel como uma média ponderada de todos os pixels com vizinhanças similares. O inpainting baseado em exemplares~\cite{criminisi2004region} propaga textura de regiões válidas para lacunas, preservando tanto estrutura linear quanto textura.
+
+\subsection{Aprendizado Profundo}
+
+Nos últimos anos, modelos de aprendizado profundo passaram a ser utilizados como alternativas competitivas para preenchimento~\cite{zhang2018missing}. Autoencoders~\cite{hinton2006reducing} e autoencoders variacionais (VAE)~\cite{kingma2014auto} aprendem representações latentes compactas. Redes adversariais generativas (GANs)~\cite{goodfellow2014generative}, especialmente na configuração condicional de tradução imagem-a-imagem~\cite{isola2017image}, podem gerar reconstruções visualmente plausíveis. A U-Net~\cite{ronneberger2015unet}, com suas conexões de salto, é particularmente eficaz para preservar detalhes espaciais finos. Vision Transformers (ViT)~\cite{dosovitskiy2021image} oferecem um campo receptivo global desde a primeira camada, explorando dependências de longo alcance. Ainda que essas abordagens capturem priors complexos, seu desempenho depende fortemente do alinhamento entre as distribuições de treino e teste.
+
+\subsection{Entropia como Medida de Complexidade}
 
 Do ponto de vista de \emph{predição de dificuldade}, uma intuição natural é que regiões mais homogêneas tendem a ser mais fáceis de reconstruir do que regiões texturizadas e heterogêneas.
-A entropia de Shannon local é frequentemente empregada como medida de complexidade, mas sua relação com a qualidade de reconstrução é tipicamente tratada de maneira implícita, ou resumida por médias globais.
+A entropia de Shannon~\cite{shannon1948mathematical} é frequentemente empregada como medida de complexidade de cena, mas sua relação com a qualidade de reconstrução é tipicamente tratada de maneira implícita ou resumida por médias globais.
 Em benchmarks, isso tende a ocultar variações locais relevantes e limita o uso operacional de medidas de complexidade como instrumento de decisão.
 
 Este trabalho complementa esse panorama ao quantificar, de forma multi-escala e por método, a associação entre entropia local e métricas de qualidade, além de comparar famílias clássicas e baselines de aprendizado profundo sob um protocolo comum de avaliação em pixels de lacuna.

@@ -2,11 +2,13 @@
 \label{sec:experimental}
 
 \subsection{Amostragem e Avaliação}
+
 Os métodos clássicos apresentam custo computacional heterogêneo e, por esse
-motivo, a avaliação multi-sensor é conduzida em um subconjunto balanceado do
-conjunto de dados, limitado a um número máximo de recortes por sensor e por
-semente experimental. Esse desenho preserva comparabilidade entre sensores ao
-mesmo tempo em que mantém a execução viável.
+motivo, a avaliação multi-sensor é conduzida em um subconjunto balanceado de
+até 30 recortes por sensor e por semente experimental, com 10 sementes
+($\{42, 123, 456, 789, 1011, 1213, 1415, 1617, 1819, 2021\}$). Esse desenho
+preserva comparabilidade entre sensores ao mesmo tempo em que mantém a execução
+viável.
 
 Para aprendizado profundo, a avaliação é restrita ao sensor Sentinel-2,
 utilizando a partição de teste indicada na \Cref{tab:dataset-stats}. Quando a
@@ -14,23 +16,77 @@ comparação entre métodos clássicos e modelos de \gls{DL} é apresentada, os
 resultados clássicos são filtrados para Sentinel-2, evitando confundir
 diferenças metodológicas com diferenças de sensor.
 
-\subsection{Métricas}
-Reportamos \gls{PSNR}, \gls{SSIM}, \gls{RMSE}, \gls{SAM} e \gls{ERGAS} apenas em
-pixels de lacuna. O \gls{RMSE} por banda espectral também é computado para
-diagnóstico.
+Os hiperparâmetros dos modelos de \gls{DL} foram selecionados por busca em grade
+(\emph{grid search}) em subconjunto de 10 recortes, avaliando combinações de
+taxa de aprendizado, tamanho de lote, decaimento de peso e parâmetros
+específicos de cada arquitetura. A configuração de melhor desempenho no conjunto
+de validação foi adotada para o treinamento final.
+
+\subsection{Métricas de Qualidade}
+\label{sec:metrics}
+
+Todas as métricas são computadas exclusivamente nos pixels de lacuna
+$\mathcal{G} = \{(h,w) : z_{hw}=1\}$ para evitar diluir o sinal com pixels
+observados~\cite{wang2004image}.
+
+\paragraph{PSNR.}
+Relação Sinal-Ruído de Pico, em decibéis:
+\[
+  \text{PSNR} = 10 \log_{10}\!\left(\frac{1}{\text{MSE}_{\mathcal{G}}}\right),
+  \quad
+  \text{MSE}_{\mathcal{G}} =
+  \frac{1}{|\mathcal{G}|\,C}
+  \sum_{(h,w)\in\mathcal{G}} \sum_c
+  (y_{hwc} - \hat{y}_{hwc})^2.
+\]
+
+\paragraph{SSIM.}
+Índice de Similaridade Estrutural~\cite{wang2004image}. O mapa completo de
+\gls{SSIM} entre $\mathbf{y}$ e $\hat{\mathbf{y}}$ é computado e a média é
+calculada sobre $\mathcal{G}$.
+
+\paragraph{RMSE.}
+Raiz do Erro Quadrático Médio, computada por banda e depois agregada:
+\[
+  \text{RMSE}_c = \sqrt{\frac{1}{|\mathcal{G}|}
+  \sum_{(h,w)\in\mathcal{G}} (y_{hwc} - \hat{y}_{hwc})^2}.
+\]
+
+\paragraph{SAM.}
+Mapeador de Ângulo Espectral~\cite{yuhas1992discrimination}, que mede a
+distorsão espectral como o ângulo entre vetores espectrais:
+\[
+  \text{SAM}(h,w) = \arccos\!\left(
+    \frac{\mathbf{y}_{hw}^\top \hat{\mathbf{y}}_{hw}}
+         {\|\mathbf{y}_{hw}\| \, \|\hat{\mathbf{y}}_{hw}\|}
+  \right).
+\]
+
+\paragraph{ERGAS.}
+\emph{Erreur Relative Globale Adimensionnelle de Synthèse}~\cite{wald2000quality},
+indicador global adimensional:
+\[
+  \text{ERGAS} = 100 \sqrt{
+    \frac{1}{C} \sum_{c=1}^{C}
+    \left(\frac{\text{RMSE}_c}{\mu_c}\right)^2
+  },
+\]
+onde $\mu_c$ é a média da banda $c$ nos pixels de referência.
 
 \subsection{Análise Estatística}
-Adota-se correlação de Spearman para quantificar associações monotônicas entre
-entropia local e métricas de qualidade, com correção por \gls{FDR} em múltiplos
-testes. Para comparar distribuições de desempenho entre métodos, utiliza-se o
-teste de Kruskal-Wallis, seguido de comparações par-a-par com correção
-conservadora para múltiplas hipóteses e medidas de tamanho de efeito.
 
-Como análise complementar, ajusta-se regressão robusta (\gls{RLM} com norma de
-Huber) para modelar métricas como função das entropias em múltiplas escalas,
-controlando por método e nível de ruído. Intervalos de confiança são obtidos
-via bootstrap, com reamostragem em cluster por \texttt{patch\_id}, para reduzir
-dependência intra-recorte.
+Adota-se correlação de Spearman~\cite{spearman1904proof} para quantificar
+associações monotônicas entre entropia local e métricas de qualidade, com
+correção por \gls{FDR}~\cite{benjamini1995controlling} em múltiplos testes. Para
+comparar distribuições de desempenho entre métodos, utiliza-se o teste de
+Kruskal-Wallis~\cite{kruskal1952use}, seguido de comparações par-a-par com
+correção conservadora para múltiplas hipóteses e medidas de tamanho de efeito.
+
+Como análise complementar, ajusta-se regressão robusta
+(\gls{RLM}~\cite{huber1964robust} com norma de Huber) para modelar métricas como
+função das entropias em múltiplas escalas, controlando por método e nível de
+ruído. Intervalos de confiança são obtidos via bootstrap, com reamostragem em
+cluster por \texttt{patch\_id}, para reduzir dependência intra-recorte.
 
 \subsection{Ambiente de Execução}
 Os experimentos foram executados em Rocky Linux 9.5 com NVIDIA A100 80GB PCIe,
