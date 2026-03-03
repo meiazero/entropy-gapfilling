@@ -1,24 +1,19 @@
-\begin{table}[t]
- \centering
- \footnotesize
- \caption{Summary of deep learning architectures. Input:
- $[\mathbf{x};\, \mathbf{z}] \in \mathbb{R}^{5 \times 64 \times 64}$;
- output: $\hat{\mathbf{y}} \in [0,1]^{4 \times 64 \times 64}$.}
- \label{tab:dl-architectures}
- \begin{tabular}{lllc}
- \toprule
- Model & Bottleneck / Core & Loss & Skip \\
- \midrule
- AE  & $512{\times}1{\times}1$ vector
-     & MSE$_{\mathcal{G}}$ & -- \\
- VAE & $\boldsymbol{\mu},\log\boldsymbol{\sigma}^2 \!\in\! \mathbb{R}^{256}$
-     & MSE$_{\mathcal{G}}$+$\beta$KL & -- \\
- GAN & Dilated conv (2,\,4)
-     & ${\ell_1}^{\mathcal{G}}$+BCE$_{\mathrm{adv}}$ & \checkmark \\
- U-Net & $1024{\times}4{\times}4$ ResBlock
-       & MSE$_{\mathcal{G}}$ & \checkmark \\
- ViT & 4$\times$ Transformer ($d$=256)
-     & MSE$_{\mathcal{G}}$ & -- \\
- \bottomrule
- \end{tabular}
-\end{table}
+\begin{table*}[htbp]
+\centering
+\caption{Baselines de aprendizado profundo: arquitetura, perda e hiperparâmetros de treino.}
+\label{tab:dl-architectures}
+\footnotesize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{llll}
+\toprule
+Modelo & Arquitetura & Perda (pixels de lacuna) & Hiperparâmetros \\
+\midrule
+\texttt{AE} & Autoencoder convolucional & MSE & $epochs=60$, $batch=96$, $lr=1.5\times10^{-3}$, $patience=12$ \\
+\texttt{VAE} & Autoencoder variacional (conv.) & MSE $+\,\beta\,\mathrm{KL}$ & $epochs=80$, $batch=96$, $lr=1.5\times10^{-3}$, $\beta=10^{-3}$, $patience=15$ \\
+\texttt{GAN} & U-Net (G) + Patch Discriminator (D) & $\lambda_{\mathrm{L1}}\,\mathrm{L1}+\lambda_{\mathrm{adv}}\,\mathrm{BCE}$ & $epochs=120$, $batch=32$, $lr=2\times10^{-4}$, $\lambda_{\mathrm{L1}}=10.0$, $\lambda_{\mathrm{adv}}=0.1$, $patience=20$ \\
+\texttt{U-Net} & U-Net convolucional & MSE & $epochs=80$, $batch=96$, $lr=1.5\times10^{-3}$, $wd=10^{-4}$, $patience=15$ \\
+\texttt{ViT} & Vision Transformer & MSE & $epochs=120$, $batch=64$, $lr=2\times10^{-4}$, $wd=0.05$, $patience=20$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table*}

@@ -34,6 +34,8 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
+_SETTINGS: dict[str, int] = {"bootstrap_samples": 1000}
+
 
 # ── LaTeX helpers ─────────────────────────────────────────────────────
 
@@ -109,9 +111,12 @@ def _bootstrap_ci_half(
     clusters: pd.Series | None,
     *,
     stat_fn: callable,
-    n_boot: int = 1000,
+    n_boot: int | None = None,
     seed: int = 42,
 ) -> float:
+    samples = (
+        n_boot if n_boot is not None else int(_SETTINGS["bootstrap_samples"])
+    )
     vals = values.dropna()
     if len(vals) < 2:
         return 0.0
@@ -125,7 +130,7 @@ def _bootstrap_ci_half(
 
     rng = np.random.default_rng(seed)
     boot_stats = []
-    for _ in range(n_boot):
+    for _ in range(samples):
         sampled = rng.choice(
             unique_clusters, size=len(unique_clusters), replace=True
         )
@@ -763,11 +768,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Output directory. Defaults to paper_assets/tables/",
     )
+    parser.add_argument(
+        "--bootstrap-samples",
+        type=int,
+        default=int(_SETTINGS["bootstrap_samples"]),
+        help="Number of bootstrap resamples for CI estimates.",
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
+    _SETTINGS["bootstrap_samples"] = int(args.bootstrap_samples)
 
     df = load_combined()
     if df.empty:

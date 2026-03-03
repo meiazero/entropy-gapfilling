@@ -116,6 +116,14 @@ JOB_NAME     := draft
 RESULTS_DIR  ?= results/paper_results
 QUICK_DIR    ?= results/quick_validation
 DL_PLOTS_DIR ?= $(PLOT_DIR)
+PAPER_FAST   ?= 0
+FIG_BOOTSTRAP_SAMPLES   ?= 500
+TABLE_BOOTSTRAP_SAMPLES ?= 1000
+
+ifeq ($(PAPER_FAST),1)
+FIG_BOOTSTRAP_SAMPLES   := 200
+TABLE_BOOTSTRAP_SAMPLES := 300
+endif
 
 # Directories whose tables/ and figures/ sub-dirs are copied to docs/.
 # Later entries overwrite earlier ones when filenames collide, so put the
@@ -125,8 +133,11 @@ _ASSET_DIRS := $(QUICK_DIR) $(RESULTS_DIR)
 .PHONY: paper-generate-assets
 paper-generate-assets: ## Generate tables and figures into paper_assets/
 	@echo "Generating paper assets (paper_assets/figures, paper_assets/tables)"
-	@uv run python scripts/generate_figures.py --output paper_assets/figures --png-only
-	@uv run python scripts/generate_tables.py --output paper_assets/tables
+	@uv run python scripts/generate_figures.py --output paper_assets/figures --png-only \
+		--bootstrap-samples $(FIG_BOOTSTRAP_SAMPLES)
+	@uv run python scripts/generate_paper_figures_extra.py --output paper_assets/figures
+	@uv run python scripts/generate_tables.py --output paper_assets/tables \
+		--bootstrap-samples $(TABLE_BOOTSTRAP_SAMPLES)
 
 .PHONY: paper-assets
 paper-assets: paper-generate-assets ## Copy generated tables and figures to docs/

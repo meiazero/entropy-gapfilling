@@ -4,24 +4,49 @@
 \subsection{Conjunto de Dados e Preprocessamento}
 \label{sec:dataset}
 
-Utilizamos um conjunto de dados de recortes 64\,x\,64 com 4 bandas de
-Sentinel-2, Landsat-8, Landsat-9 e MODIS. As lacunas são simuladas com
-máscaras de nuvem realistas e avaliadas em quatro níveis de ruído
-(inf, 40, 30, 20 dB). Todas as métricas são calculadas estritamente sobre
-pixels de lacuna (mask = 1).
+Utiliza-se um conjunto de dados de recortes multiespectrais com dimensão
+$64\times64$ pixels e quatro bandas (B2, B3, B4 e B8) provenientes de quatro
+sensores: Sentinel-2, Landsat-8, Landsat-9 e MODIS. As estatísticas do conjunto
+de dados, incluindo número de recortes por sensor e partição em treino,
+validação e teste, são apresentadas na \Cref{tab:dataset-stats}.
+
+As lacunas são introduzidas por máscaras sintéticas binárias (1 indica pixel
+ausente; 0 indica pixel válido), com fração de lacuna aproximada de 10\%.
+Adicionalmente, considera-se degradação por ruído em quatro níveis
+(\texttt{inf}, 40, 30 e 20 dB), o que permite avaliar robustez sob cenários
+controlados. Em todas as análises, as métricas de qualidade são calculadas
+estritamente sobre os pixels mascarados, o que isola a contribuição do método
+de preenchimento.
+
+\input{tables/dataset-stats}
 
 \subsection{Entropia Local}
-A entropia de Shannon local é computada em janelas deslizantes de tamanho 7,
-15 e 31. Cada janela é analisada de forma independente para evitar
-confundimento entre escalas.
+Seja uma variável aleatória discreta com distribuição $p(x)$ estimada a partir
+do histograma local de intensidades. A entropia de Shannon é definida como
+$H = -\sum_x p(x)\log p(x)$. Neste trabalho, a entropia local é calculada
+pixel a pixel, em uma janela quadrada deslizante de lado $s\in\{7,15,31\}$,
+utilizando uma transformação para tons de cinza obtida pela média das bandas.
+Antes do cálculo, os valores são reescalados para o intervalo $[0,255]$ e
+quantizados em \texttt{uint8}, o que viabiliza um filtro de ordem baseado em
+janela para estimativa eficiente.
+
+Como a interpretação de $H$ depende da escala espacial, cada janela é tratada
+como um preditor distinto nas análises, evitando colapsar múltiplas escalas em
+um único resumo.
 
 \subsection{Métodos Clássicos}
-Avaliamos 15 métodos clássicos agrupados em seis famílias: interpolação
-espacial, métodos de kernel, krigagem geoestatística, inpainting no domínio
-da transformada, sensoriamento compressivo e métodos patch-based.
+Avaliam-se 15 métodos clássicos agrupados em seis famílias: interpolação
+espacial, métodos baseados em kernel, krigagem geoestatística, inpainting no
+domínio de transformadas e regularização, sensoriamento compressivo e métodos
+patch-based. A \Cref{tab:methods} sumariza os métodos e seus parâmetros.
+
+\input{tables/methods}
 
 \subsection{Baselines de Aprendizado Profundo}
 Cinco baselines de aprendizado profundo (\gls{AE}, \gls{VAE}, \gls{GAN}, U-Net e
-\gls{ViT}) são incluídos para comparação em Sentinel-2. Esses modelos
-não são a contribuição principal, mas fornecem contexto para desempenho
-moderno.
+\gls{ViT}) são incluídos para comparação no sensor Sentinel-2. Esses modelos
+fornecem um ponto de referência contemporâneo, sem pretensão de exaustividade
+arquitetural. A \Cref{tab:dl-architectures} resume as arquiteturas e funções de
+perda consideradas.
+
+\input{tables/dl-architectures}

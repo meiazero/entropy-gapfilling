@@ -1,16 +1,37 @@
 \section{Discussão}
 \label{sec:discussion}
 
-Os resultados indicam que a entropia é um preditor útil, mas não universal,
-da qualidade de reconstrução. Seu efeito depende da família de métodos
-e do tamanho da janela, reforçando a necessidade de análise
-multi-escala, e não de um único proxy de entropia.
+Os resultados apresentados ao longo da \Cref{sec:results} permitem discutir a
+entropia local como um indicador operacional de complexidade de cena e, por
+extensão, de \emph{dificuldade relativa} para preenchimento de lacunas.
+Entretanto, a evidência empírica sugere que essa relação não é universal nem
+invariante à escala: a direção e a intensidade da associação variam com a
+janela adotada e com a família de métodos (\Cref{fig:spearman-heatmap,fig:entropy-vs-psnr-windows}).
+Assim, tratar a entropia como um único número global tende a ser uma
+aproximação excessivamente grosseira; análises multi-escala são mais
+compatíveis com o comportamento observado.
 
-O estudo é limitado pelo tamanho da amostra clássica (118 recortes, uma
-seed) e pelo escopo mono-sensor da avaliação de \gls{DL}. Essas limitações
-são reconhecidas e motivam um estudo futuro com amostragem clássica maior e
-treinamento de modelos profundos guiados por entropia.
+Do ponto de vista metodológico, a comparação entre técnicas reforça que
+conclusões sobre superioridade devem ser contextualizadas pelo sensor, pelo
+nível de ruído e pela métrica de interesse (\Cref{tab:global-scoreboard-best,tab:psnr-satellite}).
+Além disso, resultados de trade-off qualidade-tempo (\Cref{fig:pareto,tab:runtime-speed})
+indicam que o custo computacional é uma dimensão relevante de decisão, e não
+apenas uma consideração de implementação.
 
-Na prática, os achados sustentam o uso da entropia como sinal auxiliar para
-seleção de métodos e para priorizar recortes nos quais a qualidade da
-reconstrução é mais incerta.
+\paragraph{Limitações e ameaças à validade.}
+Primeiro, as lacunas são introduzidas por máscaras sintéticas e a fração de
+ausência é aproximadamente fixa, o que não cobre toda a variedade de padrões
+observados em cenários reais. Segundo, a entropia é calculada a partir da
+média das bandas, o que reduz a dimensão espectral a uma projeção escalar e
+pode sub-representar complexidades específicas de banda. Terceiro, a avaliação
+de aprendizado profundo restringe-se ao sensor Sentinel-2, o que limita
+generalizações para outros sensores. Por fim, o benchmark clássico depende de
+amostragem por semente e por sensor para manter a execução viável; ainda que
+balanceada, tal amostragem pode limitar a precisão de estimativas para
+subgrupos raros.
+
+\paragraph{Implicações práticas.}
+Mesmo com as restrições, a evidência sugere que a entropia local pode ser
+utilizada como sinal auxiliar para priorização de recortes e para seleção
+exploratória de famílias de métodos em pipelines operacionais, desde que sua
+interpretação seja condicionada à escala e ao método.

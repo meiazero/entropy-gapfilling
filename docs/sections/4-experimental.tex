@@ -2,12 +2,17 @@
 \label{sec:experimental}
 
 \subsection{Amostragem e Avaliação}
-Os resultados clássicos são reportados em uma amostra multi-sensor
-balanceada com 118 recortes e uma seed, distribuídos igualmente entre os
-quatro satélites. A avaliação de aprendizado profundo fica restrita ao
-Sentinel-2, com uma amostra maior (7399 recortes). Para comparação justa,
-os resultados clássicos são filtrados para Sentinel-2 quando comparados com
-os modelos de \gls{DL}.
+Os métodos clássicos apresentam custo computacional heterogêneo e, por esse
+motivo, a avaliação multi-sensor é conduzida em um subconjunto balanceado do
+conjunto de dados, limitado a um número máximo de recortes por sensor e por
+semente experimental. Esse desenho preserva comparabilidade entre sensores ao
+mesmo tempo em que mantém a execução viável.
+
+Para aprendizado profundo, a avaliação é restrita ao sensor Sentinel-2,
+utilizando a partição de teste indicada na \Cref{tab:dataset-stats}. Quando a
+comparação entre métodos clássicos e modelos de \gls{DL} é apresentada, os
+resultados clássicos são filtrados para Sentinel-2, evitando confundir
+diferenças metodológicas com diferenças de sensor.
 
 \subsection{Métricas}
 Reportamos \gls{PSNR}, \gls{SSIM}, \gls{RMSE}, \gls{SAM} e \gls{ERGAS} apenas em
@@ -15,10 +20,17 @@ pixels de lacuna. O \gls{RMSE} por banda espectral também é computado para
 diagnóstico.
 
 \subsection{Análise Estatística}
-Utilizamos correlação de Spearman com correção \gls{FDR},
-Kruskal-Wallis com pós-teste Bonferroni e tamanhos de efeito, e regressão
-robusta com controle por método e ruído. Intervalos de confiança
-são estimados via bootstrap em cluster por patch\_id.
+Adota-se correlação de Spearman para quantificar associações monotônicas entre
+entropia local e métricas de qualidade, com correção por \gls{FDR} em múltiplos
+testes. Para comparar distribuições de desempenho entre métodos, utiliza-se o
+teste de Kruskal-Wallis, seguido de comparações par-a-par com correção
+conservadora para múltiplas hipóteses e medidas de tamanho de efeito.
+
+Como análise complementar, ajusta-se regressão robusta (\gls{RLM} com norma de
+Huber) para modelar métricas como função das entropias em múltiplas escalas,
+controlando por método e nível de ruído. Intervalos de confiança são obtidos
+via bootstrap, com reamostragem em cluster por \texttt{patch\_id}, para reduzir
+dependência intra-recorte.
 
 \subsection{Ambiente de Execução}
 Os experimentos foram executados em Rocky Linux 9.5 com NVIDIA A100 80GB PCIe,

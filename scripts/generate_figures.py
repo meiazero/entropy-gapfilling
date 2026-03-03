@@ -63,7 +63,10 @@ _PUB_FONT = {
     "savefig.pad_inches": 0.05,
 }
 
-_SETTINGS: dict[str, bool] = {"png_only": False}
+_SETTINGS: dict[str, int | bool] = {
+    "png_only": False,
+    "bootstrap_samples": 500,
+}
 
 
 def _setup_style() -> None:
@@ -255,9 +258,12 @@ def _cluster_bootstrap_ci(
     values: pd.Series,
     cluster_ids: pd.Series | None,
     *,
-    n_boot: int = 500,
+    n_boot: int | None = None,
     seed: int = 42,
 ) -> float:
+    samples = (
+        n_boot if n_boot is not None else int(_SETTINGS["bootstrap_samples"])
+    )
     vals = values.dropna()
     if len(vals) < 2:
         return 0.0
@@ -275,7 +281,7 @@ def _cluster_bootstrap_ci(
 
     rng = np.random.default_rng(seed)
     boot_means = []
-    for _ in range(n_boot):
+    for _ in range(samples):
         sampled = rng.choice(clusters, size=len(clusters), replace=True)
         sample = data[data["cluster"].isin(sampled)]
         boot_means.append(float(sample["value"].mean()))
@@ -296,6 +302,7 @@ def _build_spectral_dotplot_rows(
             ci = _cluster_bootstrap_ci(
                 cat_df[band],
                 cat_df["patch_id"] if "patch_id" in cat_df.columns else None,
+                n_boot=int(_SETTINGS["bootstrap_samples"]),
             )
             rows.append({
                 "category": CATEGORY_LABELS.get(cat, cat),
@@ -403,6 +410,7 @@ def fig2_spectral_bar(df: pd.DataFrame, output_dir: Path) -> None:
                         cat_df["patch_id"]
                         if "patch_id" in cat_df.columns
                         else None,
+                        n_boot=int(_SETTINGS["bootstrap_samples"]),
                     )
                 )
             offsets = x + (idx - (len(categories) - 1) / 2) * width
@@ -1204,12 +1212,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Save PNG only (skip PDF).",
     )
+    parser.add_argument(
+        "--bootstrap-samples",
+        type=int,
+        default=int(_SETTINGS["bootstrap_samples"]),
+        help="Number of bootstrap resamples for CI estimates.",
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
     _SETTINGS["png_only"] = args.png_only
+    _SETTINGS["bootstrap_samples"] = int(args.bootstrap_samples)
     _setup_style()
 
     output_dir = args.output or Path("paper_assets/figures")

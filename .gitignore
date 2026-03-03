@@ -231,6 +231,13 @@ results/**/reconstruction_images/
 results/**/raw_results.csv
 results/**/entropy_extremes.json
 
+# temp
+paper_assets/**/*.npy
+paper_assets/**/*.json
+paper_assets/**/*.png
+paper_assets/**/*.pdf
+paper_assets/**/*.tex
+
 # Apache parquet
 *.parquet
 

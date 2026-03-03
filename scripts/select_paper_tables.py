@@ -7,6 +7,7 @@ tables to docs/tables with stable filenames and labels.
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 
 import pandas as pd
@@ -27,10 +28,32 @@ def _best_noise(df: pd.DataFrame) -> str:
     return str(med.idxmax())
 
 
+def _select_noise(df: pd.DataFrame, *, preferred: str) -> str:
+    if "noise_level" not in df.columns:
+        return "inf"
+    available = set(df["noise_level"].dropna().astype(str).unique().tolist())
+    if preferred in available:
+        return preferred
+    return _best_noise(df)
+
+
 def _best_entropy_window(df: pd.DataFrame) -> int:
     if 15 in ENTROPY_WINDOWS and "entropy_15" in df.columns:
         return 15
     return ENTROPY_WINDOWS[0]
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Select paper table assets")
+    parser.add_argument(
+        "--noise",
+        default="inf",
+        help=(
+            "Noise level to use as reference (default: inf). "
+            "If not available, falls back to the level with best median PSNR."
+        ),
+    )
+    return parser.parse_args()
 
 
 def _rewrite_label(content: str, new_label: str) -> str:
@@ -45,12 +68,14 @@ def _rewrite_label(content: str, new_label: str) -> str:
 
 def _copy_with_label(src: Path, dst: Path, label: str) -> None:
     if not src.exists():
+        print(f"WARN missing table: {src.name}")
         return
     content = src.read_text(encoding="utf-8")
     dst.write_text(_rewrite_label(content, label), encoding="utf-8")
 
 
 def main() -> None:
+    args = _parse_args()
     root = Path(__file__).resolve().parent.parent
     tables_dir = root / "paper_assets" / "tables"
     output_dir = root / "docs" / "tables"
@@ -65,7 +90,7 @@ def main() -> None:
         print("No data loaded. Skipping selection.")
         return
 
-    best_noise = _best_noise(df)
+    best_noise = _select_noise(df, preferred=str(args.noise))
     best_entropy = _best_entropy_window(df)
     suffix = best_noise.replace("inf", "gap_only")
 
@@ -96,12 +121,17 @@ def main() -> None:
         ),
     }
 
+    copied = 0
     for src_name, (dst_name, label) in selection.items():
-        _copy_with_label(tables_dir / src_name, output_dir / dst_name, label)
+        src = tables_dir / src_name
+        dst = output_dir / dst_name
+        if src.exists():
+            copied += 1
+        _copy_with_label(src, dst, label)
 
     print("Selected noise:", best_noise)
     print("Selected entropy window:", best_entropy)
-    print("Copied", len(selection), "tables")
+    print("Copied", copied, "of", len(selection), "tables")
 
 
 if __name__ == "__main__":

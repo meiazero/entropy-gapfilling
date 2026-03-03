@@ -23,6 +23,7 @@
 
 % Siglas
 \usepackage[acronym]{glossaries-extra}
+\setabbreviationstyle[acronym]{long-short}
 \input{acronyms}
 
 \setcitestyle{square}
@@ -40,6 +41,17 @@
 % Macro TODO usada no rascunho. Substituir ou remover na submissao final.
 \newcommand{\TODO}[1]{#1}
 
+% --- Paper build hygiene -----------------------------------------------------
+% Fancyhdr warning: header is taller than default.
+\setlength{\headheight}{37pt}
+\addtolength{\topmargin}{-9pt}
+
+% FontAwesome: there is no italic font shape; map italic to normal.
+\makeatletter
+\DeclareFontShape{TU}{FontAwesome(0)}{m}{it}{<->ssub*FontAwesome(0)/m/n}{}
+\DeclareFontShape{TU}{FontAwesome(0)}{b}{it}{<->ssub*FontAwesome(0)/m/n}{}
+\makeatother
+
 %%%%%%% IMPORTANTE: Desabilitamos os hyperlinks por padrao com esta linha,
 % para evitar o erro "\pdfendlink ended up in different nesting level" durante a escrita.
 %\hypersetup{draft}
@@ -56,7 +68,8 @@
 
 
 \author[Pires et al. 2026]{
-\affil{\textbf{Emanuel Ávila Pires}\textsuperscript{$\ast$}~\href{https://orcid.org/0009-0006-0317-3021}{\textcolor{orcidlogo}{\aiOrcid}}~\textcolor{blue}{\textup{\faEnvelopeO}}~~[~\textbf{Universidade Federal do Ceará}~\newline\href{mailto:emanuel.pires@alu.ufc.br}{\textbf{\textit{emanuel.pires@alu.ufc.br}}}~]}
+\affil{\textbf{Emanuel Pires}\textsuperscript{$\ast$}~\href{https://orcid.org/0009-0006-0317-3021}{\textcolor{orcidlogo}{\aiOrcid}}\\
+\textcolor{blue}{\textup{\faEnvelopeO}}~~[~\textbf{Universidade Federal do Ceará}~\newline\href{mailto:emanuel.pires@alu.ufc.br}{\nolinkurl{emanuel.pires@alu.ufc.br}}~]}
 
 % \affil{\textbf{\TODO{Autor Dois}}~\href{https://orcid.org/0000-0000-0000-0000}{\textcolor{orcidlogo}{\aiOrcid}}~~[~\textbf{Universidade Federal do Ceará}~\newline\href{mailto:author2@ufc.br}{\textbf{\textit{author2@ufc.br}}}~]}
 
@@ -79,17 +92,10 @@ PPGETI, Universidade Federal do Ceará, Fortaleza, Ceará, Brasil.
 \end{dates}
 
 
-% \begin{abstract}
-% \noindent Estudamos o preenchimento de lacunas em imagens de satélite e quantificamos como a complexidade de cena afeta a qualidade de reconstrução.
-% Com 15 métodos clássicos de interpolação e cinco baselines de aprendizado profundo, avaliamos \gls{PSNR}, \gls{SSIM}, \gls{RMSE}, \gls{SAM} e \gls{ERGAS} em diferentes níveis de ruído, sensores e escalas de entropia.
-% Mostramos que a relação entropia-qualidade depende do método e da janela, o que motiva analisar cada escala de entropia separadamente. Os resultados sustentam a entropia como um sinal auxiliar prático para seleção de métodos e priorização de recortes difíceis.
-% \end{abstract}
-
 \begin{abstract}
-\noindent We study satellite image gap filling and quantify how local scene complexity affects reconstruction quality.
-Using 15 classical interpolation methods and five deep learning baselines, we evaluate PSNR, SSIM, RMSE, SAM, and ERGAS across noise levels, sensors, and entropy windows.
-The entropy-quality relationship is method- and scale-dependent rather than monotonic, which motivates treating each entropy window independently.
-The results support entropy as a practical auxiliary signal for method selection and for prioritizing difficult patches.
+% \noindent O preenchimento de lacunas em imagens de satélite é um pré-requisito para análises confiáveis quando há oclusões por nuvens, degradações atmosféricas ou falhas instrumentais. Apesar da ampla disponibilidade de métodos, a seleção prática ainda carece de critérios objetivos que antecipem a qualidade de reconstrução em nível local.
+% Este trabalho investiga a associação entre complexidade de cena e qualidade de preenchimento, empregando a entropia de Shannon local como medida de complexidade e avaliando sua relação com métricas de qualidade calculadas estritamente sobre pixels ausentes.
+% Em um benchmark multi-sensor, com 15 métodos clássicos e cinco baselines de aprendizado profundo, analisamos \gls{PSNR}, \gls{SSIM}, \gls{RMSE}, \gls{SAM} e \gls{ERGAS} sob diferentes níveis de ruído e múltiplas escalas de entropia. Os resultados evidenciam que a relação entropia-qualidade é dependente do método e da escala, o que favorece análises multi-escala em vez de uma única janela como resumo.
 \end{abstract}
 
 \begin{keywords}
@@ -120,7 +126,7 @@ O presente trabalho foi realizado com apoio da Coordenação de Aperfeiçoamento
 \end{funding}
 
 \begin{contributions}
-As contribuições individuais serão detalhadas na versão final.
+Emanuel Ávila Pires: conceituação, metodologia, desenvolvimento de software, execução experimental, análise estatística, redação (primeira versão) e revisão/edição.
 \end{contributions}
 
 \begin{interests}
