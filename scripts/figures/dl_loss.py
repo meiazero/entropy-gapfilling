@@ -57,7 +57,7 @@ def fig8_dl_loss(output_dir: Path) -> None:
             )
             ax.legend(fontsize=FONT_SIZE - 1, loc="best")
             plt.tight_layout()
-            save_figure(fig, output_dir, f"fig8_dl_loss_{scenario}_{model}")
+            save_figure(fig, output_dir, f"dl_loss_{scenario}_{model}")
             plt.close(fig)
 
 

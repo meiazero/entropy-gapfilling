@@ -77,7 +77,7 @@ def table_speed_summary(df: pd.DataFrame, output_dir: Path) -> None:
         ),
         resizebox=True,
     )
-    write_tex(tex, output_dir / "tab5_speed.tex")
+    write_tex(tex, output_dir / "runtime-speed.tex")
 
 
 def main() -> None:

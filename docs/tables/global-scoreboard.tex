@@ -1,0 +1,53 @@
+\begin{table*}[htbp]
+\centering
+\caption{Placar global multi-métrica por nível de ruído. \textbf{Negrito}: melhor; \underline{sublinhado}: 2º; \textit{itálico}: 3º.}
+\label{tab:global-scoreboard}
+\footnotesize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{llccccc}
+\toprule
+Tipo & Método & PSNR (dB) $\uparrow$ & SSIM $\uparrow$ & RMSE $\downarrow$ & SAM $\downarrow$ & ERGAS $\downarrow$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Nível de ruído: todos os níveis de ruído}} \\
+DL & unet & $\mathbf{23.52_{\pm 0.10}}$ & $\mathbf{0.62_{\pm 0.00}}$ & $\mathbf{0.08_{\pm 0.00}}$ & $\mathbf{5.73_{\pm 0.07}}$ & $\mathbf{31.58_{\pm 1.48}}$ \\
+DL & gan & $22.78_{\pm 0.10}$ & $0.59_{\pm 0.00}$ & $0.08_{\pm 0.00}$ & $6.29_{\pm 0.08}$ & $33.19_{\pm 1.04}$ \\
+DL & vit & $22.70_{\pm 0.10}$ & $0.58_{\pm 0.00}$ & $0.08_{\pm 0.00}$ & $6.22_{\pm 0.08}$ & $34.71_{\pm 1.91}$ \\
+Clássico & kriging & $\mathbf{21.29_{\pm 0.85}}$ & $0.56_{\pm 0.03}$ & $\mathbf{0.10_{\pm 0.01}}$ & $7.52_{\pm 0.87}$ & $\mathbf{40.61_{\pm 5.64}}$ \\
+Clássico & exemplar\_based & $21.12_{\pm 0.86}$ & $\mathbf{0.59_{\pm 0.03}}$ & $0.10_{\pm 0.01}$ & $8.13_{\pm 0.75}$ & $40.87_{\pm 5.39}$ \\
+Clássico & rbf & $20.82_{\pm 0.84}$ & $0.58_{\pm 0.03}$ & $0.11_{\pm 0.01}$ & $8.61_{\pm 0.75}$ & $42.80_{\pm 5.71}$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Nível de ruído: Sem ruído}} \\
+DL & unet & $\mathbf{23.75_{\pm 0.11}}$ & $\mathbf{0.65_{\pm 0.00}}$ & $\mathbf{0.07_{\pm 0.00}}$ & $\mathbf{5.55_{\pm 0.07}}$ & $\mathbf{30.83_{\pm 1.40}}$ \\
+DL & gan & $22.85_{\pm 0.10}$ & $0.60_{\pm 0.00}$ & $0.08_{\pm 0.00}$ & $6.24_{\pm 0.08}$ & $32.98_{\pm 1.01}$ \\
+DL & vit & $22.75_{\pm 0.10}$ & $0.60_{\pm 0.00}$ & $0.08_{\pm 0.00}$ & $6.19_{\pm 0.08}$ & $34.54_{\pm 1.93}$ \\
+Clássico & exemplar\_based & $\mathbf{21.75_{\pm 0.95}}$ & $\mathbf{0.63_{\pm 0.03}}$ & $\mathbf{0.10_{\pm 0.01}}$ & $\mathbf{6.65_{\pm 0.70}}$ & $\mathbf{38.63_{\pm 5.51}}$ \\
+Clássico & rbf & $21.56_{\pm 0.94}$ & $0.62_{\pm 0.03}$ & $0.10_{\pm 0.01}$ & $6.86_{\pm 0.71}$ & $39.90_{\pm 5.69}$ \\
+Clássico & spline & $21.56_{\pm 0.94}$ & $0.62_{\pm 0.03}$ & $0.10_{\pm 0.01}$ & $6.86_{\pm 0.71}$ & $39.90_{\pm 5.69}$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Nível de ruído: 40 dB}} \\
+DL & unet & $\mathbf{23.74_{\pm 0.11}}$ & $\mathbf{0.65_{\pm 0.00}}$ & $\mathbf{0.07_{\pm 0.00}}$ & $\mathbf{5.56_{\pm 0.07}}$ & $\mathbf{30.86_{\pm 1.41}}$ \\
+DL & gan & $22.85_{\pm 0.10}$ & $0.60_{\pm 0.00}$ & $0.08_{\pm 0.00}$ & $6.25_{\pm 0.08}$ & $32.99_{\pm 1.01}$ \\
+DL & vit & $22.74_{\pm 0.10}$ & $0.59_{\pm 0.00}$ & $0.08_{\pm 0.00}$ & $6.19_{\pm 0.08}$ & $34.55_{\pm 1.93}$ \\
+Clássico & exemplar\_based & $\mathbf{21.66_{\pm 0.92}}$ & $\mathbf{0.62_{\pm 0.03}}$ & $\mathbf{0.10_{\pm 0.01}}$ & $6.83_{\pm 0.72}$ & $\mathbf{38.79_{\pm 5.46}}$ \\
+Clássico & rbf & $21.45_{\pm 0.91}$ & $0.62_{\pm 0.03}$ & $0.10_{\pm 0.01}$ & $7.06_{\pm 0.71}$ & $40.09_{\pm 5.66}$ \\
+Clássico & spline & $21.45_{\pm 0.91}$ & $0.62_{\pm 0.03}$ & $0.10_{\pm 0.01}$ & $7.06_{\pm 0.71}$ & $40.09_{\pm 5.66}$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Nível de ruído: 30 dB}} \\
+DL & unet & $\mathbf{23.64_{\pm 0.11}}$ & $\mathbf{0.64_{\pm 0.00}}$ & $\mathbf{0.07_{\pm 0.00}}$ & $\mathbf{5.62_{\pm 0.07}}$ & $\mathbf{31.13_{\pm 1.46}}$ \\
+DL & gan & $22.82_{\pm 0.10}$ & $0.60_{\pm 0.00}$ & $0.08_{\pm 0.00}$ & $6.26_{\pm 0.08}$ & $33.06_{\pm 1.03}$ \\
+DL & vit & $22.72_{\pm 0.10}$ & $0.59_{\pm 0.00}$ & $0.08_{\pm 0.00}$ & $6.20_{\pm 0.08}$ & $34.63_{\pm 1.93}$ \\
+Clássico & kriging & $\mathbf{21.29_{\pm 0.85}}$ & $0.57_{\pm 0.03}$ & $\mathbf{0.10_{\pm 0.01}}$ & $7.46_{\pm 0.87}$ & $40.54_{\pm 5.66}$ \\
+Clássico & exemplar\_based & $21.29_{\pm 0.85}$ & $\mathbf{0.60_{\pm 0.03}}$ & $0.10_{\pm 0.01}$ & $7.75_{\pm 0.79}$ & $\mathbf{39.71_{\pm 5.47}}$ \\
+Clássico & rbf & $21.01_{\pm 0.85}$ & $0.59_{\pm 0.03}$ & $0.10_{\pm 0.01}$ & $8.16_{\pm 0.81}$ & $41.44_{\pm 5.71}$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Nível de ruído: 20 dB}} \\
+DL & unet & $\mathbf{22.95_{\pm 0.10}}$ & $\mathbf{0.56_{\pm 0.00}}$ & $\mathbf{0.08_{\pm 0.00}}$ & $\mathbf{6.18_{\pm 0.07}}$ & $\mathbf{33.50_{\pm 1.65}}$ \\
+DL & gan & $22.61_{\pm 0.10}$ & $0.54_{\pm 0.00}$ & $0.08_{\pm 0.00}$ & $6.41_{\pm 0.08}$ & $33.73_{\pm 1.10}$ \\
+DL & vit & $22.58_{\pm 0.10}$ & $0.53_{\pm 0.00}$ & $0.08_{\pm 0.00}$ & $6.31_{\pm 0.08}$ & $35.12_{\pm 1.90}$ \\
+Clássico & kriging & $\mathbf{21.04_{\pm 0.80}}$ & $\mathbf{0.51_{\pm 0.02}}$ & $\mathbf{0.10_{\pm 0.01}}$ & $\mathbf{8.12_{\pm 0.93}}$ & $\mathbf{41.29_{\pm 5.53}}$ \\
+Clássico & bilinear & $20.10_{\pm 0.79}$ & $0.48_{\pm 0.02}$ & $0.11_{\pm 0.01}$ & $9.20_{\pm 0.81}$ & $45.86_{\pm 5.95}$ \\
+Clássico & exemplar\_based & $19.81_{\pm 0.82}$ & $0.50_{\pm 0.02}$ & $0.12_{\pm 0.01}$ & $11.30_{\pm 0.90}$ & $46.33_{\pm 5.59}$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table*}

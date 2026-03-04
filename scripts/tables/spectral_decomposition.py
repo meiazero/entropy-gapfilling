@@ -107,7 +107,7 @@ def table_spectral_decomposition(df: pd.DataFrame, output_dir: Path) -> None:
             header=header,
             resizebox=True,
         )
-        write_tex(tex, output_dir / f"tab2_spectral_{suffix}.tex")
+        write_tex(tex, output_dir / f"spectral-rmse-{suffix}.tex")
 
 
 def main() -> None:

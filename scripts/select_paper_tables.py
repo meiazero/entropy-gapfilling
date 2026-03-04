@@ -78,12 +78,12 @@ def _copy_with_label(src: Path, dst: Path, label: str) -> None:
 def main() -> None:
     args = _parse_args()
     root = Path(__file__).resolve().parent.parent
-    tables_dir = root / "paper_assets" / "tables"
+    tables_dir = root / "docs" / "tables"
     output_dir = root / "docs" / "tables"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Clean previous best outputs
-    for old in output_dir.glob("tab_*_best.tex"):
+    for old in output_dir.glob("*_best.tex"):
         old.unlink(missing_ok=True)
 
     df = load_combined()
@@ -96,28 +96,28 @@ def main() -> None:
     suffix = best_noise.replace("inf", "gap_only")
 
     selection = {
-        f"tab1_global_{suffix}.tex": (
-            "tab_global_best.tex",
+        "global-scoreboard.tex": (
+            "global_scoreboard_best.tex",
             "tab:global-scoreboard-best",
         ),
-        f"tab2_spectral_{suffix}.tex": (
-            "tab_spectral_best.tex",
+        f"spectral-rmse-{suffix}.tex": (
+            "spectral_rmse_best.tex",
             "tab:spectral-rmse-best",
         ),
-        f"tab3_degradation_entropy{best_entropy}.tex": (
-            "tab_degradation_best.tex",
+        f"psnr-drop-entropy-{best_entropy}.tex": (
+            "psnr_drop_entropy_best.tex",
             "tab:degradation-psnr-best",
         ),
-        f"tab3_slope_entropy{best_entropy}.tex": (
-            "tab_slope_best.tex",
+        f"psnr-noise-slope-entropy-{best_entropy}.tex": (
+            "psnr_noise_slope_entropy_best.tex",
             "tab:noise-slope-psnr-best",
         ),
-        f"tab4_spearman_entropy{best_entropy}.tex": (
-            "tab_spearman_best.tex",
+        f"spearman-entropy-{best_entropy}.tex": (
+            "spearman_entropy_best.tex",
             "tab:spearman-entropy-best",
         ),
-        "tab5_speed.tex": (
-            "tab_speed_best.tex",
+        "runtime-speed.tex": (
+            "runtime_speed_best.tex",
             "tab:runtime-speed",
         ),
     }

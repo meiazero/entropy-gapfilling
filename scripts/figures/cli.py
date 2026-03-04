@@ -24,7 +24,7 @@ def _parse_args(description: str) -> argparse.Namespace:
         "--output",
         type=Path,
         default=None,
-        help="Output directory. Defaults to paper_assets/figures/",
+        help="Output directory. Defaults to docs/figures/",
     )
     parser.add_argument(
         "--png-only",
@@ -41,7 +41,7 @@ def _parse_args(description: str) -> argparse.Namespace:
 
 
 def _prepare_output_dir(output: Path | None) -> Path:
-    output_dir = output or Path("paper_assets/figures")
+    output_dir = output or Path("docs/figures")
     output_dir.mkdir(parents=True, exist_ok=True)
     return output_dir
 

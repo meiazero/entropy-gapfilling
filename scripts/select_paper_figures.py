@@ -8,7 +8,7 @@ reference scenario:
 
 You can override the noise level via ``--noise``.
 
-The script copies the chosen variants from ``paper_assets/figures`` to
+The script copies the chosen variants from ``docs/figures`` to
 ``docs/figures`` using stable filenames referenced by the LaTeX sources.
 """
 
@@ -89,24 +89,24 @@ def _parse_args() -> argparse.Namespace:
 def main() -> None:
     args = _parse_args()
     root = Path(__file__).resolve().parent.parent
-    figures_dir = root / "paper_assets" / "figures"
+    figures_dir = root / "docs" / "figures"
     output_dir = root / "docs" / "figures"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Clean previous outputs we manage to avoid stale files.
     managed = {
-        "fig1_pareto_classic_best.png",
-        "fig1_pareto_sentinel2_best.png",
-        "fig2_spectral_bar_best.png",
-        "fig6_psnr_entropy_best.png",
-        "fig7_correlation_heatmap_best.png",
-        "fig11_dl_comparison_best.png",
-        "fig2_entropy_vs_psnr_7x7.png",
-        "fig2_entropy_vs_psnr_15x15.png",
-        "fig2_entropy_vs_psnr_31x31.png",
-        "fig4_psnr_by_noise.png",
-        "fig5_lisa_clusters.png",
-        "fig6_visual_examples_sentinel2.png",
+        "pareto_classic_best.png",
+        "pareto_sentinel2_best.png",
+        "spectral_rmse_bar_best.png",
+        "psnr_entropy_best.png",
+        "correlation_heatmap_best.png",
+        "dl_comparison_best.png",
+        "entropy_vs_psnr_7x7.png",
+        "entropy_vs_psnr_15x15.png",
+        "entropy_vs_psnr_31x31.png",
+        "psnr_by_noise.png",
+        "lisa_clusters.png",
+        "visual_examples_sentinel2.png",
     }
     for name in managed:
         (output_dir / name).unlink(missing_ok=True)
@@ -124,25 +124,19 @@ def main() -> None:
     suffix = best_noise.replace("inf", "gap_only")
 
     selected = {
-        f"fig1_pareto_classic_{suffix}.png": "fig1_pareto_classic_best.png",
-        f"fig1_pareto_sentinel2_{suffix}.png": (
-            "fig1_pareto_sentinel2_best.png"
-        ),
-        f"fig2_spectral_bar_{suffix}.png": "fig2_spectral_bar_best.png",
-        f"fig6_psnr_entropy_{suffix}_e{best_entropy}.png": (
-            "fig6_psnr_entropy_best.png"
-        ),
-        "fig7_correlation_heatmap.png": "fig7_correlation_heatmap_best.png",
-        f"fig11_dl_comparison_{best_scenario}.png": (
-            "fig11_dl_comparison_best.png"
-        ),
+        f"pareto_classic_{suffix}.png": "pareto_classic_best.png",
+        f"pareto_sentinel2_{suffix}.png": "pareto_sentinel2_best.png",
+        f"spectral_rmse_bar_{suffix}.png": "spectral_rmse_bar_best.png",
+        f"psnr_entropy_{suffix}_e{best_entropy}.png": "psnr_entropy_best.png",
+        "correlation_heatmap.png": "correlation_heatmap_best.png",
+        f"dl_comparison_{best_scenario}.png": "dl_comparison_best.png",
         # Extra figures referenced by LaTeX (stable filenames)
-        "fig2_entropy_vs_psnr_7x7.png": "fig2_entropy_vs_psnr_7x7.png",
-        "fig2_entropy_vs_psnr_15x15.png": "fig2_entropy_vs_psnr_15x15.png",
-        "fig2_entropy_vs_psnr_31x31.png": "fig2_entropy_vs_psnr_31x31.png",
-        "fig4_psnr_by_noise.png": "fig4_psnr_by_noise.png",
-        "fig5_lisa_clusters.png": "fig5_lisa_clusters.png",
-        "fig6_visual_examples_sentinel2.png": "fig6_visual_examples_sentinel2.png",  # noqa: E501
+        "fig2_entropy_vs_psnr_7x7.png": "entropy_vs_psnr_7x7.png",
+        "fig2_entropy_vs_psnr_15x15.png": "entropy_vs_psnr_15x15.png",
+        "fig2_entropy_vs_psnr_31x31.png": "entropy_vs_psnr_31x31.png",
+        "fig4_psnr_by_noise.png": "psnr_by_noise.png",
+        "fig5_lisa_clusters.png": "lisa_clusters.png",
+        "fig6_visual_examples_sentinel2.png": "visual_examples_sentinel2.png",
     }
 
     copied = 0

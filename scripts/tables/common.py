@@ -45,6 +45,13 @@ def bold(text: str) -> str:
     return f"\\textbf{{{text}}}"
 
 
+def math_bold(text: str) -> str:
+    if text.startswith("$") and text.endswith("$"):
+        inner = text[1:-1]
+        return f"$\\mathbf{{{inner}}}$"
+    return f"$\\mathbf{{{text}}}$"
+
+
 def underline(text: str) -> str:
     return f"\\underline{{{text}}}"
 
@@ -57,7 +64,7 @@ def ranked_cell(
 ) -> str:
     base = format_pm(value, ci_half, fmt)
     if rank == 1:
-        return bold(base)
+        return math_bold(base)
     if rank == 2:
         return underline(base)
     if rank == 3:
@@ -68,7 +75,7 @@ def ranked_cell(
 def ranked_plain(value: float, rank: int, fmt: str = ".3f") -> str:
     base = f"${value:{fmt}}$"
     if rank == 1:
-        return bold(base)
+        return math_bold(base)
     if rank == 2:
         return underline(base)
     if rank == 3:

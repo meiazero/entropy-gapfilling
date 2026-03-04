@@ -114,12 +114,12 @@ def _plot_pareto_variants(
         "Trade-off Qualidade x Velocidade - "
         f"{noise_label(noise) if noise != 'all' else 'Global'}"
     )
-    _plot_pareto(stats_df, output_dir, f"fig1_pareto_{suffix}", title)
+    _plot_pareto(stats_df, output_dir, f"pareto_{suffix}", title)
 
     _plot_pareto(
         stats_df,
         output_dir,
-        f"fig1_pareto_classic_{suffix}",
+        f"pareto_classic_{suffix}",
         f"Clássicos: Qualidade x Velocidade - {noise_label(noise)}",
         type_filter="Clássico",
     )
@@ -133,7 +133,7 @@ def _plot_pareto_variants(
             _plot_pareto(
                 sat_df,
                 output_dir,
-                f"fig1_pareto_classic_{sat}_{suffix}",
+                f"pareto_classic_{sat}_{suffix}",
                 f"Clássicos ({sat}) - {noise_label(noise)}",
                 type_filter="Clássico",
             )
@@ -146,7 +146,7 @@ def _plot_pareto_variants(
                 _plot_pareto(
                     sent_stats,
                     output_dir,
-                    f"fig1_pareto_sentinel2_{suffix}",
+                    f"pareto_sentinel2_{suffix}",
                     f"Sentinel-2: Clássico vs DL - {noise_label(noise)}",
                 )
 

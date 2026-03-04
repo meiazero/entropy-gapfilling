@@ -60,7 +60,7 @@ def fig4_multisensor(df: pd.DataFrame, output_dir: Path) -> None:
         )
         ax.legend(title="Método", loc="best", fontsize=FONT_SIZE - 2)
         plt.tight_layout()
-        save_figure(fig, output_dir, f"fig4_multisensor_{suffix}")
+        save_figure(fig, output_dir, f"multisensor_ssim_{suffix}")
         plt.close(fig)
 
 

@@ -100,7 +100,7 @@ def table_noise_slope(df: pd.DataFrame, output_dir: Path) -> None:
             header=header,
             resizebox=True,
         )
-        write_tex(tex, output_dir / f"tab3_slope_entropy{ws}.tex")
+        write_tex(tex, output_dir / f"psnr-noise-slope-entropy-{ws}.tex")
 
 
 def main() -> None:

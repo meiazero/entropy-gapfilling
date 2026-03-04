@@ -49,7 +49,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--output",
         type=Path,
         default=None,
-        help="Output directory. Defaults to paper_assets/figures/",
+        help="Output directory. Defaults to docs/figures/",
     )
     parser.add_argument(
         "--png-only",
@@ -73,7 +73,7 @@ def main(argv: list[str] | None = None) -> None:
     )
     setup_style()
 
-    output_dir = args.output or Path("paper_assets/figures")
+    output_dir = args.output or Path("docs/figures")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     df = load_combined()

@@ -60,7 +60,7 @@ def fig9_dl_val_metrics(output_dir: Path) -> None:
                 save_figure(
                     fig,
                     output_dir,
-                    f"fig9_dl_val_metrics_{scenario}_{metric_name}_{model}",
+                    f"dl_val_metrics_{scenario}_{metric_name}_{model}",
                 )
                 plt.close(fig)
 

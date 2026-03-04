@@ -90,7 +90,7 @@ def fig7_correlation_heatmap(df: pd.DataFrame, output_dir: Path) -> None:
     ax.tick_params(axis="x", rotation=45)
     ax.tick_params(axis="y", rotation=0)
     plt.tight_layout()
-    save_figure(fig, output_dir, "fig7_correlation_heatmap")
+    save_figure(fig, output_dir, "correlation_heatmap")
     plt.close(fig)
 
 

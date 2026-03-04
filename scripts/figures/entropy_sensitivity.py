@@ -81,7 +81,7 @@ def fig3_sensitivity(df: pd.DataFrame, output_dir: Path) -> None:
                 save_figure(
                     fig,
                     output_dir,
-                    f"fig3_sensitivity_{metric}_{suffix}_e{ws}",
+                    f"entropy_sensitivity_{metric}_{suffix}_e{ws}",
                 )
                 plt.close(fig)
 

@@ -91,7 +91,7 @@ def table_degradation_entropy(df: pd.DataFrame, output_dir: Path) -> None:
             header=header,
             resizebox=True,
         )
-        write_tex(tex, output_dir / f"tab3_degradation_entropy{ws}.tex")
+        write_tex(tex, output_dir / f"psnr-drop-entropy-{ws}.tex")
 
 
 def main() -> None:

@@ -100,7 +100,7 @@ def fig6_psnr_entropy(df: pd.DataFrame, output_dir: Path) -> None:
             ax.tick_params(axis="x", rotation=45)
             ax.legend(title="Entropia", loc="best", fontsize=FONT_SIZE - 2)
             plt.tight_layout()
-            save_figure(fig, output_dir, f"fig6_psnr_entropy_{suffix}_e{ws}")
+            save_figure(fig, output_dir, f"psnr_entropy_{suffix}_e{ws}")
             plt.close(fig)
 
 

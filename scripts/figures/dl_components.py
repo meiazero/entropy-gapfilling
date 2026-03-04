@@ -75,7 +75,7 @@ def fig10_components(output_dir: Path) -> None:
                     f"VAE — {scenario.replace('_', ' ').title()}",
                     fontsize=FONT_SIZE + 1,
                 )
-                save_figure(fig, output_dir, f"fig10_vae_components_{scenario}")
+                save_figure(fig, output_dir, f"vae_components_{scenario}")
                 plt.close(fig)
 
         gan_hist = models.get("gan")
@@ -130,7 +130,7 @@ def fig10_components(output_dir: Path) -> None:
                     f"GAN — {scenario.replace('_', ' ').title()}",
                     fontsize=FONT_SIZE + 1,
                 )
-                save_figure(fig, output_dir, f"fig10_gan_components_{scenario}")
+                save_figure(fig, output_dir, f"gan_components_{scenario}")
                 plt.close(fig)
 
 

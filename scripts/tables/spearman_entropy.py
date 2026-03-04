@@ -107,7 +107,7 @@ def table_spearman_entropy(df: pd.DataFrame, output_dir: Path) -> None:
             env="table*",
             resizebox=True,
         )
-        write_tex(tex, output_dir / f"tab4_spearman_entropy{ws}.tex")
+        write_tex(tex, output_dir / f"spearman-entropy-{ws}.tex")
 
 
 def main() -> None:

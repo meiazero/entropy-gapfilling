@@ -127,7 +127,7 @@ def _plot_spectral_dotplot(
         grid_axis="x",
     )
     plt.tight_layout()
-    save_figure(fig, output_dir, f"fig2_spectral_dotplot_{suffix}")
+    save_figure(fig, output_dir, f"spectral_rmse_dotplot_{suffix}")
     plt.close(fig)
 
 

@@ -41,7 +41,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--output",
         type=Path,
         default=None,
-        help="Output directory. Defaults to paper_assets/tables/",
+        help="Output directory. Defaults to docs/tables/",
     )
     parser.add_argument(
         "--bootstrap-samples",
@@ -61,7 +61,7 @@ def main(argv: list[str] | None = None) -> None:
         log.error("No data loaded. Check paper_assets/ paths.")
         return
 
-    output_dir = args.output or Path("paper_assets/tables")
+    output_dir = args.output or Path("docs/tables")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     generators = [

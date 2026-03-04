@@ -121,7 +121,7 @@ def fig2_spectral_bar(df: pd.DataFrame, output_dir: Path) -> None:
         )
         ax.legend(loc="best", fontsize=FONT_SIZE - 2, frameon=True)
         plt.tight_layout()
-        save_figure(fig, output_dir, f"fig2_spectral_bar_{suffix}")
+        save_figure(fig, output_dir, f"spectral_rmse_bar_{suffix}")
         plt.close(fig)
 
 

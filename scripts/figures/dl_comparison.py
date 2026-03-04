@@ -125,7 +125,7 @@ def _render_dl_comparison_heatmap(
         title_size=FONT_SIZE + 1,
         title_pad=8,
     )
-    save_figure(fig, output_dir, f"fig11_dl_comparison_{scenario}")
+    save_figure(fig, output_dir, f"dl_comparison_{scenario}")
     plt.close(fig)
 
 

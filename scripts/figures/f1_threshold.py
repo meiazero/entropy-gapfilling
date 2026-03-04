@@ -96,7 +96,7 @@ def fig5_f1_threshold(df: pd.DataFrame, output_dir: Path) -> None:
             ncol=min(4, n_m),
         )
         plt.tight_layout()
-        save_figure(fig, output_dir, f"fig5_f1_threshold_{suffix}")
+        save_figure(fig, output_dir, f"f1_threshold_{suffix}")
         plt.close(fig)
 
 
