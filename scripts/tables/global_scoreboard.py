@@ -13,6 +13,7 @@ from .common import (
     SETTINGS,
     ci95_half,
     format_pm,
+    math_bold,
     tex_escape,
     wrap_table,
     write_tex,
@@ -99,70 +100,44 @@ def _compute_method_stats(
     return pd.DataFrame(rows)
 
 
-def _compute_win_counts(
-    stats_df: pd.DataFrame,
+def _format_metric_cells(
+    row: pd.Series,
     metrics: list[str],
-    higher_better: dict[str, bool],
-) -> pd.Series:
-    win_counts = pd.Series(0, index=stats_df.index, dtype=int)
-    if "type" in stats_df.columns:
-        grouped = stats_df.groupby("type", sort=False)
-        for metric in metrics:
-            col = f"{metric}_mean"
-            if col not in stats_df.columns:
-                continue
-            for _, tdf in grouped:
-                vals = tdf[col]
-                if vals.dropna().empty:
-                    continue
-                best_val = vals.max() if higher_better[metric] else vals.min()
-                winners = tdf.index[vals == best_val]
-                win_counts.loc[winners] += 1
-        return win_counts
-
-    for metric in metrics:
-        col = f"{metric}_mean"
-        if col not in stats_df.columns:
-            continue
-        vals = stats_df[col]
-        if vals.dropna().empty:
-            continue
-        best_val = vals.max() if higher_better[metric] else vals.min()
-        winners = stats_df.index[vals == best_val]
-        win_counts.loc[winners] += 1
-    return win_counts
-
-
-def _select_highlight_rows(stats_df: pd.DataFrame) -> set[int]:
-    highlight_rows: set[int] = set()
-    if "type" in stats_df.columns:
-        for _, tdf in stats_df.groupby("type", sort=False):
-            if tdf.empty:
-                continue
-            max_wins = int(tdf["_win_count"].max())
-            if max_wins <= 0:
-                continue
-            winners = tdf.index[tdf["_win_count"] == max_wins]
-            highlight_rows.update(winners.tolist())
-        return highlight_rows
-
-    max_wins = int(stats_df["_win_count"].max())
-    if max_wins > 0:
-        winners = stats_df.index[stats_df["_win_count"] == max_wins]
-        highlight_rows.update(winners.tolist())
-    return highlight_rows
-
-
-def _format_metric_cells(row: pd.Series, metrics: list[str]) -> list[str]:
+) -> list[str]:
     cells: list[str] = []
     for metric in metrics:
         mean_val = row.get(f"{metric}_mean", np.nan)
         ci_val = row.get(f"{metric}_ci", 0.0)
+        rank = int(row.get(f"{metric}_rank", 99))
         if np.isnan(mean_val):
             cells.append("--")
             continue
-        cells.append(format_pm(float(mean_val), float(ci_val)))
+        base = format_pm(float(mean_val), float(ci_val))
+        if rank == 1:
+            cells.append(math_bold(base))
+        else:
+            cells.append(base)
     return cells
+
+
+def _rank_metrics(
+    stats_df: pd.DataFrame,
+    metrics: list[str],
+    higher_better: dict[str, bool],
+) -> pd.DataFrame:
+    for metric in metrics:
+        col = f"{metric}_mean"
+        if col not in stats_df.columns:
+            continue
+        if "type" in stats_df.columns:
+            stats_df[f"{metric}_rank"] = stats_df.groupby("type")[col].rank(
+                ascending=not higher_better[metric], method="min"
+            )
+        else:
+            stats_df[f"{metric}_rank"] = stats_df[col].rank(
+                ascending=not higher_better[metric], method="min"
+            )
+    return stats_df
 
 
 def _append_noise_section(
@@ -176,24 +151,35 @@ def _append_noise_section(
     if stats_df.empty:
         return
 
-    stats_df = stats_df.assign(
-        _win_count=_compute_win_counts(stats_df, metrics, higher_better)
-    )
-    highlight_rows = _select_highlight_rows(stats_df)
+    stats_df = _rank_metrics(stats_df, metrics, higher_better)
+    stats_df = stats_df.sort_values("psnr_mean", ascending=False)
+    if "type" in stats_df.columns:
+        type_order = ["DL", "Clássico"]
+        remaining = [
+            t for t in stats_df["type"].unique().tolist() if t not in type_order
+        ]
+        ordered_types = [*type_order, *remaining]
+        top_rows = []
+        for method_type in ordered_types:
+            typed = stats_df[stats_df["type"] == method_type]
+            if typed.empty:
+                continue
+            top_rows.append(typed.head(3))
+        if top_rows:
+            stats_df = pd.concat(top_rows, ignore_index=True)
+    else:
+        stats_df = stats_df.head(3)
 
     if body:
         body.append(r"\midrule")
     section_title = tex_escape(f"Nível de ruído: {caption_noise}")
     body.append(rf"\multicolumn{{7}}{{l}}{{\textbf{{{section_title}}}}} \\")
-    for idx, row in stats_df.iterrows():
+    for _idx, row in stats_df.iterrows():
         method_str = tex_escape(str(row["method"]))
         type_str = str(row.get("type", ""))
         cells = [type_str, method_str]
         cells.extend(_format_metric_cells(row, metrics))
-        row_prefix = (
-            r"\rowcolor[HTML]{D0D0D0} " if idx in highlight_rows else ""
-        )
-        body.append(row_prefix + " & ".join(cells) + r" \\")
+        body.append(" & ".join(cells) + r" \\")
 
 
 def table_global_scoreboard(df: pd.DataFrame, output_dir: Path) -> None:
@@ -242,8 +228,8 @@ def table_global_scoreboard(df: pd.DataFrame, output_dir: Path) -> None:
         body,
         caption=(
             "Placar global multi-métrica por nível de ruído. "
-            "Linhas destacadas: método com mais vitórias por métrica "
-            "dentro de cada grupo (DL e clássico)."
+            "\textbf{Negrito}: melhor por métrica dentro de cada grupo "
+            "(DL e clássico)."
         ),
         label="tab:global-scoreboard",
         col_spec="llccccc",

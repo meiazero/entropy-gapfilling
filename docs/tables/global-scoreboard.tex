@@ -1,13 +1,13 @@
 \begin{table*}[htbp]
 \centering
-\caption{Placar global multi-métrica por nível de ruído. \textbf{Negrito}: melhor; \underline{sublinhado}: 2º; \textit{itálico}: 3º.}
+\caption{Placar global multi-métrica por nível de ruído. 	extbf{Negrito}: melhor por métrica dentro de cada grupo (DL e clássico).}
 \label{tab:global-scoreboard}
 \footnotesize
 \resizebox{\linewidth}{!}{%
 \begin{tabular}{llccccc}
 \toprule
 Tipo & Método & PSNR (dB) $\uparrow$ & SSIM $\uparrow$ & RMSE $\downarrow$ & SAM $\downarrow$ & ERGAS $\downarrow$ \\
-\midrule
+\n\midrule
 \multicolumn{7}{l}{\textbf{Nível de ruído: todos os níveis de ruído}} \\
 DL & unet & $\mathbf{23.52_{\pm 0.10}}$ & $\mathbf{0.62_{\pm 0.00}}$ & $\mathbf{0.08_{\pm 0.00}}$ & $\mathbf{5.73_{\pm 0.07}}$ & $\mathbf{31.58_{\pm 1.48}}$ \\
 DL & gan & $22.78_{\pm 0.10}$ & $0.59_{\pm 0.00}$ & $0.08_{\pm 0.00}$ & $6.29_{\pm 0.08}$ & $33.19_{\pm 1.04}$ \\
