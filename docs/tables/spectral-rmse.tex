@@ -1,0 +1,45 @@
+\begin{table*}[htbp]
+\centering
+\caption{RMSE mediano por banda (IC95\%) por nível de ruído. Menor é melhor.}
+\label{tab:spectral-rmse}
+\footnotesize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{llcccc}
+\toprule
+Tipo & Método & B0 (Azul) $\downarrow$ & B1 (Verde) $\downarrow$ & B2 (Vermelho) $\downarrow$ & B3 (NIR) $\downarrow$ \\
+\midrule
+\\multicolumn{6}{l}{\\textbf{Nível de ruído: Sem ruído}} \\
+DL & unet & $\mathbf{0.0566_{\pm 0.0016}}$ & $\mathbf{0.0582_{\pm 0.0012}}$ & $\mathbf{0.0670_{\pm 0.0011}}$ & $\mathbf{0.0572_{\pm 0.0007}}$ \\
+DL & gan & \underline{$0.0631_{\pm 0.0018}$} & \underline{$0.0645_{\pm 0.0013}$} & \textit{$0.0754_{\pm 0.0012}$} & \underline{$0.0642_{\pm 0.0008}$} \\
+DL & vit & \textit{$0.0634_{\pm 0.0017}$} & \textit{$0.0650_{\pm 0.0013}$} & \underline{$0.0753_{\pm 0.0011}$} & \textit{$0.0656_{\pm 0.0008}$} \\
+Clássico & kriging & $0.0801_{\pm 0.0161}$ & $0.0816_{\pm 0.0153}$ & $0.0921_{\pm 0.0156}$ & $0.0866_{\pm 0.0176}$ \\
+Clássico & exemplar\_based & $0.0812_{\pm 0.0189}$ & $0.0827_{\pm 0.0151}$ & $0.0849_{\pm 0.0159}$ & $0.0857_{\pm 0.0141}$ \\
+Clássico & rbf & $0.0823_{\pm 0.0199}$ & $0.0817_{\pm 0.0158}$ & $0.0831_{\pm 0.0150}$ & $0.0859_{\pm 0.0158}$ \\
+\\midrule
+\\multicolumn{6}{l}{\\textbf{Nível de ruído: 40 dB}} \\
+DL & unet & $\mathbf{0.0568_{\pm 0.0016}}$ & $\mathbf{0.0583_{\pm 0.0012}}$ & $\mathbf{0.0670_{\pm 0.0011}}$ & $\mathbf{0.0573_{\pm 0.0007}}$ \\
+DL & gan & \underline{$0.0631_{\pm 0.0017}$} & \underline{$0.0645_{\pm 0.0013}$} & \textit{$0.0754_{\pm 0.0013}$} & \underline{$0.0643_{\pm 0.0008}$} \\
+DL & vit & \textit{$0.0635_{\pm 0.0018}$} & \textit{$0.0651_{\pm 0.0013}$} & \underline{$0.0753_{\pm 0.0012}$} & \textit{$0.0657_{\pm 0.0008}$} \\
+Clássico & exemplar\_based & $0.0803_{\pm 0.0183}$ & $0.0800_{\pm 0.0150}$ & $0.0838_{\pm 0.0154}$ & $0.0842_{\pm 0.0143}$ \\
+Clássico & kriging & $0.0804_{\pm 0.0162}$ & $0.0828_{\pm 0.0151}$ & $0.0910_{\pm 0.0160}$ & $0.0866_{\pm 0.0174}$ \\
+Clássico & rbf & $0.0822_{\pm 0.0194}$ & $0.0809_{\pm 0.0166}$ & $0.0843_{\pm 0.0149}$ & $0.0863_{\pm 0.0149}$ \\
+\\midrule
+\\multicolumn{6}{l}{\\textbf{Nível de ruído: 30 dB}} \\
+DL & unet & $\mathbf{0.0577_{\pm 0.0016}}$ & $\mathbf{0.0593_{\pm 0.0011}}$ & $\mathbf{0.0677_{\pm 0.0011}}$ & $\mathbf{0.0582_{\pm 0.0007}}$ \\
+DL & gan & \underline{$0.0635_{\pm 0.0019}$} & \underline{$0.0648_{\pm 0.0013}$} & \underline{$0.0755_{\pm 0.0012}$} & \underline{$0.0644_{\pm 0.0007}$} \\
+DL & vit & \textit{$0.0636_{\pm 0.0019}$} & \textit{$0.0652_{\pm 0.0013}$} & \textit{$0.0756_{\pm 0.0012}$} & \textit{$0.0658_{\pm 0.0008}$} \\
+Clássico & kriging & $0.0825_{\pm 0.0163}$ & $0.0834_{\pm 0.0147}$ & $0.0917_{\pm 0.0163}$ & $0.0865_{\pm 0.0160}$ \\
+Clássico & exemplar\_based & $0.0847_{\pm 0.0140}$ & $0.0833_{\pm 0.0125}$ & $0.0875_{\pm 0.0126}$ & $0.0882_{\pm 0.0133}$ \\
+Clássico & rbf & $0.0864_{\pm 0.0147}$ & $0.0889_{\pm 0.0150}$ & $0.0885_{\pm 0.0135}$ & $0.0912_{\pm 0.0166}$ \\
+\\midrule
+\\multicolumn{6}{l}{\\textbf{Nível de ruído: 20 dB}} \\
+DL & unet & $\mathbf{0.0641_{\pm 0.0018}}$ & $\mathbf{0.0648_{\pm 0.0011}}$ & $\mathbf{0.0742_{\pm 0.0011}}$ & $\mathbf{0.0644_{\pm 0.0007}}$ \\
+DL & vit & \underline{$0.0654_{\pm 0.0020}$} & \textit{$0.0668_{\pm 0.0013}$} & \underline{$0.0767_{\pm 0.0011}$} & \textit{$0.0669_{\pm 0.0007}$} \\
+DL & gan & \textit{$0.0657_{\pm 0.0017}$} & \underline{$0.0667_{\pm 0.0013}$} & \textit{$0.0773_{\pm 0.0012}$} & \underline{$0.0663_{\pm 0.0008}$} \\
+Clássico & kriging & $0.0835_{\pm 0.0137}$ & $0.0841_{\pm 0.0103}$ & $0.0932_{\pm 0.0152}$ & $0.0875_{\pm 0.0153}$ \\
+Clássico & exemplar\_based & $0.1006_{\pm 0.0164}$ & $0.0978_{\pm 0.0141}$ & $0.1012_{\pm 0.0127}$ & $0.1084_{\pm 0.0135}$ \\
+Clássico & bilinear & $0.1013_{\pm 0.0143}$ & $0.0947_{\pm 0.0134}$ & $0.1042_{\pm 0.0138}$ & $0.1011_{\pm 0.0137}$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table*}

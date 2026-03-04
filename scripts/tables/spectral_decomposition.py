@@ -22,36 +22,48 @@ def _build_spectral_stats(
     subset: pd.DataFrame,
     bands: list[str],
 ) -> pd.DataFrame:
+    bands_present = [band for band in bands if band in subset.columns]
+    if not bands_present:
+        return pd.DataFrame()
+
     stats_rows: list[dict[str, object]] = []
-    for method, grp in subset.groupby("method", observed=True):
+    grouped = subset.groupby("method", observed=True, sort=False)
+    for method, grp in grouped:
         row: dict[str, object] = {
             "method": method,
             "type": grp["type"].iloc[0] if "type" in grp.columns else "",
         }
         clusters = grp["patch_id"] if "patch_id" in grp.columns else None
-        for band in bands:
-            if band in grp.columns:
-                vals = grp[band].dropna()
-                row[f"{band}_median"] = (
-                    float(vals.median()) if len(vals) > 0 else np.nan
-                )
-                row[f"{band}_ci"] = bootstrap_ci_half(
-                    vals,
-                    clusters,
-                    stat_fn=np.median,
-                )
+        grp_bands = grp[bands_present]
+        for band in bands_present:
+            vals = grp_bands[band].dropna()
+            if vals.empty:
+                row[f"{band}_median"] = np.nan
+                row[f"{band}_ci"] = 0.0
+                continue
+            row[f"{band}_median"] = float(vals.median())
+            row[f"{band}_ci"] = bootstrap_ci_half(
+                vals,
+                clusters,
+                stat_fn=np.median,
+            )
         stats_rows.append(row)
 
     stats_df = pd.DataFrame(stats_rows)
+    if stats_df.empty:
+        return stats_df
 
-    for band in bands:
+    for band in bands_present:
         col = f"{band}_median"
-        if col in stats_df.columns:
-            stats_df[f"{band}_rank"] = stats_df[col].rank(
-                ascending=True, method="min"
-            )
+        stats_df[f"{band}_rank"] = stats_df[col].rank(
+            ascending=True,
+            method="min",
+        )
 
-    return stats_df.sort_values("rmse_b0_median", ascending=True)
+    sort_col = f"{bands[0]}_median"
+    if sort_col in stats_df.columns:
+        return stats_df.sort_values(sort_col, ascending=True)
+    return stats_df.sort_values("method", ascending=True)
 
 
 def _format_spectral_body(
@@ -59,16 +71,20 @@ def _format_spectral_body(
     bands: list[str],
 ) -> list[str]:
     body: list[str] = []
-    for _, row in stats_df.iterrows():
-        cells = [str(row.get("type", "")), tex_escape(str(row["method"]))]
+    for row in stats_df.itertuples(index=False):
+        row_map = row._asdict()
+        cells = [
+            str(row_map.get("type", "")),
+            tex_escape(str(row_map["method"])),
+        ]
         for band in bands:
-            med_val = row.get(f"{band}_median", np.nan)
-            ci_val = row.get(f"{band}_ci", 0.0)
-            rank = int(row.get(f"{band}_rank", 99))
+            med_val = row_map.get(f"{band}_median", np.nan)
             if np.isnan(med_val):
                 cells.append("--")
-            else:
-                cells.append(ranked_cell(med_val, ci_val, rank, ".4f"))
+                continue
+            ci_val = float(row_map.get(f"{band}_ci", 0.0))
+            rank = int(row_map.get(f"{band}_rank", 99))
+            cells.append(ranked_cell(float(med_val), ci_val, rank, ".4f"))
         body.append(" & ".join(cells) + r" \\")
     return body
 
@@ -79,35 +95,65 @@ def table_spectral_decomposition(df: pd.DataFrame, output_dir: Path) -> None:
     band_labels = ["B0 (Azul)", "B1 (Verde)", "B2 (Vermelho)", "B3 (NIR)"]
 
     noise_levels = [n for n in NOISE_ORDER if n in df["noise_level"].unique()]
+    grouped_noise = dict(df.groupby("noise_level", observed=True, sort=False))
 
+    body: list[str] = []
     for noise in noise_levels:
-        subset = df[df["noise_level"] == noise]
-        if subset.empty:
+        subset = grouped_noise.get(noise)
+        if subset is None or subset.empty:
             continue
-
-        suffix = noise.replace("inf", "gap_only")
 
         stats_df = _build_spectral_stats(subset, bands)
         if stats_df.empty:
             continue
 
-        body = _format_spectral_body(stats_df, bands)
+        stats_df = stats_df.sort_values("rmse_b0_median", ascending=True)
+        if "type" in stats_df.columns:
+            type_order = ["DL", "Clássico"]
+            remaining = [
+                t
+                for t in stats_df["type"].unique().tolist()
+                if t not in type_order
+            ]
+            ordered_types = [*type_order, *remaining]
+            top_rows = []
+            for method_type in ordered_types:
+                typed = stats_df[stats_df["type"] == method_type]
+                if typed.empty:
+                    continue
+                top_rows.append(typed.head(3))
+            if top_rows:
+                stats_df = pd.concat(top_rows, ignore_index=True)
+        else:
+            stats_df = stats_df.head(3)
 
-        header = "Tipo & Método & " + " & ".join(
-            f"{bl} $\\downarrow$" for bl in band_labels
+        if body:
+            body.append(r"\\midrule")
+        section_title = tex_escape(f"Nível de ruído: {noise_label(noise)}")
+        body.append(
+            rf"\\multicolumn{{6}}{{l}}{{\\textbf{{{section_title}}}}} \\"
         )
-        tex = wrap_table(
-            body,
-            caption=(
-                rf"RMSE mediano por banda (IC95\%) ({noise_label(noise)}). "
-                r"Menor é melhor."
-            ),
-            label=f"tab:spectral-rmse-{suffix}",
-            col_spec="llcccc",
-            header=header,
-            resizebox=True,
-        )
-        write_tex(tex, output_dir / f"spectral-rmse-{suffix}.tex")
+        body.extend(_format_spectral_body(stats_df, bands))
+
+    if not body:
+        return
+
+    header = "Tipo & Método & " + " & ".join(
+        f"{bl} $\\downarrow$" for bl in band_labels
+    )
+    tex = wrap_table(
+        body,
+        caption=(
+            r"RMSE mediano por banda (IC95\%) por nível de ruído. "
+            r"Menor é melhor."
+        ),
+        label="tab:spectral-rmse",
+        col_spec="llcccc",
+        header=header,
+        env="table*",
+        resizebox=True,
+    )
+    write_tex(tex, output_dir / "spectral-rmse.tex")
 
 
 def main() -> None:
