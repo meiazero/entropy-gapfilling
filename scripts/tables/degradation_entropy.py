@@ -6,9 +6,10 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from data_loader import ENTROPY_WINDOWS, entropy_terciles, select_top_n
-from tables.cli import run_table
-from tables.common import bootstrap_ci_half, tex_escape, wrap_table, write_tex
+
+from ..data_loader import ENTROPY_WINDOWS, entropy_terciles, select_top_n
+from .cli import run_table
+from .common import bootstrap_ci_half, tex_escape, wrap_table, write_tex
 
 
 def table_degradation_entropy(df: pd.DataFrame, output_dir: Path) -> None:

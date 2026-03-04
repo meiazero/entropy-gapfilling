@@ -9,10 +9,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from data_loader import CATEGORY_LABELS, NOISE_ORDER, noise_label
-from figures.cli import run_with_df
-from figures.common import FONT_SIZE, SETTINGS, save_figure, style_axes
 from scipy import stats
+
+from ..data_loader import CATEGORY_LABELS, NOISE_ORDER, noise_label
+from .cli import run_with_df
+from .common import FONT_SIZE, SETTINGS, save_figure, style_axes
 
 log = logging.getLogger(__name__)
 

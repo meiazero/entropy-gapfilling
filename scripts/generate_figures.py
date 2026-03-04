@@ -15,20 +15,20 @@ import argparse
 import logging
 from pathlib import Path
 
-from data_loader import load_combined
-from figures.common import SETTINGS, configure_settings, setup_style
-from figures.correlation_heatmap import fig7_correlation_heatmap
-from figures.dl_comparison import fig11_dl_comparison
-from figures.dl_components import fig10_components
-from figures.dl_loss import fig8_dl_loss
-from figures.dl_val_metrics import fig9_dl_val_metrics
-from figures.entropy_sensitivity import fig3_sensitivity
-from figures.f1_threshold import fig5_f1_threshold
-from figures.multisensor import fig4_multisensor
-from figures.pareto import fig1_pareto
-from figures.psnr_entropy import fig6_psnr_entropy
-from figures.spectral_bar import fig2_spectral_bar
-from figures.spectral_dotplot import fig2_spectral_dotplot
+from .data_loader import load_combined
+from .figures.common import SETTINGS, configure_settings, setup_style
+from .figures.correlation_heatmap import fig7_correlation_heatmap
+from .figures.dl_comparison import fig11_dl_comparison
+from .figures.dl_components import fig10_components
+from .figures.dl_loss import fig8_dl_loss
+from .figures.dl_val_metrics import fig9_dl_val_metrics
+from .figures.entropy_sensitivity import fig3_sensitivity
+from .figures.f1_threshold import fig5_f1_threshold
+from .figures.multisensor import fig4_multisensor
+from .figures.pareto import fig1_pareto
+from .figures.psnr_entropy import fig6_psnr_entropy
+from .figures.spectral_bar import fig2_spectral_bar
+from .figures.spectral_dotplot import fig2_spectral_dotplot
 
 logging.basicConfig(
     level=logging.INFO,

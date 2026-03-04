@@ -19,7 +19,8 @@ import shutil
 from pathlib import Path
 
 import pandas as pd
-from data_loader import ENTROPY_WINDOWS, NOISE_ORDER, load_combined
+
+from .data_loader import ENTROPY_WINDOWS, NOISE_ORDER, load_combined
 
 
 def _best_noise(df: pd.DataFrame) -> str:

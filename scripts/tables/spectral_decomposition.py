@@ -6,9 +6,10 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from data_loader import NOISE_ORDER, noise_label
-from tables.cli import run_table
-from tables.common import (
+
+from ..data_loader import NOISE_ORDER, noise_label
+from .cli import run_table
+from .common import (
     bootstrap_ci_half,
     ranked_cell,
     tex_escape,

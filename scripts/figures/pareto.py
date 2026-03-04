@@ -8,9 +8,10 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from data_loader import NOISE_ORDER, noise_label
-from figures.cli import run_with_df
-from figures.common import FONT_SIZE, save_figure, style_axes
+
+from ..data_loader import NOISE_ORDER, noise_label
+from .cli import run_with_df
+from .common import FONT_SIZE, save_figure, style_axes
 
 log = logging.getLogger(__name__)
 

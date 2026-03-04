@@ -6,11 +6,12 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from data_loader import ENTROPY_WINDOWS
 from scipy import stats
 from statsmodels.stats.multitest import multipletests
-from tables.cli import run_table
-from tables.common import stars, tex_escape, wrap_table, write_tex
+
+from ..data_loader import ENTROPY_WINDOWS
+from .cli import run_table
+from .common import stars, tex_escape, wrap_table, write_tex
 
 
 def _spearman_rows(

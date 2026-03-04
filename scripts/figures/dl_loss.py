@@ -5,9 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-from data_loader import load_all_dl_histories
-from figures.cli import run_no_df
-from figures.common import FONT_SIZE, save_figure, style_axes
+
+from ..data_loader import load_all_dl_histories
+from .cli import run_no_df
+from .common import FONT_SIZE, save_figure, style_axes
 
 
 def fig8_dl_loss(output_dir: Path) -> None:

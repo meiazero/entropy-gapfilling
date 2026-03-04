@@ -14,15 +14,15 @@ import argparse
 import logging
 from pathlib import Path
 
-from data_loader import load_combined
-from tables.common import SETTINGS, configure_settings
-from tables.degradation_entropy import table_degradation_entropy
-from tables.global_scoreboard import table_global_scoreboard
-from tables.noise_slope import table_noise_slope
-from tables.overview_dataset import table_overview_dataset
-from tables.spearman_entropy import table_spearman_entropy
-from tables.spectral_decomposition import table_spectral_decomposition
-from tables.speed_summary import table_speed_summary
+from .data_loader import load_combined
+from .tables.common import SETTINGS, configure_settings
+from .tables.degradation_entropy import table_degradation_entropy
+from .tables.global_scoreboard import table_global_scoreboard
+from .tables.noise_slope import table_noise_slope
+from .tables.overview_dataset import table_overview_dataset
+from .tables.spearman_entropy import table_spearman_entropy
+from .tables.spectral_decomposition import table_spectral_decomposition
+from .tables.speed_summary import table_speed_summary
 
 logging.basicConfig(
     level=logging.INFO,

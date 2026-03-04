@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import argparse
 import logging
-import sys
 from pathlib import Path
 
 import pandas as pd
+
+from .common import bold, tex_escape, wrap_table, write_tex
 
 log = logging.getLogger(__name__)
 
@@ -26,12 +27,6 @@ class ManifestNotFoundError(FileNotFoundError):
         super().__init__(f"Manifest not found: {path}")
 
 
-def _ensure_scripts_on_path() -> None:
-    scripts_dir = Path(__file__).resolve().parents[1]
-    if str(scripts_dir) not in sys.path:
-        sys.path.insert(0, str(scripts_dir))
-
-
 def _load_manifest(path: Path) -> pd.DataFrame:
     if not path.exists():
         raise ManifestNotFoundError(path)
@@ -40,9 +35,6 @@ def _load_manifest(path: Path) -> pd.DataFrame:
 
 def table_overview_dataset(_df: object, output_dir: Path) -> None:
     """Generate dataset composition table from manifest.csv."""
-    _ensure_scripts_on_path()
-    from tables.common import bold, tex_escape, wrap_table, write_tex
-
     data = _load_manifest(_DEFAULT_MANIFEST)
     counts = data.groupby(["satellite", "split"], observed=True).size()
 
@@ -118,7 +110,6 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    _ensure_scripts_on_path()
     args = _parse_args()
     global _DEFAULT_MANIFEST
     _DEFAULT_MANIFEST = args.manifest

@@ -6,8 +6,9 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from tables.cli import run_table
-from tables.common import ranked_plain, tex_escape, wrap_table, write_tex
+
+from .cli import run_table
+from .common import ranked_plain, tex_escape, wrap_table, write_tex
 
 
 def table_speed_summary(df: pd.DataFrame, output_dir: Path) -> None:

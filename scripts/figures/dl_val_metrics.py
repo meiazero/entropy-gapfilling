@@ -5,9 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-from data_loader import load_all_dl_histories
-from figures.cli import run_no_df
-from figures.common import save_figure, style_axes
+
+from ..data_loader import load_all_dl_histories
+from .cli import run_no_df
+from .common import save_figure, style_axes
 
 
 def fig9_dl_val_metrics(output_dir: Path) -> None:

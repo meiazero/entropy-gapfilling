@@ -9,11 +9,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from data_loader import ENTROPY_WINDOWS
-from figures.cli import run_with_df
-from figures.common import FONT_SIZE, save_figure, style_axes
 from scipy import stats
 from statsmodels.stats.multitest import multipletests
+
+from ..data_loader import ENTROPY_WINDOWS
+from .cli import run_with_df
+from .common import FONT_SIZE, save_figure, style_axes
 
 log = logging.getLogger(__name__)
 

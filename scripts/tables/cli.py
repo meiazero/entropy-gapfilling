@@ -7,8 +7,8 @@ import logging
 from collections.abc import Callable
 from pathlib import Path
 
-from data_loader import load_combined
-from tables.common import SETTINGS, configure_settings
+from ..data_loader import load_combined
+from .common import SETTINGS, configure_settings
 
 logging.basicConfig(
     level=logging.INFO,
