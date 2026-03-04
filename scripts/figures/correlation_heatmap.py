@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from data_loader import ENTROPY_WINDOWS
+from figures.cli import run_with_df
 from figures.common import FONT_SIZE, save_figure, style_axes
 from scipy import stats
 from statsmodels.stats.multitest import multipletests
@@ -90,3 +91,11 @@ def fig7_correlation_heatmap(df: pd.DataFrame, output_dir: Path) -> None:
     plt.tight_layout()
     save_figure(fig, output_dir, "fig7_correlation_heatmap")
     plt.close(fig)
+
+
+def main() -> None:
+    run_with_df(fig7_correlation_heatmap, "Correlation heatmap")
+
+
+if __name__ == "__main__":
+    main()

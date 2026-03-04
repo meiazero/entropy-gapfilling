@@ -27,7 +27,8 @@ from figures.f1_threshold import fig5_f1_threshold
 from figures.multisensor import fig4_multisensor
 from figures.pareto import fig1_pareto
 from figures.psnr_entropy import fig6_psnr_entropy
-from figures.spectral import fig2_spectral_bar, fig2_spectral_dotplot
+from figures.spectral_bar import fig2_spectral_bar
+from figures.spectral_dotplot import fig2_spectral_dotplot
 
 logging.basicConfig(
     level=logging.INFO,

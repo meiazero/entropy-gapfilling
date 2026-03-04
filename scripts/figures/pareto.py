@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from data_loader import NOISE_ORDER, noise_label
+from figures.cli import run_with_df
 from figures.common import FONT_SIZE, save_figure, style_axes
 
 log = logging.getLogger(__name__)
@@ -170,3 +171,11 @@ def fig1_pareto(df: pd.DataFrame, output_dir: Path) -> None:
             continue
 
         _plot_pareto_variants(stats_df, subset, output_dir, suffix, noise)
+
+
+def main() -> None:
+    run_with_df(fig1_pareto, "Pareto front")
+
+
+if __name__ == "__main__":
+    main()

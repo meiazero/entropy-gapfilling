@@ -6,6 +6,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 from data_loader import load_all_dl_histories
+from figures.cli import run_no_df
 from figures.common import save_figure, style_axes
 
 
@@ -61,3 +62,11 @@ def fig9_dl_val_metrics(output_dir: Path) -> None:
                     f"fig9_dl_val_metrics_{scenario}_{metric_name}_{model}",
                 )
                 plt.close(fig)
+
+
+def main() -> None:
+    run_no_df(fig9_dl_val_metrics, "DL validation metrics")
+
+
+if __name__ == "__main__":
+    main()

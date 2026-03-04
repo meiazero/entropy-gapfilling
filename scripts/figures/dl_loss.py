@@ -6,6 +6,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 from data_loader import load_all_dl_histories
+from figures.cli import run_no_df
 from figures.common import FONT_SIZE, save_figure, style_axes
 
 
@@ -57,3 +58,11 @@ def fig8_dl_loss(output_dir: Path) -> None:
             plt.tight_layout()
             save_figure(fig, output_dir, f"fig8_dl_loss_{scenario}_{model}")
             plt.close(fig)
+
+
+def main() -> None:
+    run_no_df(fig8_dl_loss, "DL loss curves")
+
+
+if __name__ == "__main__":
+    main()

@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 from data_loader import NOISE_ORDER, noise_label, select_top_n
+from figures.cli import run_with_df
 from figures.common import FONT_SIZE, save_figure, style_axes
 
 log = logging.getLogger(__name__)
@@ -60,3 +61,11 @@ def fig4_multisensor(df: pd.DataFrame, output_dir: Path) -> None:
         plt.tight_layout()
         save_figure(fig, output_dir, f"fig4_multisensor_{suffix}")
         plt.close(fig)
+
+
+def main() -> None:
+    run_with_df(fig4_multisensor, "Multi-sensor violin plot")
+
+
+if __name__ == "__main__":
+    main()

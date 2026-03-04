@@ -1,9 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Load style
-plt.style.use("images/style.mplstyle")
-
 # Simulated data similar to the reference image (temperatures in °C)
 np.random.seed(48)
 years = [2010, 2015, 2020, 2025]

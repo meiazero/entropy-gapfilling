@@ -15,13 +15,6 @@ from matplotlib.figure import Figure
 
 from dl_models.shared.trainer import TrainingHistory
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-_STYLE_PATH = _PROJECT_ROOT / "images" / "style.mplstyle"
-
-if _STYLE_PATH.exists():
-    plt.style.use(str(_STYLE_PATH))
-
-# Apply training-specific overrides on top of the shared mplstyle
 plt.rcParams.update({
     "figure.dpi": 150,
     "savefig.dpi": 300,

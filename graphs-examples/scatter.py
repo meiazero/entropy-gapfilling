@@ -3,9 +3,6 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-# Load style
-plt.style.use("images/style.mplstyle")
-
 x = np.random.randn(100)
 y = x * 2 + np.random.randn(100) * 0.5
 df = pd.DataFrame({"x": x, "y": y})

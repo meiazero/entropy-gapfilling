@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from data_loader import NOISE_ORDER, noise_label
+from figures.cli import run_with_df
 from figures.common import FONT_SIZE, save_figure, style_axes
 
 log = logging.getLogger(__name__)
@@ -96,3 +97,11 @@ def fig5_f1_threshold(df: pd.DataFrame, output_dir: Path) -> None:
         plt.tight_layout()
         save_figure(fig, output_dir, f"fig5_f1_threshold_{suffix}")
         plt.close(fig)
+
+
+def main() -> None:
+    run_with_df(fig5_f1_threshold, "F1 score by threshold")
+
+
+if __name__ == "__main__":
+    main()

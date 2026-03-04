@@ -2,9 +2,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-# Load style
-plt.style.use("images/style.mplstyle")
-
 # Generate correlated data
 df = pd.DataFrame(
     np.random.randn(100, 4), columns=["Var1", "Var2", "Var3", "Var4"]

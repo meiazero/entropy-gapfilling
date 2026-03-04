@@ -15,9 +15,6 @@ import seaborn as sns
 
 log = logging.getLogger(__name__)
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[2]
-_STYLE_PATH = _PROJECT_ROOT / "images" / "style.mplstyle"
-
 DPI = 300
 FONT_SIZE = 8
 
@@ -50,8 +47,6 @@ def configure_settings(*, png_only: bool, bootstrap_samples: int) -> None:
 
 
 def setup_style() -> None:
-    if _STYLE_PATH.exists():
-        plt.style.use(str(_STYLE_PATH))
     plt.rcParams.update(_PUB_FONT)
     sns.set_palette("Set2")
 
@@ -62,6 +57,7 @@ def style_axes(
     title: str | None = None,
     xlabel: str | None = None,
     ylabel: str | None = None,
+    title_pad: float | None = None,
     grid: bool = True,
     grid_axis: str = "both",
     grid_alpha: float = 0.3,
@@ -73,7 +69,11 @@ def style_axes(
     if ylabel is not None:
         ax.set_ylabel(ylabel)
     if title is not None:
-        ax.set_title(title, fontsize=title_size or FONT_SIZE + 1)
+        ax.set_title(
+            title,
+            fontsize=title_size or FONT_SIZE + 1,
+            pad=title_pad,
+        )
     if grid:
         ax.grid(
             True, axis=grid_axis, alpha=grid_alpha, linewidth=grid_linewidth

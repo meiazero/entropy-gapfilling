@@ -6,6 +6,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 from data_loader import load_all_dl_histories
+from figures.cli import run_no_df
 from figures.common import FONT_SIZE, save_figure, style_axes
 
 
@@ -130,3 +131,11 @@ def fig10_components(output_dir: Path) -> None:
                 )
                 save_figure(fig, output_dir, f"fig10_gan_components_{scenario}")
                 plt.close(fig)
+
+
+def main() -> None:
+    run_no_df(fig10_components, "DL component decomposition")
+
+
+if __name__ == "__main__":
+    main()

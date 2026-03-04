@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from data_loader import load_all_dl_histories
+from figures.cli import run_no_df
 from figures.common import FONT_SIZE, save_figure, style_axes
 
 
@@ -121,8 +122,8 @@ def _render_dl_comparison_heatmap(
         title=f"Comparação DL (melhor época) - {scenario_title}",
         grid=False,
         title_size=FONT_SIZE + 1,
+        title_pad=8,
     )
-    ax.title.set_pad(8)
     save_figure(fig, output_dir, f"fig11_dl_comparison_{scenario}")
     plt.close(fig)
 
@@ -158,3 +159,11 @@ def fig11_dl_comparison(output_dir: Path) -> None:
             scenario,
             output_dir,
         )
+
+
+def main() -> None:
+    run_no_df(fig11_dl_comparison, "DL comparison heatmap")
+
+
+if __name__ == "__main__":
+    main()

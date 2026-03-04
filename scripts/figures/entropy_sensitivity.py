@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 from data_loader import ENTROPY_WINDOWS, NOISE_ORDER, noise_label, select_top_n
+from figures.cli import run_with_df
 from figures.common import FONT_SIZE, save_figure, style_axes
 
 log = logging.getLogger(__name__)
@@ -77,3 +78,11 @@ def fig3_sensitivity(df: pd.DataFrame, output_dir: Path) -> None:
                     f"fig3_sensitivity_{metric}_{suffix}_e{ws}",
                 )
                 plt.close(fig)
+
+
+def main() -> None:
+    run_with_df(fig3_sensitivity, "Entropy sensitivity")
+
+
+if __name__ == "__main__":
+    main()

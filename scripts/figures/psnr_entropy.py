@@ -16,6 +16,7 @@ from data_loader import (
     noise_label,
     select_top_n,
 )
+from figures.cli import run_with_df
 from figures.common import FONT_SIZE, save_figure, style_axes
 from scipy import stats
 
@@ -100,3 +101,11 @@ def fig6_psnr_entropy(df: pd.DataFrame, output_dir: Path) -> None:
             plt.tight_layout()
             save_figure(fig, output_dir, f"fig6_psnr_entropy_{suffix}_e{ws}")
             plt.close(fig)
+
+
+def main() -> None:
+    run_with_df(fig6_psnr_entropy, "PSNR boxplot by entropy")
+
+
+if __name__ == "__main__":
+    main()
