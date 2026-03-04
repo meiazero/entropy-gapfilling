@@ -41,6 +41,10 @@ def format_pm(mean: float, ci_half: float, fmt: str = ".2f") -> str:
     return f"${mean:{fmt}}_{{\\pm {ci_half:{fmt}}}}$"
 
 
+def format_iqr(median: float, iqr_value: float, fmt: str = ".2f") -> str:
+    return f"${median:{fmt}}\\,(IQR\\ {iqr_value:{fmt}})$"
+
+
 def bold(text: str) -> str:
     return f"\\textbf{{{text}}}"
 
@@ -63,6 +67,22 @@ def ranked_cell(
     fmt: str = ".2f",
 ) -> str:
     base = format_pm(value, ci_half, fmt)
+    if rank == 1:
+        return math_bold(base)
+    if rank == 2:
+        return underline(base)
+    if rank == 3:
+        return f"\\textit{{{base}}}"
+    return base
+
+
+def ranked_cell_iqr(
+    value: float,
+    iqr_value: float,
+    rank: int,
+    fmt: str = ".2f",
+) -> str:
+    base = format_iqr(value, iqr_value, fmt)
     if rank == 1:
         return math_bold(base)
     if rank == 2:
@@ -101,6 +121,13 @@ def ci95_half(values: pd.Series) -> float:
         return 0.0
     se = float(values.std() / np.sqrt(n))
     return float(stats.t.ppf(0.975, n - 1) * se)
+
+
+def iqr(values: pd.Series) -> float:
+    if values.empty:
+        return 0.0
+    q1, q3 = np.percentile(values, [25, 75])
+    return float(q3 - q1)
 
 
 def bootstrap_ci_half(

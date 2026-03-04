@@ -1,0 +1,45 @@
+\begin{table*}[htbp]
+\centering
+\caption{RMSE mediano por banda com IQR por nível de ruído. Menor é melhor.}
+\label{tab:spectral-rmse-iqr}
+\footnotesize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{llcccc}
+\toprule
+Tipo & Método & B0 (Azul) $\downarrow$ & B1 (Verde) $\downarrow$ & B2 (Vermelho) $\downarrow$ & B3 (NIR) $\downarrow$ \\
+\midrule
+\\multicolumn{6}{l}{\\textbf{Nível de ruído: Sem ruído}} \\
+DL & unet & $\mathbf{0.0566\,(IQR\ 0.0684)}$ & $\mathbf{0.0582\,(IQR\ 0.0602)}$ & $\mathbf{0.0670\,(IQR\ 0.0556)}$ & $\mathbf{0.0572\,(IQR\ 0.0332)}$ \\
+DL & gan & \underline{$0.0631\,(IQR\ 0.0750)$} & \underline{$0.0645\,(IQR\ 0.0658)$} & \textit{$0.0754\,(IQR\ 0.0593)$} & \underline{$0.0642\,(IQR\ 0.0363)$} \\
+DL & vit & \textit{$0.0634\,(IQR\ 0.0738)$} & \textit{$0.0650\,(IQR\ 0.0644)$} & \underline{$0.0753\,(IQR\ 0.0588)$} & \textit{$0.0656\,(IQR\ 0.0381)$} \\
+Clássico & kriging & $0.0801\,(IQR\ 0.0771)$ & $0.0816\,(IQR\ 0.0811)$ & $0.0921\,(IQR\ 0.0793)$ & $0.0866\,(IQR\ 0.0771)$ \\
+Clássico & exemplar\_based & $0.0812\,(IQR\ 0.0768)$ & $0.0827\,(IQR\ 0.0770)$ & $0.0849\,(IQR\ 0.0890)$ & $0.0857\,(IQR\ 0.0750)$ \\
+Clássico & rbf & $0.0823\,(IQR\ 0.0846)$ & $0.0817\,(IQR\ 0.0831)$ & $0.0831\,(IQR\ 0.0952)$ & $0.0859\,(IQR\ 0.0803)$ \\
+\\midrule
+\\multicolumn{6}{l}{\\textbf{Nível de ruído: 40 dB}} \\
+DL & unet & $\mathbf{0.0568\,(IQR\ 0.0685)}$ & $\mathbf{0.0583\,(IQR\ 0.0602)}$ & $\mathbf{0.0670\,(IQR\ 0.0556)}$ & $\mathbf{0.0573\,(IQR\ 0.0332)}$ \\
+DL & gan & \underline{$0.0631\,(IQR\ 0.0749)$} & \underline{$0.0645\,(IQR\ 0.0658)$} & \textit{$0.0754\,(IQR\ 0.0590)$} & \underline{$0.0643\,(IQR\ 0.0363)$} \\
+DL & vit & \textit{$0.0635\,(IQR\ 0.0738)$} & \textit{$0.0651\,(IQR\ 0.0644)$} & \underline{$0.0753\,(IQR\ 0.0587)$} & \textit{$0.0657\,(IQR\ 0.0380)$} \\
+Clássico & exemplar\_based & $0.0803\,(IQR\ 0.0795)$ & $0.0800\,(IQR\ 0.0778)$ & $0.0838\,(IQR\ 0.0865)$ & $0.0842\,(IQR\ 0.0736)$ \\
+Clássico & kriging & $0.0804\,(IQR\ 0.0783)$ & $0.0828\,(IQR\ 0.0794)$ & $0.0910\,(IQR\ 0.0791)$ & $0.0866\,(IQR\ 0.0764)$ \\
+Clássico & rbf & $0.0822\,(IQR\ 0.0833)$ & $0.0809\,(IQR\ 0.0813)$ & $0.0843\,(IQR\ 0.0953)$ & $0.0863\,(IQR\ 0.0811)$ \\
+\\midrule
+\\multicolumn{6}{l}{\\textbf{Nível de ruído: 30 dB}} \\
+DL & unet & $\mathbf{0.0577\,(IQR\ 0.0686)}$ & $\mathbf{0.0593\,(IQR\ 0.0601)}$ & $\mathbf{0.0677\,(IQR\ 0.0551)}$ & $\mathbf{0.0582\,(IQR\ 0.0331)}$ \\
+DL & gan & \underline{$0.0635\,(IQR\ 0.0749)$} & \underline{$0.0648\,(IQR\ 0.0657)$} & \underline{$0.0755\,(IQR\ 0.0593)$} & \underline{$0.0644\,(IQR\ 0.0360)$} \\
+DL & vit & \textit{$0.0636\,(IQR\ 0.0738)$} & \textit{$0.0652\,(IQR\ 0.0645)$} & \textit{$0.0756\,(IQR\ 0.0587)$} & \textit{$0.0658\,(IQR\ 0.0380)$} \\
+Clássico & kriging & $0.0825\,(IQR\ 0.0784)$ & $0.0834\,(IQR\ 0.0796)$ & $0.0917\,(IQR\ 0.0789)$ & $0.0865\,(IQR\ 0.0765)$ \\
+Clássico & exemplar\_based & $0.0847\,(IQR\ 0.0837)$ & $0.0833\,(IQR\ 0.0790)$ & $0.0875\,(IQR\ 0.0846)$ & $0.0882\,(IQR\ 0.0727)$ \\
+Clássico & rbf & $0.0864\,(IQR\ 0.0828)$ & $0.0889\,(IQR\ 0.0849)$ & $0.0885\,(IQR\ 0.0925)$ & $0.0912\,(IQR\ 0.0768)$ \\
+\\midrule
+\\multicolumn{6}{l}{\\textbf{Nível de ruído: 20 dB}} \\
+DL & unet & $\mathbf{0.0641\,(IQR\ 0.0696)}$ & $\mathbf{0.0648\,(IQR\ 0.0604)}$ & $\mathbf{0.0742\,(IQR\ 0.0537)}$ & $\mathbf{0.0644\,(IQR\ 0.0330)}$ \\
+DL & vit & \underline{$0.0654\,(IQR\ 0.0738)$} & \textit{$0.0668\,(IQR\ 0.0646)$} & \underline{$0.0767\,(IQR\ 0.0583)$} & \textit{$0.0669\,(IQR\ 0.0382)$} \\
+DL & gan & \textit{$0.0657\,(IQR\ 0.0754)$} & \underline{$0.0667\,(IQR\ 0.0656)$} & \textit{$0.0773\,(IQR\ 0.0590)$} & \underline{$0.0663\,(IQR\ 0.0359)$} \\
+Clássico & kriging & $0.0835\,(IQR\ 0.0765)$ & $0.0841\,(IQR\ 0.0743)$ & $0.0932\,(IQR\ 0.0778)$ & $0.0875\,(IQR\ 0.0760)$ \\
+Clássico & exemplar\_based & $0.1006\,(IQR\ 0.0835)$ & $0.0978\,(IQR\ 0.0874)$ & $0.1012\,(IQR\ 0.0800)$ & $0.1084\,(IQR\ 0.0763)$ \\
+Clássico & bilinear & $0.1013\,(IQR\ 0.0727)$ & $0.0947\,(IQR\ 0.0732)$ & $0.1042\,(IQR\ 0.0715)$ & $0.1011\,(IQR\ 0.0728)$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table*}

@@ -10,65 +10,15 @@ import pandas as pd
 from ..data_loader import NOISE_ORDER, noise_label
 from .cli import run_table
 from .common import (
-    SETTINGS,
-    ci95_half,
+    bootstrap_ci_half,
+    format_iqr,
     format_pm,
+    iqr,
     math_bold,
     tex_escape,
     wrap_table,
     write_tex,
 )
-
-
-def _bootstrap_ci_half_multi(
-    values: pd.DataFrame,
-    clusters: pd.Series | None,
-    metrics: list[str],
-    *,
-    samples: int,
-    seed: int = 42,
-) -> dict[str, float]:
-    if not metrics:
-        return {}
-    if clusters is None or clusters.isna().all():
-        return {
-            metric: ci95_half(values[metric].dropna()) for metric in metrics
-        }
-
-    data = values.copy()
-    data["cluster"] = clusters
-    data = data.dropna(subset=["cluster"])
-    if data.empty:
-        return {
-            metric: ci95_half(values[metric].dropna()) for metric in metrics
-        }
-
-    grouped = data.groupby("cluster", sort=False)[metrics]
-    cluster_sums = grouped.sum(min_count=1).to_numpy()
-    cluster_counts = grouped.count().to_numpy()
-    n_clusters = cluster_sums.shape[0]
-    if n_clusters < 2:
-        return {
-            metric: ci95_half(values[metric].dropna()) for metric in metrics
-        }
-
-    rng = np.random.default_rng(seed)
-    boot_means = np.empty((samples, len(metrics)), dtype=float)
-    for i in range(samples):
-        sampled_idx = rng.integers(0, n_clusters, size=n_clusters)
-        sums = cluster_sums[sampled_idx].sum(axis=0)
-        counts = cluster_counts[sampled_idx].sum(axis=0)
-        with np.errstate(divide="ignore", invalid="ignore"):
-            boot_means[i, :] = sums / counts
-
-    lo = np.nanpercentile(boot_means, 2.5, axis=0)
-    hi = np.nanpercentile(boot_means, 97.5, axis=0)
-    ci_half = (hi - lo) / 2.0
-    result: dict[str, float] = {}
-    for idx, metric in enumerate(metrics):
-        value = float(ci_half[idx]) if not np.isnan(ci_half[idx]) else 0.0
-        result[metric] = value
-    return result
 
 
 def _compute_method_stats(
@@ -84,18 +34,27 @@ def _compute_method_stats(
         if "type" in grp.columns:
             row["type"] = grp["type"].iloc[0]
         clusters = grp[cluster_col] if cluster_col in grp.columns else None
+        if clusters is not None and clusters.notna().any():
+            mask = clusters.notna()
+            grp = grp.loc[mask]
+            clusters = clusters.loc[mask]
+        else:
+            clusters = None
         if metrics_present:
-            means = grp[metrics_present].mean()
-            ci_half = _bootstrap_ci_half_multi(
-                grp[metrics_present],
-                clusters,
-                metrics_present,
-                samples=int(SETTINGS.bootstrap_samples),
-            )
             for m in metrics_present:
-                mean_val = float(means[m]) if not np.isnan(means[m]) else np.nan
-                row[f"{m}_mean"] = mean_val
-                row[f"{m}_ci"] = ci_half.get(m, 0.0)
+                vals = grp[m].dropna()
+                if vals.empty:
+                    row[f"{m}_median"] = np.nan
+                    row[f"{m}_ci"] = 0.0
+                    row[f"{m}_iqr"] = 0.0
+                    continue
+                row[f"{m}_median"] = float(vals.median())
+                row[f"{m}_ci"] = bootstrap_ci_half(
+                    vals,
+                    clusters,
+                    stat_fn=np.median,
+                )
+                row[f"{m}_iqr"] = iqr(vals)
         rows.append(row)
     return pd.DataFrame(rows)
 
@@ -106,13 +65,33 @@ def _format_metric_cells(
 ) -> list[str]:
     cells: list[str] = []
     for metric in metrics:
-        mean_val = row.get(f"{metric}_mean", np.nan)
+        median_val = row.get(f"{metric}_median", np.nan)
         ci_val = row.get(f"{metric}_ci", 0.0)
         rank = int(row.get(f"{metric}_rank", 99))
-        if np.isnan(mean_val):
+        if np.isnan(median_val):
             cells.append("--")
             continue
-        base = format_pm(float(mean_val), float(ci_val))
+        base = format_pm(float(median_val), float(ci_val))
+        if rank == 1:
+            cells.append(math_bold(base))
+        else:
+            cells.append(base)
+    return cells
+
+
+def _format_metric_cells_iqr(
+    row: pd.Series,
+    metrics: list[str],
+) -> list[str]:
+    cells: list[str] = []
+    for metric in metrics:
+        median_val = row.get(f"{metric}_median", np.nan)
+        iqr_val = row.get(f"{metric}_iqr", 0.0)
+        rank = int(row.get(f"{metric}_rank", 99))
+        if np.isnan(median_val):
+            cells.append("--")
+            continue
+        base = format_iqr(float(median_val), float(iqr_val))
         if rank == 1:
             cells.append(math_bold(base))
         else:
@@ -126,7 +105,7 @@ def _rank_metrics(
     higher_better: dict[str, bool],
 ) -> pd.DataFrame:
     for metric in metrics:
-        col = f"{metric}_mean"
+        col = f"{metric}_median"
         if col not in stats_df.columns:
             continue
         if "type" in stats_df.columns:
@@ -140,19 +119,7 @@ def _rank_metrics(
     return stats_df
 
 
-def _append_noise_section(
-    body: list[str],
-    subset: pd.DataFrame,
-    caption_noise: str,
-    metrics: list[str],
-    higher_better: dict[str, bool],
-) -> None:
-    stats_df = _compute_method_stats(subset, metrics)
-    if stats_df.empty:
-        return
-
-    stats_df = _rank_metrics(stats_df, metrics, higher_better)
-    stats_df = stats_df.sort_values("psnr_mean", ascending=False)
+def _select_top_methods(stats_df: pd.DataFrame) -> pd.DataFrame:
     if "type" in stats_df.columns:
         type_order = ["DL", "Clássico"]
         remaining = [
@@ -166,20 +133,47 @@ def _append_noise_section(
                 continue
             top_rows.append(typed.head(3))
         if top_rows:
-            stats_df = pd.concat(top_rows, ignore_index=True)
-    else:
-        stats_df = stats_df.head(3)
+            return pd.concat(top_rows, ignore_index=True)
+        return stats_df
+    return stats_df.head(3)
+
+
+def _append_noise_section(
+    body: list[str],
+    subset: pd.DataFrame,
+    caption_noise: str,
+    metrics: list[str],
+    higher_better: dict[str, bool],
+    body_iqr: list[str] | None = None,
+) -> None:
+    stats_df = _compute_method_stats(subset, metrics)
+    if stats_df.empty:
+        return
+
+    stats_df = _rank_metrics(stats_df, metrics, higher_better)
+    stats_df = stats_df.sort_values("psnr_median", ascending=False)
+    stats_df = _select_top_methods(stats_df)
 
     if body:
         body.append(r"\midrule")
+    if body_iqr is not None and body_iqr:
+        body_iqr.append(r"\midrule")
     section_title = tex_escape(f"Nível de ruído: {caption_noise}")
     body.append(rf"\multicolumn{{7}}{{l}}{{\textbf{{{section_title}}}}} \\")
+    if body_iqr is not None:
+        body_iqr.append(
+            rf"\multicolumn{{7}}{{l}}{{\textbf{{{section_title}}}}} \\"
+        )
     for _idx, row in stats_df.iterrows():
         method_str = tex_escape(str(row["method"]))
         type_str = str(row.get("type", ""))
         cells = [type_str, method_str]
         cells.extend(_format_metric_cells(row, metrics))
         body.append(" & ".join(cells) + r" \\")
+        if body_iqr is not None:
+            cells_iqr = [type_str, method_str]
+            cells_iqr.extend(_format_metric_cells_iqr(row, metrics))
+            body_iqr.append(" & ".join(cells_iqr) + r" \\")
 
 
 def table_global_scoreboard(df: pd.DataFrame, output_dir: Path) -> None:
@@ -198,6 +192,7 @@ def table_global_scoreboard(df: pd.DataFrame, output_dir: Path) -> None:
     ]
 
     body: list[str] = []
+    body_iqr: list[str] = []
     for noise in noise_levels:
         if noise == "all":
             subset = df
@@ -215,6 +210,7 @@ def table_global_scoreboard(df: pd.DataFrame, output_dir: Path) -> None:
             caption_noise,
             metrics,
             higher_better,
+            body_iqr,
         )
 
     if not body:
@@ -227,7 +223,8 @@ def table_global_scoreboard(df: pd.DataFrame, output_dir: Path) -> None:
     tex = wrap_table(
         body,
         caption=(
-            "Placar global multi-métrica por nível de ruído. "
+            "Placar global multi-métrica por nível de ruído "
+            r"(mediana e IC95\%). "
             "\textbf{Negrito}: melhor por métrica dentro de cada grupo "
             "(DL e clássico)."
         ),
@@ -238,6 +235,25 @@ def table_global_scoreboard(df: pd.DataFrame, output_dir: Path) -> None:
         resizebox=True,
     )
     write_tex(tex, output_dir / "global-scoreboard.tex")
+
+    if not body_iqr:
+        return
+
+    tex_iqr = wrap_table(
+        body_iqr,
+        caption=(
+            "Placar global multi-métrica por nível de ruído "
+            "(mediana e IQR). "
+            "\textbf{Negrito}: melhor por métrica dentro de cada grupo "
+            "(DL e clássico)."
+        ),
+        label="tab:global-scoreboard-iqr",
+        col_spec="llccccc",
+        header=header,
+        env="table*",
+        resizebox=True,
+    )
+    write_tex(tex_iqr, output_dir / "global-scoreboard-iqr.tex")
 
 
 def main() -> None:

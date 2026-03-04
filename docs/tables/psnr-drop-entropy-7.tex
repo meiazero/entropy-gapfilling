@@ -1,0 +1,17 @@
+\begin{table}[htbp]
+\centering
+\caption{Queda percentual no PSNR (IC95\%) (sem ruído → 20 dB) por faixa de entropia (janela 7x7). Top-3 clássicos + top-3 DL.}
+\label{tab:degradation-psnr-e7}
+\footnotesize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lcccccc}
+\toprule
+Faixa de Entropia & exemplar\_based & rbf & spline & unet & gan & vit \\
+\midrule
+Baixa & $9.3\%_{\pm 3.1}$ & $11.1\%_{\pm 3.4}$ & $11.1\%_{\pm 3.4}$ & $4.6\%_{\pm 0.2}$ & $1.3\%_{\pm 0.1}$ & $0.9\%_{\pm 0.1}$ \\
+Média & $6.8\%_{\pm 1.6}$ & $8.5\%_{\pm 1.9}$ & $8.5\%_{\pm 1.9}$ & $3.4\%_{\pm 0.2}$ & $1.1\%_{\pm 0.1}$ & $0.7\%_{\pm 0.1}$ \\
+Alta & $10.4\%_{\pm 3.6}$ & $12.5\%_{\pm 4.0}$ & $12.5\%_{\pm 4.0}$ & $2.0\%_{\pm 0.1}$ & $0.7\%_{\pm 0.1}$ & $0.5\%_{\pm 0.1}$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table}

@@ -1,0 +1,53 @@
+\begin{table*}[htbp]
+\centering
+\caption{Placar global multi-métrica por nível de ruído (mediana e IQR). 	extbf{Negrito}: melhor por métrica dentro de cada grupo (DL e clássico).}
+\label{tab:global-scoreboard-iqr}
+\footnotesize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{llccccc}
+\toprule
+Tipo & Método & PSNR (dB) $\uparrow$ & SSIM $\uparrow$ & RMSE $\downarrow$ & SAM $\downarrow$ & ERGAS $\downarrow$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Nível de ruído: todos os níveis de ruído}} \\
+DL & unet & $\mathbf{23.71\,(IQR\ 6.13)}$ & $\mathbf{0.62\,(IQR\ 0.19)}$ & $\mathbf{0.07\,(IQR\ 0.05)}$ & $\mathbf{5.16\,(IQR\ 3.22)}$ & $\mathbf{27.56\,(IQR\ 15.14)}$ \\
+DL & gan & $22.93\,(IQR\ 6.17)$ & $0.58\,(IQR\ 0.19)$ & $0.07\,(IQR\ 0.05)$ & $5.69\,(IQR\ 3.53)$ & $29.79\,(IQR\ 15.77)$ \\
+DL & vit & $22.87\,(IQR\ 6.01)$ & $0.58\,(IQR\ 0.18)$ & $0.07\,(IQR\ 0.05)$ & $5.60\,(IQR\ 3.60)$ & $29.78\,(IQR\ 16.49)$ \\
+Clássico & kriging & $\mathbf{20.90\,(IQR\ 7.49)}$ & $0.57\,(IQR\ 0.23)$ & $\mathbf{0.09\,(IQR\ 0.08)}$ & $\mathbf{6.27\,(IQR\ 4.94)}$ & $\mathbf{31.98\,(IQR\ 28.74)}$ \\
+Clássico & rbf & $20.40\,(IQR\ 7.70)$ & $0.58\,(IQR\ 0.25)$ & $0.10\,(IQR\ 0.08)$ & $7.69\,(IQR\ 6.30)$ & $33.86\,(IQR\ 28.86)$ \\
+Clássico & spline & $20.40\,(IQR\ 7.70)$ & $0.58\,(IQR\ 0.25)$ & $0.10\,(IQR\ 0.08)$ & $7.69\,(IQR\ 6.30)$ & $33.86\,(IQR\ 28.86)$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Nível de ruído: Sem ruído}} \\
+DL & unet & $\mathbf{23.94\,(IQR\ 6.31)}$ & $\mathbf{0.65\,(IQR\ 0.19)}$ & $\mathbf{0.06\,(IQR\ 0.05)}$ & $\mathbf{4.99\,(IQR\ 3.22)}$ & $\mathbf{27.06\,(IQR\ 14.97)}$ \\
+DL & gan & $23.00\,(IQR\ 6.23)$ & $0.60\,(IQR\ 0.19)$ & $0.07\,(IQR\ 0.05)$ & $5.65\,(IQR\ 3.53)$ & $29.65\,(IQR\ 15.83)$ \\
+DL & vit & $22.93\,(IQR\ 6.06)$ & $0.60\,(IQR\ 0.18)$ & $0.07\,(IQR\ 0.05)$ & $5.57\,(IQR\ 3.59)$ & $29.62\,(IQR\ 16.49)$ \\
+Clássico & rbf & $\mathbf{21.13\,(IQR\ 8.20)}$ & $\mathbf{0.63\,(IQR\ 0.27)}$ & $\mathbf{0.09\,(IQR\ 0.08)}$ & $5.95\,(IQR\ 5.65)$ & $32.62\,(IQR\ 26.53)$ \\
+Clássico & spline & $\mathbf{21.13\,(IQR\ 8.20)}$ & $\mathbf{0.63\,(IQR\ 0.27)}$ & $\mathbf{0.09\,(IQR\ 0.08)}$ & $5.95\,(IQR\ 5.65)$ & $32.62\,(IQR\ 26.53)$ \\
+Clássico & exemplar\_based & $21.08\,(IQR\ 7.63)$ & $0.63\,(IQR\ 0.25)$ & $0.09\,(IQR\ 0.08)$ & $\mathbf{5.74\,(IQR\ 5.05)}$ & $\mathbf{31.04\,(IQR\ 23.19)}$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Nível de ruído: 40 dB}} \\
+DL & unet & $\mathbf{23.93\,(IQR\ 6.29)}$ & $\mathbf{0.65\,(IQR\ 0.19)}$ & $\mathbf{0.06\,(IQR\ 0.05)}$ & $\mathbf{5.00\,(IQR\ 3.23)}$ & $\mathbf{27.06\,(IQR\ 14.99)}$ \\
+DL & gan & $22.99\,(IQR\ 6.23)$ & $0.60\,(IQR\ 0.19)$ & $0.07\,(IQR\ 0.05)$ & $5.65\,(IQR\ 3.53)$ & $29.64\,(IQR\ 15.82)$ \\
+DL & vit & $22.93\,(IQR\ 6.05)$ & $0.60\,(IQR\ 0.18)$ & $0.07\,(IQR\ 0.05)$ & $5.57\,(IQR\ 3.60)$ & $29.62\,(IQR\ 16.49)$ \\
+Clássico & rbf & $\mathbf{21.18\,(IQR\ 8.10)}$ & $\mathbf{0.62\,(IQR\ 0.25)}$ & $\mathbf{0.09\,(IQR\ 0.08)}$ & $6.29\,(IQR\ 5.49)$ & $32.42\,(IQR\ 25.79)$ \\
+Clássico & spline & $\mathbf{21.18\,(IQR\ 8.10)}$ & $\mathbf{0.62\,(IQR\ 0.25)}$ & $\mathbf{0.09\,(IQR\ 0.08)}$ & $6.29\,(IQR\ 5.49)$ & $32.42\,(IQR\ 25.79)$ \\
+Clássico & exemplar\_based & $21.01\,(IQR\ 7.55)$ & $0.62\,(IQR\ 0.24)$ & $0.09\,(IQR\ 0.07)$ & $6.00\,(IQR\ 5.16)$ & $\mathbf{30.90\,(IQR\ 22.92)}$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Nível de ruído: 30 dB}} \\
+DL & unet & $\mathbf{23.86\,(IQR\ 6.18)}$ & $\mathbf{0.64\,(IQR\ 0.18)}$ & $\mathbf{0.06\,(IQR\ 0.05)}$ & $\mathbf{5.06\,(IQR\ 3.19)}$ & $\mathbf{27.31\,(IQR\ 15.01)}$ \\
+DL & gan & $22.96\,(IQR\ 6.20)$ & $0.59\,(IQR\ 0.19)$ & $0.07\,(IQR\ 0.05)$ & $5.66\,(IQR\ 3.54)$ & $29.69\,(IQR\ 15.81)$ \\
+DL & vit & $22.90\,(IQR\ 6.03)$ & $0.59\,(IQR\ 0.18)$ & $0.07\,(IQR\ 0.05)$ & $5.58\,(IQR\ 3.60)$ & $29.70\,(IQR\ 16.51)$ \\
+Clássico & kriging & $\mathbf{20.95\,(IQR\ 7.45)}$ & $0.57\,(IQR\ 0.22)$ & $\mathbf{0.09\,(IQR\ 0.08)}$ & $6.17\,(IQR\ 4.80)$ & $32.09\,(IQR\ 28.99)$ \\
+Clássico & rbf & $20.80\,(IQR\ 7.40)$ & $0.60\,(IQR\ 0.24)$ & $0.09\,(IQR\ 0.08)$ & $7.42\,(IQR\ 6.08)$ & $33.49\,(IQR\ 27.43)$ \\
+Clássico & spline & $20.80\,(IQR\ 7.40)$ & $0.60\,(IQR\ 0.24)$ & $0.09\,(IQR\ 0.08)$ & $7.42\,(IQR\ 6.08)$ & $33.49\,(IQR\ 27.43)$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Nível de ruído: 20 dB}} \\
+DL & unet & $\mathbf{23.10\,(IQR\ 5.67)}$ & $\mathbf{0.56\,(IQR\ 0.15)}$ & $\mathbf{0.07\,(IQR\ 0.05)}$ & $\mathbf{5.57\,(IQR\ 3.17)}$ & $\mathbf{28.87\,(IQR\ 15.25)}$ \\
+DL & gan & $22.76\,(IQR\ 6.03)$ & $0.53\,(IQR\ 0.17)$ & $0.07\,(IQR\ 0.05)$ & $5.79\,(IQR\ 3.51)$ & $30.14\,(IQR\ 15.74)$ \\
+DL & vit & $22.73\,(IQR\ 5.93)$ & $0.53\,(IQR\ 0.16)$ & $0.07\,(IQR\ 0.05)$ & $5.68\,(IQR\ 3.60)$ & $30.12\,(IQR\ 16.55)$ \\
+Clássico & kriging & $\mathbf{20.74\,(IQR\ 6.91)}$ & $\mathbf{0.53\,(IQR\ 0.21)}$ & $\mathbf{0.09\,(IQR\ 0.07)}$ & $\mathbf{6.90\,(IQR\ 5.04)}$ & $\mathbf{33.29\,(IQR\ 26.92)}$ \\
+Clássico & bilinear & $19.55\,(IQR\ 5.44)$ & $0.48\,(IQR\ 0.20)$ & $0.11\,(IQR\ 0.06)$ & $8.38\,(IQR\ 4.71)$ & $36.55\,(IQR\ 25.19)$ \\
+Clássico & exemplar\_based & $19.53\,(IQR\ 7.12)$ & $0.52\,(IQR\ 0.18)$ & $0.11\,(IQR\ 0.09)$ & $9.99\,(IQR\ 7.12)$ & $39.52\,(IQR\ 25.40)$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table*}
