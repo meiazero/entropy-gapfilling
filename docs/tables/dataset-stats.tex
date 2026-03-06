@@ -1,6 +1,5 @@
 \begin{table*}[t]
  \centering
-%  \caption{Dataset statistics per satellite sensor. All patches are $64 \times 64$ pixels with 4 spectral bands (B2, B3, B4, B8). Data split: 80\% train, 10\% validation, 10\% test.}
  \caption{Estatística do conjunto de dados por sensor de satélite.
  Todos os patches são de $64 \times 64$ pixels com 4 bandas espectrais (vermelha, azul, verde e IR).
  Divisão dos dados: 80\% treino, 10\% validação e 10\% teste.}
@@ -9,12 +8,11 @@
  \toprule
  Sensor & Banda & Resolução & \#Patches & \#Patches (teste) & \#Patches (Validação)  & Fração de Lacuna\\
  \midrule
- Sentinel-2 & 4 & 10\,m  & 73\,984 & 7\,399 & & $\approx$10\%\\
- Landsat-8  & 4 & 30\,m  & 1\,936  & 195    & & $\approx$10\%\\
- Landsat-9  & 4 & 30\,m  & 1\,936  & 195    & & $\approx$10\%\\
- MODIS      & 4 & 500\,m & 60      & 6      & & $\approx$10\%\\
- \midrule
- \textbf{Total} & -- & -- & \textbf{77\,916} & \textbf{7\,795} & & $\approx$10\%\\
+Sentinel-2 & 4 & 10\,m & 73\,984 & 7\,399 & 7\,398 & $\approx$10\% \\
+Landsat-8 & 4 & 30\,m & 1\,936 & 195 & 193 & $\approx$10\% \\
+Landsat-9 & 4 & 30\,m & 1\,936 & 195 & 193 & $\approx$10\% \\
+MODIS & 4 & 500\,m & 60 & 6 & 6 & $\approx$10\% \\
+\textbf{Total} & -- & -- & \textbf{77\,916} & \textbf{7\,795} & \textbf{7\,790} & $\approx$10\% \\
  \bottomrule
  \end{tabular}
 \end{table*}

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from .common import bold, tex_escape, wrap_table, write_tex
+from .common import bold, tex_escape, write_tex
 
 log = logging.getLogger(__name__)
 
@@ -20,6 +20,33 @@ _SENSOR_LABELS = {
     "landsat9": "Landsat-9",
     "modis": "MODIS",
 }
+
+_SENSOR_METADATA: dict[str, dict[str, str]] = {
+    "sentinel2": {
+        "bands": "4",
+        "resolution": r"10\,m",
+        "gap_fraction": "$\\approx$10\\%",
+    },
+    "landsat8": {
+        "bands": "4",
+        "resolution": r"30\,m",
+        "gap_fraction": "$\\approx$10\\%",
+    },
+    "landsat9": {
+        "bands": "4",
+        "resolution": r"30\,m",
+        "gap_fraction": "$\\approx$10\\%",
+    },
+    "modis": {
+        "bands": "4",
+        "resolution": r"500\,m",
+        "gap_fraction": "$\\approx$10\\%",
+    },
+}
+
+
+def _format_int(value: int) -> str:
+    return f"{value:,}".replace(",", r"\,")
 
 
 class ManifestNotFoundError(FileNotFoundError):
@@ -40,7 +67,7 @@ def table_overview_dataset(_df: object, output_dir: Path) -> None:
 
     sensors = ["sentinel2", "landsat8", "landsat9", "modis"]
 
-    rows = []
+    rows: list[str] = []
     totals = {"total": 0, "train": 0, "val": 0, "test": 0}
     for sensor in sensors:
         total = int(counts.get((sensor, "train"), 0))
@@ -53,13 +80,17 @@ def table_overview_dataset(_df: object, output_dir: Path) -> None:
         totals["train"] += train
         totals["val"] += val
         totals["test"] += test
+
+        meta = _SENSOR_METADATA.get(sensor, {})
         rows.append(
             " & ".join([
                 tex_escape(_SENSOR_LABELS.get(sensor, sensor)),
-                str(total),
-                str(train),
-                str(val),
-                str(test),
+                meta.get("bands", "--"),
+                meta.get("resolution", "--"),
+                _format_int(total),
+                _format_int(test),
+                _format_int(val),
+                meta.get("gap_fraction", "$\\approx$10\\%"),
             ])
             + r" \\"
         )
@@ -67,25 +98,38 @@ def table_overview_dataset(_df: object, output_dir: Path) -> None:
     rows.append(
         " & ".join([
             bold("Total"),
-            bold(str(totals["total"])),
-            bold(str(totals["train"])),
-            bold(str(totals["val"])),
-            bold(str(totals["test"])),
+            "--",
+            "--",
+            bold(_format_int(totals["total"])),
+            bold(_format_int(totals["test"])),
+            bold(_format_int(totals["val"])),
+            "$\\approx$10\\%",
         ])
         + r" \\"
     )
 
-    tex = wrap_table(
-        rows,
-        caption=(
-            "Estatísticas do conjunto de dados (recortes $64\\times64$) "
-            "por sensor e partição."
+    lines = [
+        r"\begin{table*}[t]",
+        r" \centering",
+        r" \caption{Estatística do conjunto de dados por sensor de satélite.",
+        r" Todos os patches são de $64 \times 64$ pixels com 4 bandas "
+        r"espectrais (vermelha, azul, verde e IR).",
+        r" Divisão dos dados: 80\% treino, 10\% validação e 10\% teste.}",
+        r" \label{tab:dataset-stats}",
+        r" \begin{tabular}{lrrrrrr}",
+        r" \toprule",
+        (
+            r" Sensor & Banda & Resolução & \#Patches & "
+            r"\#Patches (teste) & \#Patches (Validação)  & Fração de Lacuna\\"
         ),
-        label="tab:dataset-stats",
-        col_spec="lrrrr",
-        header="Sensor & Total & Treino & Val. & Teste",
-        font_size=r"\footnotesize",
-    )
+        r" \midrule",
+        *rows,
+        r" \bottomrule",
+        r" \end{tabular}",
+        r"\end{table*}",
+        "",
+    ]
+    tex = "\n".join(lines)
     output_dir.mkdir(parents=True, exist_ok=True)
     write_tex(tex, output_dir / "dataset-stats.tex")
 

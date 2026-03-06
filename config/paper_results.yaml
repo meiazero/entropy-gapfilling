@@ -14,20 +14,20 @@ methods:
     - { name: "bicubic" }
     - { name: "lanczos", params: { a: 3 } }
   kernel:
-    - { name: "idw", params: { power: 2.0 } }
-    - { name: "rbf", params: { kernel: "thin_plate_spline" } }
+    - { name: "idw", params: { power: 2.0, kernel_size: null } }
+    - { name: "rbf", params: { kernel: "thin_plate_spline", epsilon: 1.0, smoothing: 0.0, max_training_points: 5000, kernel_size: null } }
     - { name: "spline" }
   geostatistical:
-    - { name: "kriging" }
+    - { name: "kriging", params: { variogram_model: "spherical", nlags: 6, max_points: 2500, random_seed: 13, kernel_size: null } }
   transform:
-    - { name: "dct" }
-    - { name: "wavelet" }
-    - { name: "tv", params: { max_iterations: 100 } }
+    - { name: "dct", params: { max_iterations: 50, lambda_param: 0.05 } }
+    - { name: "wavelet", params: { wavelet: "db4", level: 3, max_iterations: 50, lambda_param: 0.05 } }
+    - { name: "tv", params: { lambda_param: 0.1, max_iterations: 100 } }
   compressive:
     - { name: "l1_dct" }
     - { name: "l1_wavelet" }
   patch_based:
-    - { name: "non_local" }
+    - { name: "non_local", params: { patch_size: 5, patch_distance: 6, h_rel: 0.8 } }
     - { name: "exemplar_based" }
 
 metrics: ["psnr", "ssim", "rmse", "sam", "ergas"]

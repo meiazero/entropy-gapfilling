@@ -3,25 +3,32 @@
 \caption{Visão geral dos 15 métodos clássicos de preenchimento de lacunas avaliados.}
 \label{tab:methods}
 \footnotesize
-\begin{tabular}{lll}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{llp{3cm}}
 \toprule
 Categoria & Método & Parâmetros \\
 \midrule
-Espacial & Vizinho Mais Próximo & None \\
- & Bilinear & None \\
- & Bicúbico & None \\
+Espacial & Nearest Neighbor & -- \\
+ & Bilinear & -- \\
+ & Bicubic & -- \\
  & Lanczos (PG) & a=3 \\
-Kernel & IDW & p=2.0 \\
+\midrule
+Kernel & IDW & p=2 \\
  & RBF & kernel TPS \\
- & Spline de Placa Fina & None \\
-Geoestatístico & Krigagem Ordinária & Variograma automático \\
-Transformada & DCT & iter=50, lam=0.05 \\
- & Wavelet & db4, iter=50 \\
- & Variação Total & iter=100 \\
-Compressivo & L1-DCT (CS) & iter=100 \\
- & L1-Wavelet (CS) & iter=100 \\
-Baseado em Recortes & Médias Não-Locais & h=0.1, p=7, s=21 \\
- & Baseado em Exemplar & p=9 \\
+ & Thin Plate Spline & -- \\
+\midrule
+Geoestatístico & Ordinary Kriging & variogram\_model=spherical, \newline nlags=6, \newline max\_points=2500, \newline random\_seed=13, \newline kernel\_size=None \\
+\midrule
+Transformada & DCT & max\_iterations=50, $\lambda$=0.05 \\
+ & Wavelet & wavelet=db4, \newline level=3, \newline max\_iterations=50, \newline $\lambda$=0.05 \\
+ & Total Variation & iter=100 \\
+\midrule
+Compressivo & L1-DCT (CS) & -- \\
+ & L1-Wavelet (CS) & -- \\
+\midrule
+Baseado em Recortes & Non-Local Means & h=0.8, p=5, s=6 \\
+ & Exemplar-Based & -- \\
 \bottomrule
 \end{tabular}
+}
 \end{table}
