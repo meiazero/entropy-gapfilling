@@ -626,3 +626,64 @@ MIT - ver [LICENSE](LICENSE).
 # VIT_JID=$(sbatch --parsable scripts/slurm/train_vit.sbatch)
 
 # echo "classical=$CLASS_JID | ae=$AE_JID | vae=$VAE_JID | gan=$GAN_JID | unet=$UNET_JID | vit=$VIT_JID"
+
+### How to run a single table
+
+- uv run python -m scripts.tables.overview_dataset
+  - overview_dataset: dataset composition by satellite and split. Outputs: paper_assets/tables/dataset-stats.tex.
+
+- uv run python -m scripts.tables.global_scoreboard
+  - global_scoreboard: multi-metric scoreboard by method and noise level. Outputs: paper_assets/tables/tab1_global_all.tex, tab1_global_gap_only.tex, tab1_global_40.tex, tab1_global_30.tex, tab1_global_20.tex.
+
+- uv run python -m scripts.tables.spectral_decomposition
+  - spectral_decomposition: per-band RMSE tables by noise level. Outputs: paper_assets/tables/tab2_spectral_gap_only.tex, tab2_spectral_40.tex, tab2_spectral_30.tex, tab2_spectral_20.tex.
+
+- uv run python -m scripts.tables.degradation_entropy
+  - degradation_entropy: PSNR drop by entropy tercile for each window. Outputs: paper_assets/tables/tab3_degradation_entropy7.tex, tab3_degradation_entropy15.tex, tab3_degradation_entropy31.tex.
+
+- uv run python -m scripts.tables.noise_slope
+  - noise_slope: PSNR slope vs noise by entropy tercile and window. Outputs: paper_assets/tables/tab3_slope_entropy7.tex, tab3_slope_entropy15.tex, tab3_slope_entropy31.tex.
+
+- uv run python -m scripts.tables.spearman_entropy
+  - spearman_entropy: Spearman correlation between entropy and metrics by window. Outputs: paper_assets/tables/tab4_spearman_entropy7.tex, tab4_spearman_entropy15.tex, tab4_spearman_entropy31.tex.
+
+- uv run python -m scripts.tables.speed_summary
+  - speed_summary: runtime and efficiency summary. Outputs: paper_assets/tables/tab5_speed.tex.
+
+### How to run a single figure
+
+- uv run python -m scripts.figures.pareto
+  - pareto: trade-off PSNR vs inference time with variants. Outputs: paper*assets/figures/fig1_pareto*{suffix}.png/.pdf, fig1*pareto_classic*{suffix}.png/.pdf, fig1*pareto_sentinel2*{suffix}.png/.pdf, and fig1*pareto_classic*{satellite}\_{suffix}.png/.pdf when available.
+
+- uv run python -m scripts.figures.spectral_bar
+  - spectral*bar: RMSE by band as bar chart with CI by category and noise. Outputs: paper_assets/figures/fig2_spectral_bar*{suffix}.png/.pdf.
+
+- uv run python -m scripts.figures.spectral_dotplot
+  - spectral*dotplot: RMSE by band as dotplot with CI by category and noise. Outputs: paper_assets/figures/fig2_spectral_dotplot*{suffix}.png/.pdf.
+
+- uv run python -m scripts.figures.entropy_sensitivity
+  - entropy*sensitivity: SAM and ERGAS vs entropy regression per window and noise. Outputs: paper_assets/figures/fig3_sensitivity*{metric}\_{suffix}\_e{ws}.png/.pdf.
+
+- uv run python -m scripts.figures.multisensor
+  - multisensor: SSIM violin plot by satellite for top classic methods per noise. Outputs: paper*assets/figures/fig4_multisensor*{suffix}.png/.pdf.
+
+- uv run python -m scripts.figures.f1_threshold
+  - f1*threshold: F1 by threshold and noise. Outputs: paper_assets/figures/fig5_f1_threshold*{suffix}.png/.pdf.
+
+- uv run python -m scripts.figures.psnr_entropy
+  - psnr*entropy: PSNR boxplots by entropy tercile and window. Outputs: paper_assets/figures/fig6_psnr_entropy*{suffix}\_e{ws}.png/.pdf.
+
+- uv run python -m scripts.figures.correlation_heatmap
+  - correlation_heatmap: Spearman correlation heatmap. Outputs: paper_assets/figures/fig7_correlation_heatmap.png/.pdf.
+
+- uv run python -m scripts.figures.dl_loss
+  - dl*loss: training vs validation loss per model and scenario. Outputs: paper_assets/figures/fig8_dl_loss*{scenario}\_{model}.png/.pdf.
+
+- uv run python -m scripts.figures.dl_val_metrics
+  - dl*val_metrics: validation metric curves per model, scenario, and metric. Outputs: paper_assets/figures/fig9_dl_val_metrics*{scenario}_{metric}_{model}.png/.pdf.
+
+- uv run python -m scripts.figures.dl_components
+  - dl*components: VAE and GAN component losses per scenario. Outputs: paper_assets/figures/fig10_vae_components*{scenario}.png/.pdf and fig10*gan_components*{scenario}.png/.pdf.
+
+- uv run python -m scripts.figures.dl_comparison
+  - dl*comparison: DL model comparison heatmap per scenario. Outputs: paper_assets/figures/fig11_dl_comparison*{scenario}.png/.pdf.
