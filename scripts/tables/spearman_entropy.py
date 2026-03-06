@@ -66,7 +66,7 @@ def _build_spearman_body(
             if abs(rho) < 0.1:
                 cells.append(r"$\approx 0$")
             else:
-                cells.append(f"${rho:.3f}${stars(corr_p)}")
+                cells.append(f"${rho:.3f}{stars(corr_p)}$")
         body.append(" & ".join(cells) + r" \\")
     return body
 
@@ -93,19 +93,23 @@ def table_spearman_entropy(df: pd.DataFrame, output_dir: Path) -> None:
         header = "Método & " + " & ".join(
             f"$\\rho$({{\\scriptsize {m.upper()}}})" for m in metric_cols
         )
+        tablenotes = [
+            r"\item $^{*}$ $p_{FDR}<0{,}05$.",
+            r"\item $^{\dagger}$ $p_{FDR}<0{,}01$.",
+            r"\item $^{\ddagger}$ $p_{FDR}<0{,}001$.",
+        ]
         tex = wrap_table(
             body,
             caption=(
                 f"Correlação de Spearman entre entropia "
-                f"({ws}x{ws}) e métricas de qualidade (FDR). "
-                r"$^{*}p_{FDR}<0{,}05$; $^{**}p_{FDR}<0{,}01$; "
-                r"$^{***}p_{FDR}<0{,}001$."
+                f"({ws}x{ws}) e métricas de qualidade (FDR)."
             ),
             label=f"tab:spearman-entropy-e{ws}",
             col_spec="l" + "c" * len(metric_cols),
             header=header,
-            env="table*",
+            env="table",
             resizebox=True,
+            tablenotes=tablenotes,
         )
         write_tex(tex, output_dir / f"spearman-entropy-{ws}.tex")
 

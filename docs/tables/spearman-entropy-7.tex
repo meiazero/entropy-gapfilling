@@ -1,34 +1,42 @@
-\begin{table*}[htbp]
+\begin{table}[htbp]
 \centering
-\caption{Correlação de Spearman entre entropia (7x7) e métricas de qualidade (FDR). $^{*}p_{FDR}<0{,}05$; $^{**}p_{FDR}<0{,}01$; $^{***}p_{FDR}<0{,}001$.}
+\caption{Correlação de Spearman entre entropia (7x7) e métricas de qualidade (FDR).}
 \label{tab:spearman-entropy-e7}
 \footnotesize
+\begin{threeparttable}
 \resizebox{\linewidth}{!}{%
 \begin{tabular}{lcccc}
 \toprule
 Método & $\rho$({\scriptsize PSNR}) & $\rho$({\scriptsize SSIM}) & $\rho$({\scriptsize SAM}) & $\rho$({\scriptsize ERGAS}) \\
 \midrule
-ae & $-0.330$*** & $-0.497$*** & $\approx 0$ & $-0.113$*** \\
-bicubic & $\approx 0$ & $-0.203$*** & $-0.114$* & $-0.136$** \\
-bilinear & $0.134$** & $-0.209$*** & $-0.205$*** & $-0.212$*** \\
-dct & $0.308$*** & $\approx 0$ & $-0.359$*** & $-0.393$*** \\
-exemplar\_based & $\approx 0$ & $-0.215$*** & $-0.125$** & $-0.102$* \\
-gan & $-0.362$*** & $-0.519$*** & $\approx 0$ & $\approx 0$ \\
-idw & $0.301$*** & $\approx 0$ & $-0.347$*** & $-0.374$*** \\
-kriging & $0.153$** & $-0.125$** & $-0.236$*** & $-0.246$*** \\
-l1\_dct & $0.308$*** & $\approx 0$ & $-0.359$*** & $-0.393$*** \\
-l1\_wavelet & $-0.143$** & $-0.268$*** & $-0.283$*** & $-0.150$** \\
-lanczos & $0.184$*** & $-0.150$** & $-0.250$*** & $-0.238$*** \\
-nearest & $0.150$** & $-0.201$*** & $-0.210$*** & $-0.210$*** \\
-non\_local & $0.370$*** & $0.247$*** & $-0.387$*** & $-0.419$*** \\
-rbf & $\approx 0$ & $-0.212$*** & $-0.150$** & $-0.129$** \\
-spline & $\approx 0$ & $-0.212$*** & $-0.150$** & $-0.129$** \\
-tv & $0.332$*** & $0.151$** & $-0.370$*** & $-0.375$*** \\
-unet & $-0.369$*** & $-0.490$*** & $\approx 0$ & $\approx 0$ \\
-vae & $-0.353$*** & $-0.543$*** & $\approx 0$ & $-0.123$*** \\
-vit & $-0.339$*** & $-0.501$*** & $\approx 0$ & $\approx 0$ \\
-wavelet & $0.296$*** & $\approx 0$ & $-0.341$*** & $-0.357$*** \\
+ae & $-0.330^{\ddagger}$ & $-0.497^{\ddagger}$ & $\approx 0$ & $-0.113^{\ddagger}$ \\
+bicubic & $\approx 0$ & $-0.203^{\ddagger}$ & $-0.114^{*}$ & $-0.136^{\dagger}$ \\
+bilinear & $0.134^{\dagger}$ & $-0.209^{\ddagger}$ & $-0.205^{\ddagger}$ & $-0.212^{\ddagger}$ \\
+dct & $0.308^{\ddagger}$ & $\approx 0$ & $-0.359^{\ddagger}$ & $-0.393^{\ddagger}$ \\
+exemplar\_based & $\approx 0$ & $-0.215^{\ddagger}$ & $-0.125^{\dagger}$ & $-0.102^{*}$ \\
+gan & $-0.362^{\ddagger}$ & $-0.519^{\ddagger}$ & $\approx 0$ & $\approx 0$ \\
+idw & $0.301^{\ddagger}$ & $\approx 0$ & $-0.347^{\ddagger}$ & $-0.374^{\ddagger}$ \\
+kriging & $0.153^{\dagger}$ & $-0.125^{\dagger}$ & $-0.236^{\ddagger}$ & $-0.246^{\ddagger}$ \\
+l1\_dct & $0.308^{\ddagger}$ & $\approx 0$ & $-0.359^{\ddagger}$ & $-0.393^{\ddagger}$ \\
+l1\_wavelet & $-0.143^{\dagger}$ & $-0.268^{\ddagger}$ & $-0.283^{\ddagger}$ & $-0.150^{\dagger}$ \\
+lanczos & $0.184^{\ddagger}$ & $-0.150^{\dagger}$ & $-0.250^{\ddagger}$ & $-0.238^{\ddagger}$ \\
+nearest & $0.150^{\dagger}$ & $-0.201^{\ddagger}$ & $-0.210^{\ddagger}$ & $-0.210^{\ddagger}$ \\
+non\_local & $0.370^{\ddagger}$ & $0.247^{\ddagger}$ & $-0.387^{\ddagger}$ & $-0.419^{\ddagger}$ \\
+rbf & $\approx 0$ & $-0.212^{\ddagger}$ & $-0.150^{\dagger}$ & $-0.129^{\dagger}$ \\
+spline & $\approx 0$ & $-0.212^{\ddagger}$ & $-0.150^{\dagger}$ & $-0.129^{\dagger}$ \\
+tv & $0.332^{\ddagger}$ & $0.151^{\dagger}$ & $-0.370^{\ddagger}$ & $-0.375^{\ddagger}$ \\
+unet & $-0.369^{\ddagger}$ & $-0.490^{\ddagger}$ & $\approx 0$ & $\approx 0$ \\
+vae & $-0.353^{\ddagger}$ & $-0.543^{\ddagger}$ & $\approx 0$ & $-0.123^{\ddagger}$ \\
+vit & $-0.339^{\ddagger}$ & $-0.501^{\ddagger}$ & $\approx 0$ & $\approx 0$ \\
+wavelet & $0.296^{\ddagger}$ & $\approx 0$ & $-0.341^{\ddagger}$ & $-0.357^{\ddagger}$ \\
 \bottomrule
 \end{tabular}
 }
-\end{table*}
+\begin{tablenotes}
+\scriptsize
+\item $^{*}$ $p_{FDR}<0{,}05$.
+\item $^{\dagger}$ $p_{FDR}<0{,}01$.
+\item $^{\ddagger}$ $p_{FDR}<0{,}001$.
+\end{tablenotes}
+\end{threeparttable}
+\end{table}

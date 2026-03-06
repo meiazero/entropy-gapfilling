@@ -64,14 +64,15 @@ def _section_header_line(section_title: str, n_cols: int) -> str:
 
 def _build_degradation_rows(
     df_binned: pd.DataFrame,
-    selected: list[str],
+    methods: list[str],
+    entropy_bins: list[str],
 ) -> tuple[list[str], list[str]]:
     body: list[str] = []
     body_iqr: list[str] = []
-    for ebin in ["baixa", "média", "alta"]:
-        cells = [ebin.capitalize()]
-        cells_iqr = [ebin.capitalize()]
-        for method in selected:
+    for method in methods:
+        cells = [tex_escape(method)]
+        cells_iqr = [tex_escape(method)]
+        for ebin in entropy_bins:
             mdf = df_binned[
                 (df_binned["method"] == method)
                 & (df_binned["entropy_bin"] == ebin)
@@ -102,12 +103,12 @@ def _build_degradation_rows(
                 stat_fn=_drop_stat,
             )
             drop_iqr = _drop_pct_iqr(mdf)
-            cells.append(f"${drop_pct:.1f}\\%_{{\\pm {ci:.1f}}}$")
+            cells.append(f"${drop_pct:.1f}\\%_{{\\pm {ci:.3f}}}$")
             if np.isnan(drop_iqr):
                 cells_iqr.append("--")
             else:
                 cells_iqr.append(
-                    f"${drop_pct:.1f}\\%\\,(IQR\\ {drop_iqr:.1f})$"
+                    f"${drop_pct:.1f}\\%\\,(IQR\\ {drop_iqr:.3f})$"
                 )
         body.append(" & ".join(cells) + r" \\")
         body_iqr.append(" & ".join(cells_iqr) + r" \\")
@@ -118,14 +119,11 @@ def table_degradation_entropy(df: pd.DataFrame, output_dir: Path) -> None:
     """PSNR drop (%) from gap_only to 20dB, stratified by entropy."""
     top_classic = select_top_n(df[df["type"] == "Clássico"], n=3)
     top_dl = select_top_n(df[df["type"] == "DL"], n=3)
-    selected = top_classic + top_dl
-
-    if not selected:
+    entropy_bins = ["baixa", "média", "alta"]
+    if not (top_classic or top_dl):
         return
 
-    header = "Faixa de Entropia & " + " & ".join(
-        tex_escape(m) for m in selected
-    )
+    header = "Método & " + " & ".join(b.capitalize() for b in entropy_bins)
     body: list[str] = []
     body_iqr: list[str] = []
 
@@ -141,13 +139,44 @@ def table_degradation_entropy(df: pd.DataFrame, output_dir: Path) -> None:
         if body_iqr:
             body_iqr.append(r"\midrule")
         section_title = tex_escape(f"Janela de entropia: {ws}x{ws}")
-        section_line = _section_header_line(section_title, len(selected) + 1)
+        section_line = _section_header_line(
+            section_title, len(entropy_bins) + 1
+        )
         body.append(section_line)
         body_iqr.append(section_line)
 
-        rows, rows_iqr = _build_degradation_rows(df_binned, selected)
-        body.extend(rows)
-        body_iqr.extend(rows_iqr)
+        if top_classic:
+            classic_line = _section_header_line(
+                tex_escape("Clássico"),
+                len(entropy_bins) + 1,
+            )
+            body.append(classic_line)
+            body_iqr.append(classic_line)
+            rows, rows_iqr = _build_degradation_rows(
+                df_binned,
+                top_classic,
+                entropy_bins,
+            )
+            body.extend(rows)
+            body_iqr.extend(rows_iqr)
+
+        if top_dl:
+            if top_classic:
+                body.append(r"\midrule")
+                body_iqr.append(r"\midrule")
+            dl_line = _section_header_line(
+                tex_escape("DL"),
+                len(entropy_bins) + 1,
+            )
+            body.append(dl_line)
+            body_iqr.append(dl_line)
+            rows, rows_iqr = _build_degradation_rows(
+                df_binned,
+                top_dl,
+                entropy_bins,
+            )
+            body.extend(rows)
+            body_iqr.extend(rows_iqr)
 
     if not body:
         return
@@ -160,9 +189,9 @@ def table_degradation_entropy(df: pd.DataFrame, output_dir: Path) -> None:
             "janela de cálculo. Top-3 clássicos + top-3 DL."
         ),
         label="tab:degradation-psnr",
-        col_spec="l" + "c" * len(selected),
+        col_spec="l" + "c" * len(entropy_bins),
         header=header,
-        env="table*",
+        env="table",
         resizebox=True,
     )
     write_tex(tex, output_dir / "psnr-drop-entropy.tex")
@@ -175,9 +204,9 @@ def table_degradation_entropy(df: pd.DataFrame, output_dir: Path) -> None:
             "janela de cálculo. Top-3 clássicos + top-3 DL."
         ),
         label="tab:degradation-psnr-iqr",
-        col_spec="l" + "c" * len(selected),
+        col_spec="l" + "c" * len(entropy_bins),
         header=header,
-        env="table*",
+        env="table",
         resizebox=True,
     )
     write_tex(tex_iqr, output_dir / "psnr-drop-entropy-iqr.tex")

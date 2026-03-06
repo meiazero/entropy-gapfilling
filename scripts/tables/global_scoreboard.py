@@ -71,7 +71,7 @@ def _format_metric_cells(
         if np.isnan(median_val):
             cells.append("--")
             continue
-        base = format_pm(float(median_val), float(ci_val), ci_fmt=".4f")
+        base = format_pm(float(median_val), float(ci_val), ci_fmt=".3f")
         if rank == 1:
             cells.append(math_bold(base))
         else:

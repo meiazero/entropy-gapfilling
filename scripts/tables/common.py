@@ -41,13 +41,13 @@ def format_pm(
     mean: float,
     ci_half: float,
     fmt: str = ".2f",
-    ci_fmt: str | None = None,
+    ci_fmt: str | None = ".3f",
 ) -> str:
     ci_format = ci_fmt or fmt
     return f"${mean:{fmt}}_{{\\pm {ci_half:{ci_format}}}}$"
 
 
-def format_iqr(median: float, iqr_value: float, fmt: str = ".2f") -> str:
+def format_iqr(median: float, iqr_value: float, fmt: str = ".3f") -> str:
     return f"${median:{fmt}}\\,(IQR\\ {iqr_value:{fmt}})$"
 
 
@@ -86,7 +86,7 @@ def ranked_cell_iqr(
     value: float,
     iqr_value: float,
     rank: int,
-    fmt: str = ".2f",
+    fmt: str = ".3f",
 ) -> str:
     base = format_iqr(value, iqr_value, fmt)
     if rank == 1:
@@ -113,11 +113,11 @@ def stars(p: float) -> str:
     if np.isnan(p):
         return ""
     if p < 0.001:
-        return "***"
+        return r"^{\ddagger}"
     if p < 0.01:
-        return "**"
+        return r"^{\dagger}"
     if p < 0.05:
-        return "*"
+        return r"^{*}"
     return ""
 
 
@@ -186,6 +186,8 @@ def wrap_table(
     font_size: str = r"\footnotesize",
     env: str = "table",
     resizebox: bool = False,
+    tablenotes: list[str] | None = None,
+    tablenotes_font: str = r"\scriptsize",
 ) -> str:
     tabular = [
         rf"\begin{{tabular}}{{{col_spec}}}",
@@ -203,9 +205,19 @@ def wrap_table(
         rf"\label{{{label}}}",
         font_size,
     ]
+    if tablenotes is not None:
+        lines.append(r"\begin{threeparttable}")
     if resizebox:
         lines += [r"\resizebox{\linewidth}{!}{%", *tabular, r"}"]
     else:
         lines += tabular
+    if tablenotes is not None:
+        lines += [
+            r"\begin{tablenotes}",
+            tablenotes_font,
+            *tablenotes,
+            r"\end{tablenotes}",
+            r"\end{threeparttable}",
+        ]
     lines.append(rf"\end{{{env}}}")
     return "\n".join(lines)

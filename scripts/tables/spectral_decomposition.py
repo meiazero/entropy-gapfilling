@@ -98,11 +98,11 @@ def _format_spectral_body(
             if use_iqr:
                 iqr_val = float(row_map.get(f"{band}_iqr", 0.0))
                 cells.append(
-                    ranked_cell_iqr(float(med_val), iqr_val, rank, ".4f")
+                    ranked_cell_iqr(float(med_val), iqr_val, rank, ".3f")
                 )
             else:
                 ci_val = float(row_map.get(f"{band}_ci", 0.0))
-                cells.append(ranked_cell(float(med_val), ci_val, rank, ".4f"))
+                cells.append(ranked_cell(float(med_val), ci_val, rank, ".3f"))
         body.append(" & ".join(cells) + r" \\")
     return body
 
@@ -135,12 +135,12 @@ def _append_spectral_section(
     section_title: str,
 ) -> None:
     if body:
-        body.append(r"\\midrule")
+        body.append(r"\midrule")
     if body_iqr:
-        body_iqr.append(r"\\midrule")
+        body_iqr.append(r"\midrule")
     title = tex_escape(section_title)
-    body.append(rf"\\multicolumn{{6}}{{l}}{{\\textbf{{{title}}}}} \\")
-    body_iqr.append(rf"\\multicolumn{{6}}{{l}}{{\\textbf{{{title}}}}} \\")
+    body.append(rf"\multicolumn{{6}}{{l}}{{\textbf{{{title}}}}} \\")
+    body_iqr.append(rf"\multicolumn{{6}}{{l}}{{\textbf{{{title}}}}} \\")
     body.extend(_format_spectral_body(stats_df, bands, use_iqr=False))
     body_iqr.extend(_format_spectral_body(stats_df, bands, use_iqr=True))
 

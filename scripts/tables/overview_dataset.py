@@ -23,24 +23,16 @@ _SENSOR_LABELS = {
 
 _SENSOR_METADATA: dict[str, dict[str, str]] = {
     "sentinel2": {
-        "bands": "4",
         "resolution": r"10\,m",
-        "gap_fraction": "$\\approx$10\\%",
     },
     "landsat8": {
-        "bands": "4",
         "resolution": r"30\,m",
-        "gap_fraction": "$\\approx$10\\%",
     },
     "landsat9": {
-        "bands": "4",
         "resolution": r"30\,m",
-        "gap_fraction": "$\\approx$10\\%",
     },
     "modis": {
-        "bands": "4",
         "resolution": r"500\,m",
-        "gap_fraction": "$\\approx$10\\%",
     },
 }
 
@@ -85,12 +77,10 @@ def table_overview_dataset(_df: object, output_dir: Path) -> None:
         rows.append(
             " & ".join([
                 tex_escape(_SENSOR_LABELS.get(sensor, sensor)),
-                meta.get("bands", "--"),
                 meta.get("resolution", "--"),
                 _format_int(total),
                 _format_int(test),
                 _format_int(val),
-                meta.get("gap_fraction", "$\\approx$10\\%"),
             ])
             + r" \\"
         )
@@ -99,34 +89,34 @@ def table_overview_dataset(_df: object, output_dir: Path) -> None:
         " & ".join([
             bold("Total"),
             "--",
-            "--",
             bold(_format_int(totals["total"])),
             bold(_format_int(totals["test"])),
             bold(_format_int(totals["val"])),
-            "$\\approx$10\\%",
         ])
         + r" \\"
     )
 
     lines = [
-        r"\begin{table*}[t]",
+        r"\begin{table}[t]",
         r" \centering",
         r" \caption{Estatística do conjunto de dados por sensor de satélite.",
         r" Todos os patches são de $64 \times 64$ pixels com 4 bandas "
         r"espectrais (vermelha, azul, verde e IR).",
         r" Divisão dos dados: 80\% treino, 10\% validação e 10\% teste.}",
+        r"\resizebox{\linewidth}{!}{%"
         r" \label{tab:dataset-stats}",
-        r" \begin{tabular}{lrrrrrr}",
+        r" \begin{tabular}{lrrrr}",
         r" \toprule",
         (
-            r" Sensor & Banda & Resolução & \#Patches & "
-            r"\#Patches (teste) & \#Patches (Validação)  & Fração de Lacuna\\"
+            r" Sensor & Resolução & \#Patches (Treino) & "
+            r"\#Patches (Teste) & \#Patches (Validação)\\"
         ),
         r" \midrule",
         *rows,
         r" \bottomrule",
         r" \end{tabular}",
-        r"\end{table*}",
+        r"}",
+        r"\end{table}",
         "",
     ]
     tex = "\n".join(lines)

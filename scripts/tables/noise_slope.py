@@ -75,16 +75,17 @@ def _noise_slope_iqr(
 
 def _build_noise_slope_body(
     df_binned: pd.DataFrame,
-    selected: list[str],
+    methods: list[str],
+    entropy_bins: list[str],
     noise_levels: list[str],
     noise_numeric: np.ndarray,
     *,
     use_iqr: bool,
 ) -> list[str]:
     body: list[str] = []
-    for ebin in ["baixa", "média", "alta"]:
-        cells = [ebin.capitalize()]
-        for method in selected:
+    for method in methods:
+        cells = [tex_escape(method)]
+        for ebin in entropy_bins:
             mdf = df_binned[
                 (df_binned["method"] == method)
                 & (df_binned["entropy_bin"] == ebin)
@@ -123,16 +124,14 @@ def table_noise_slope(df: pd.DataFrame, output_dir: Path) -> None:
     """PSNR slope vs noise level (20/30/40 dB) by entropy bin."""
     top_classic = select_top_n(df[df["type"] == "Clássico"], n=3)
     top_dl = select_top_n(df[df["type"] == "DL"], n=3)
-    selected = top_classic + top_dl
-    if not selected:
+    entropy_bins = ["baixa", "média", "alta"]
+    if not (top_classic or top_dl):
         return
 
     noise_levels = ["20", "30", "40"]
     noise_numeric = np.array([20.0, 30.0, 40.0])
 
-    header = "Faixa de Entropia & " + " & ".join(
-        tex_escape(m) for m in selected
-    )
+    header = "Método & " + " & ".join(b.capitalize() for b in entropy_bins)
     body: list[str] = []
     body_iqr: list[str] = []
 
@@ -142,31 +141,71 @@ def table_noise_slope(df: pd.DataFrame, output_dir: Path) -> None:
             continue
 
         df_binned = entropy_terciles(df, entropy_col=ecol)
-        section_body = _build_noise_slope_body(
-            df_binned,
-            selected,
-            noise_levels,
-            noise_numeric,
-            use_iqr=False,
-        )
-        section_body_iqr = _build_noise_slope_body(
-            df_binned,
-            selected,
-            noise_levels,
-            noise_numeric,
-            use_iqr=True,
-        )
-
         if body:
             body.append(r"\midrule")
         if body_iqr:
             body_iqr.append(r"\midrule")
         section_title = tex_escape(f"Janela de entropia: {ws}x{ws}")
-        section_line = _section_header_line(section_title, len(selected) + 1)
+        section_line = _section_header_line(
+            section_title, len(entropy_bins) + 1
+        )
         body.append(section_line)
         body_iqr.append(section_line)
-        body.extend(section_body)
-        body_iqr.extend(section_body_iqr)
+
+        if top_classic:
+            classic_line = _section_header_line(
+                tex_escape("Clássico"),
+                len(entropy_bins) + 1,
+            )
+            body.append(classic_line)
+            body_iqr.append(classic_line)
+            section_body = _build_noise_slope_body(
+                df_binned,
+                top_classic,
+                entropy_bins,
+                noise_levels,
+                noise_numeric,
+                use_iqr=False,
+            )
+            section_body_iqr = _build_noise_slope_body(
+                df_binned,
+                top_classic,
+                entropy_bins,
+                noise_levels,
+                noise_numeric,
+                use_iqr=True,
+            )
+            body.extend(section_body)
+            body_iqr.extend(section_body_iqr)
+
+        if top_dl:
+            if top_classic:
+                body.append(r"\midrule")
+                body_iqr.append(r"\midrule")
+            dl_line = _section_header_line(
+                tex_escape("DL"),
+                len(entropy_bins) + 1,
+            )
+            body.append(dl_line)
+            body_iqr.append(dl_line)
+            section_body = _build_noise_slope_body(
+                df_binned,
+                top_dl,
+                entropy_bins,
+                noise_levels,
+                noise_numeric,
+                use_iqr=False,
+            )
+            section_body_iqr = _build_noise_slope_body(
+                df_binned,
+                top_dl,
+                entropy_bins,
+                noise_levels,
+                noise_numeric,
+                use_iqr=True,
+            )
+            body.extend(section_body)
+            body_iqr.extend(section_body_iqr)
 
     if not body:
         return
@@ -178,9 +217,9 @@ def table_noise_slope(df: pd.DataFrame, output_dir: Path) -> None:
             "estratificada por faixa de entropia e janela de cálculo."
         ),
         label="tab:noise-slope-psnr",
-        col_spec="l" + "c" * len(selected),
+        col_spec="l" + "c" * len(entropy_bins),
         header=header,
-        env="table*",
+        env="table",
         resizebox=True,
     )
     write_tex(tex, output_dir / "psnr-noise-slope-entropy.tex")
@@ -192,9 +231,9 @@ def table_noise_slope(df: pd.DataFrame, output_dir: Path) -> None:
             "estratificada por faixa de entropia e janela de cálculo."
         ),
         label="tab:noise-slope-psnr-iqr",
-        col_spec="l" + "c" * len(selected),
+        col_spec="l" + "c" * len(entropy_bins),
         header=header,
-        env="table*",
+        env="table",
         resizebox=True,
     )
     write_tex(tex_iqr, output_dir / "psnr-noise-slope-entropy-iqr.tex")
