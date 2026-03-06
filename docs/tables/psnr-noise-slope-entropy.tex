@@ -1,0 +1,28 @@
+\begin{table*}[htbp]
+\centering
+\caption{Inclinação do PSNR vs ruído (20/30/40 dB, mediana, IC95\%), estratificada por faixa de entropia e janela de cálculo.}
+\label{tab:noise-slope-psnr}
+\footnotesize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lcccccc}
+\toprule
+Faixa de Entropia & exemplar\_based & rbf & spline & unet & gan & vit \\
+\midrule
+\multicolumn{7}{l}{\textbf{Janela de entropia: 7x7}} \\
+Baixa & $0.101_{\pm 0.069}$ & $0.117_{\pm 0.079}$ & $0.117_{\pm 0.079}$ & $0.056_{\pm 0.006}$ & $0.016_{\pm 0.004}$ & $0.009_{\pm 0.003}$ \\
+Média & $0.062_{\pm 0.061}$ & $0.120_{\pm 0.062}$ & $0.120_{\pm 0.062}$ & $0.049_{\pm 0.005}$ & $0.013_{\pm 0.003}$ & $0.009_{\pm 0.002}$ \\
+Alta & $0.114_{\pm 0.099}$ & $0.162_{\pm 0.105}$ & $0.162_{\pm 0.105}$ & $0.023_{\pm 0.005}$ & $0.006_{\pm 0.003}$ & $0.006_{\pm 0.003}$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Janela de entropia: 15x15}} \\
+Baixa & $0.070_{\pm 0.072}$ & $0.118_{\pm 0.068}$ & $0.118_{\pm 0.068}$ & $0.046_{\pm 0.006}$ & $0.011_{\pm 0.003}$ & $0.006_{\pm 0.003}$ \\
+Média & $0.100_{\pm 0.084}$ & $0.112_{\pm 0.088}$ & $0.112_{\pm 0.088}$ & $0.048_{\pm 0.005}$ & $0.014_{\pm 0.003}$ & $0.009_{\pm 0.003}$ \\
+Alta & $0.042_{\pm 0.046}$ & $0.110_{\pm 0.052}$ & $0.110_{\pm 0.052}$ & $0.026_{\pm 0.006}$ & $0.009_{\pm 0.003}$ & $0.005_{\pm 0.003}$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Janela de entropia: 31x31}} \\
+Baixa & $0.043_{\pm 0.058}$ & $0.085_{\pm 0.048}$ & $0.085_{\pm 0.048}$ & $0.034_{\pm 0.005}$ & $0.010_{\pm 0.003}$ & $0.005_{\pm 0.003}$ \\
+Média & $0.240_{\pm 0.171}$ & $0.261_{\pm 0.154}$ & $0.261_{\pm 0.154}$ & $0.038_{\pm 0.005}$ & $0.012_{\pm 0.003}$ & $0.010_{\pm 0.003}$ \\
+Alta & $0.045_{\pm 0.038}$ & $0.077_{\pm 0.042}$ & $0.077_{\pm 0.042}$ & $0.039_{\pm 0.007}$ & $0.011_{\pm 0.003}$ & $0.007_{\pm 0.004}$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table*}

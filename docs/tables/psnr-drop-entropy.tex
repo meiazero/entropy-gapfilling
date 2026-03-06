@@ -1,0 +1,28 @@
+\begin{table*}[htbp]
+\centering
+\caption{Queda percentual no PSNR (mediana, IC95\%) (sem ruído → 20 dB), estratificada por faixa de entropia e janela de cálculo. Top-3 clássicos + top-3 DL.}
+\label{tab:degradation-psnr}
+\footnotesize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lcccccc}
+\toprule
+Faixa de Entropia & exemplar\_based & rbf & spline & unet & gan & vit \\
+\midrule
+\multicolumn{7}{l}{\textbf{Janela de entropia: 7x7}} \\
+Baixa & $9.4\%_{\pm 5.5}$ & $10.7\%_{\pm 6.4}$ & $10.7\%_{\pm 6.4}$ & $4.6\%_{\pm 0.5}$ & $1.2\%_{\pm 0.3}$ & $0.7\%_{\pm 0.3}$ \\
+Média & $6.1\%_{\pm 5.3}$ & $11.3\%_{\pm 5.6}$ & $11.3\%_{\pm 5.6}$ & $4.0\%_{\pm 0.4}$ & $1.2\%_{\pm 0.3}$ & $0.8\%_{\pm 0.2}$ \\
+Alta & $12.7\%_{\pm 9.1}$ & $17.3\%_{\pm 9.6}$ & $17.3\%_{\pm 9.6}$ & $2.2\%_{\pm 0.4}$ & $0.6\%_{\pm 0.3}$ & $0.6\%_{\pm 0.3}$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Janela de entropia: 15x15}} \\
+Baixa & $6.9\%_{\pm 6.0}$ & $10.7\%_{\pm 5.8}$ & $10.7\%_{\pm 5.8}$ & $3.7\%_{\pm 0.4}$ & $0.9\%_{\pm 0.3}$ & $0.6\%_{\pm 0.2}$ \\
+Média & $9.4\%_{\pm 6.9}$ & $10.7\%_{\pm 7.3}$ & $10.7\%_{\pm 7.3}$ & $4.0\%_{\pm 0.4}$ & $1.2\%_{\pm 0.2}$ & $0.8\%_{\pm 0.2}$ \\
+Alta & $4.9\%_{\pm 5.3}$ & $12.4\%_{\pm 4.5}$ & $12.4\%_{\pm 4.5}$ & $2.5\%_{\pm 0.5}$ & $0.9\%_{\pm 0.3}$ & $0.6\%_{\pm 0.3}$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Janela de entropia: 31x31}} \\
+Baixa & $4.1\%_{\pm 4.8}$ & $8.0\%_{\pm 4.4}$ & $8.0\%_{\pm 4.4}$ & $2.9\%_{\pm 0.4}$ & $0.8\%_{\pm 0.2}$ & $0.4\%_{\pm 0.2}$ \\
+Média & $21.1\%_{\pm 13.6}$ & $21.7\%_{\pm 13.0}$ & $21.7\%_{\pm 13.0}$ & $3.1\%_{\pm 0.4}$ & $1.0\%_{\pm 0.3}$ & $0.9\%_{\pm 0.3}$ \\
+Alta & $5.2\%_{\pm 4.5}$ & $8.6\%_{\pm 4.4}$ & $8.6\%_{\pm 4.4}$ & $3.6\%_{\pm 0.6}$ & $1.0\%_{\pm 0.3}$ & $0.7\%_{\pm 0.3}$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table*}

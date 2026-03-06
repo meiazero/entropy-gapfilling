@@ -1,0 +1,28 @@
+\begin{table*}[htbp]
+\centering
+\caption{Inclinação do PSNR vs ruído (20/30/40 dB, mediana, IQR), estratificada por faixa de entropia e janela de cálculo.}
+\label{tab:noise-slope-psnr-iqr}
+\footnotesize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lcccccc}
+\toprule
+Faixa de Entropia & exemplar\_based & rbf & spline & unet & gan & vit \\
+\midrule
+\multicolumn{7}{l}{\textbf{Janela de entropia: 7x7}} \\
+Baixa & $0.101\,(IQR\ 0.114)$ & $0.117\,(IQR\ 0.123)$ & $0.117\,(IQR\ 0.123)$ & $0.056\,(IQR\ 0.076)$ & $0.016\,(IQR\ 0.027)$ & $0.009\,(IQR\ 0.021)$ \\
+Média & $0.062\,(IQR\ 0.051)$ & $0.120\,(IQR\ 0.103)$ & $0.120\,(IQR\ 0.103)$ & $0.049\,(IQR\ 0.048)$ & $0.013\,(IQR\ 0.020)$ & $0.009\,(IQR\ 0.017)$ \\
+Alta & $0.114\,(IQR\ 0.090)$ & $0.162\,(IQR\ 0.135)$ & $0.162\,(IQR\ 0.135)$ & $0.023\,(IQR\ 0.029)$ & $0.006\,(IQR\ 0.015)$ & $0.006\,(IQR\ 0.013)$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Janela de entropia: 15x15}} \\
+Baixa & $0.070\,(IQR\ 0.097)$ & $0.118\,(IQR\ 0.113)$ & $0.118\,(IQR\ 0.113)$ & $0.046\,(IQR\ 0.064)$ & $0.011\,(IQR\ 0.023)$ & $0.006\,(IQR\ 0.019)$ \\
+Média & $0.100\,(IQR\ 0.101)$ & $0.112\,(IQR\ 0.102)$ & $0.112\,(IQR\ 0.102)$ & $0.048\,(IQR\ 0.054)$ & $0.014\,(IQR\ 0.022)$ & $0.009\,(IQR\ 0.018)$ \\
+Alta & $0.042\,(IQR\ 0.080)$ & $0.110\,(IQR\ 0.109)$ & $0.110\,(IQR\ 0.109)$ & $0.026\,(IQR\ 0.034)$ & $0.009\,(IQR\ 0.017)$ & $0.005\,(IQR\ 0.015)$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Janela de entropia: 31x31}} \\
+Baixa & $0.043\,(IQR\ 0.090)$ & $0.085\,(IQR\ 0.112)$ & $0.085\,(IQR\ 0.112)$ & $0.034\,(IQR\ 0.056)$ & $0.010\,(IQR\ 0.021)$ & $0.005\,(IQR\ 0.017)$ \\
+Média & $0.240\,(IQR\ 0.195)$ & $0.261\,(IQR\ 0.226)$ & $0.261\,(IQR\ 0.226)$ & $0.038\,(IQR\ 0.051)$ & $0.012\,(IQR\ 0.021)$ & $0.010\,(IQR\ 0.017)$ \\
+Alta & $0.045\,(IQR\ 0.077)$ & $0.077\,(IQR\ 0.096)$ & $0.077\,(IQR\ 0.096)$ & $0.039\,(IQR\ 0.050)$ & $0.011\,(IQR\ 0.022)$ & $0.007\,(IQR\ 0.018)$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table*}

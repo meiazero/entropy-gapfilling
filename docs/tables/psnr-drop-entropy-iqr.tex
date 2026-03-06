@@ -1,0 +1,28 @@
+\begin{table*}[htbp]
+\centering
+\caption{Queda percentual no PSNR (mediana, IQR) (sem ruído → 20 dB), estratificada por faixa de entropia e janela de cálculo. Top-3 clássicos + top-3 DL.}
+\label{tab:degradation-psnr-iqr}
+\footnotesize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lcccccc}
+\toprule
+Faixa de Entropia & exemplar\_based & rbf & spline & unet & gan & vit \\
+\midrule
+\multicolumn{7}{l}{\textbf{Janela de entropia: 7x7}} \\
+Baixa & $9.4\%\,(IQR\ 8.8)$ & $10.7\%\,(IQR\ 10.7)$ & $10.7\%\,(IQR\ 10.7)$ & $4.6\%\,(IQR\ 5.5)$ & $1.2\%\,(IQR\ 2.2)$ & $0.7\%\,(IQR\ 1.7)$ \\
+Média & $6.1\%\,(IQR\ 3.3)$ & $11.3\%\,(IQR\ 7.7)$ & $11.3\%\,(IQR\ 7.7)$ & $4.0\%\,(IQR\ 3.8)$ & $1.2\%\,(IQR\ 1.7)$ & $0.8\%\,(IQR\ 1.4)$ \\
+Alta & $12.7\%\,(IQR\ 9.2)$ & $17.3\%\,(IQR\ 12.7)$ & $17.3\%\,(IQR\ 12.7)$ & $2.2\%\,(IQR\ 2.5)$ & $0.6\%\,(IQR\ 1.4)$ & $0.6\%\,(IQR\ 1.2)$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Janela de entropia: 15x15}} \\
+Baixa & $6.9\%\,(IQR\ 8.5)$ & $10.7\%\,(IQR\ 10.6)$ & $10.7\%\,(IQR\ 10.6)$ & $3.7\%\,(IQR\ 4.6)$ & $0.9\%\,(IQR\ 1.9)$ & $0.6\%\,(IQR\ 1.5)$ \\
+Média & $9.4\%\,(IQR\ 8.0)$ & $10.7\%\,(IQR\ 9.9)$ & $10.7\%\,(IQR\ 9.9)$ & $4.0\%\,(IQR\ 4.2)$ & $1.2\%\,(IQR\ 1.8)$ & $0.8\%\,(IQR\ 1.5)$ \\
+Alta & $4.9\%\,(IQR\ 6.4)$ & $12.4\%\,(IQR\ 8.5)$ & $12.4\%\,(IQR\ 8.5)$ & $2.5\%\,(IQR\ 3.0)$ & $0.9\%\,(IQR\ 1.6)$ & $0.6\%\,(IQR\ 1.4)$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Janela de entropia: 31x31}} \\
+Baixa & $4.1\%\,(IQR\ 7.9)$ & $8.0\%\,(IQR\ 9.8)$ & $8.0\%\,(IQR\ 9.8)$ & $2.9\%\,(IQR\ 4.0)$ & $0.8\%\,(IQR\ 1.7)$ & $0.4\%\,(IQR\ 1.4)$ \\
+Média & $21.1\%\,(IQR\ 13.6)$ & $21.7\%\,(IQR\ 15.4)$ & $21.7\%\,(IQR\ 15.4)$ & $3.1\%\,(IQR\ 4.0)$ & $1.0\%\,(IQR\ 1.9)$ & $0.9\%\,(IQR\ 1.4)$ \\
+Alta & $5.2\%\,(IQR\ 5.7)$ & $8.6\%\,(IQR\ 7.2)$ & $8.6\%\,(IQR\ 7.2)$ & $3.6\%\,(IQR\ 4.4)$ & $1.0\%\,(IQR\ 2.0)$ & $0.7\%\,(IQR\ 1.7)$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table*}

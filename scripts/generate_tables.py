@@ -17,7 +17,9 @@ from pathlib import Path
 from .data_loader import load_combined
 from .tables.common import SETTINGS, configure_settings
 from .tables.degradation_entropy import table_degradation_entropy
+from .tables.dl_architectures import table_dl_architectures
 from .tables.global_scoreboard import table_global_scoreboard
+from .tables.methods import table_methods
 from .tables.noise_slope import table_noise_slope
 from .tables.overview_dataset import table_overview_dataset
 from .tables.spearman_entropy import table_spearman_entropy
@@ -66,6 +68,8 @@ def main(argv: list[str] | None = None) -> None:
 
     generators = [
         ("Table 0: Dataset Overview", table_overview_dataset),
+        ("Table 0b: Methods", table_methods),
+        ("Table 0c: DL Architectures", table_dl_architectures),
         ("Table 1: Global Scoreboard", table_global_scoreboard),
         ("Table 2: Spectral Decomposition", table_spectral_decomposition),
         ("Table 3: Degradation by Entropy", table_degradation_entropy),

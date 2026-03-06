@@ -37,8 +37,14 @@ def tex_escape(value: str) -> str:
     )
 
 
-def format_pm(mean: float, ci_half: float, fmt: str = ".2f") -> str:
-    return f"${mean:{fmt}}_{{\\pm {ci_half:{fmt}}}}$"
+def format_pm(
+    mean: float,
+    ci_half: float,
+    fmt: str = ".2f",
+    ci_fmt: str | None = None,
+) -> str:
+    ci_format = ci_fmt or fmt
+    return f"${mean:{fmt}}_{{\\pm {ci_half:{ci_format}}}}$"
 
 
 def format_iqr(median: float, iqr_value: float, fmt: str = ".2f") -> str:

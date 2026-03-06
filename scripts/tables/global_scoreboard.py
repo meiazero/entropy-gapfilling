@@ -71,7 +71,7 @@ def _format_metric_cells(
         if np.isnan(median_val):
             cells.append("--")
             continue
-        base = format_pm(float(median_val), float(ci_val))
+        base = format_pm(float(median_val), float(ci_val), ci_fmt=".4f")
         if rank == 1:
             cells.append(math_bold(base))
         else:
@@ -225,7 +225,7 @@ def table_global_scoreboard(df: pd.DataFrame, output_dir: Path) -> None:
         caption=(
             "Placar global multi-métrica por nível de ruído "
             r"(mediana e IC95\%). "
-            "\textbf{Negrito}: melhor por métrica dentro de cada grupo "
+            r"\textbf{Negrito}: melhor por métrica dentro de cada grupo "
             "(DL e clássico)."
         ),
         label="tab:global-scoreboard",
@@ -244,7 +244,7 @@ def table_global_scoreboard(df: pd.DataFrame, output_dir: Path) -> None:
         caption=(
             "Placar global multi-métrica por nível de ruído "
             "(mediana e IQR). "
-            "\textbf{Negrito}: melhor por métrica dentro de cada grupo "
+            r"\textbf{Negrito}: melhor por métrica dentro de cada grupo "
             "(DL e clássico)."
         ),
         label="tab:global-scoreboard-iqr",

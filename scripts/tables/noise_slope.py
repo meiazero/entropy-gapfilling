@@ -9,7 +9,19 @@ import pandas as pd
 
 from ..data_loader import ENTROPY_WINDOWS, entropy_terciles, select_top_n
 from .cli import run_table
-from .common import bootstrap_ci_half, tex_escape, wrap_table, write_tex
+from .common import bootstrap_ci_half, iqr, tex_escape, wrap_table, write_tex
+
+
+def _filter_clustered(
+    mdf: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.Series | None]:
+    if "patch_id" not in mdf.columns:
+        return mdf, None
+    clusters = mdf["patch_id"]
+    if clusters.notna().any():
+        mask = clusters.notna()
+        return mdf.loc[mask], clusters.loc[mask]
+    return mdf.iloc[0:0], None
 
 
 def _noise_slope_value(
@@ -21,12 +33,12 @@ def _noise_slope_value(
         s: pd.Series,
         data: pd.DataFrame = mdf,
     ) -> float:
-        means = []
+        medians = []
         for nl in noise_levels:
-            means.append(s[data.loc[s.index, "noise_level"] == nl].mean())
-        if any(np.isnan(means)):
+            medians.append(s[data.loc[s.index, "noise_level"] == nl].median())
+        if any(np.isnan(medians)):
             return float("nan")
-        coef = np.polyfit(noise_numeric, np.array(means), 1)
+        coef = np.polyfit(noise_numeric, np.array(medians), 1)
         return float(coef[0])
 
     slope = _slope_stat(mdf["psnr"])
@@ -38,11 +50,36 @@ def _noise_slope_value(
     return slope, ci
 
 
+def _noise_slope_iqr(
+    mdf: pd.DataFrame,
+    noise_levels: list[str],
+    noise_numeric: np.ndarray,
+) -> float:
+    if "patch_id" not in mdf.columns:
+        return float("nan")
+    grouped = mdf.dropna(subset=["patch_id"]).groupby("patch_id")
+    slopes = []
+    for _pid, grp in grouped:
+        medians = []
+        for nl in noise_levels:
+            vals = grp[grp["noise_level"] == nl]["psnr"].dropna()
+            medians.append(vals.median())
+        if any(np.isnan(medians)):
+            continue
+        coef = np.polyfit(noise_numeric, np.array(medians), 1)
+        slopes.append(float(coef[0]))
+    if not slopes:
+        return float("nan")
+    return iqr(pd.Series(slopes))
+
+
 def _build_noise_slope_body(
     df_binned: pd.DataFrame,
     selected: list[str],
     noise_levels: list[str],
     noise_numeric: np.ndarray,
+    *,
+    use_iqr: bool,
 ) -> list[str]:
     body: list[str] = []
     for ebin in ["baixa", "média", "alta"]:
@@ -53,9 +90,19 @@ def _build_noise_slope_body(
                 & (df_binned["entropy_bin"] == ebin)
                 & (df_binned["noise_level"].isin(noise_levels))
             ]
+            mdf, _clusters = _filter_clustered(mdf)
             if mdf.empty:
                 cells.append("--")
                 continue
+            if use_iqr:
+                slope = _noise_slope_value(mdf, noise_levels, noise_numeric)[0]
+                slope_iqr = _noise_slope_iqr(mdf, noise_levels, noise_numeric)
+                if np.isnan(slope) or np.isnan(slope_iqr):
+                    cells.append("--")
+                else:
+                    cells.append(rf"${slope:.3f}\,(IQR\ {slope_iqr:.3f})$")
+                continue
+
             slope, ci = _noise_slope_value(mdf, noise_levels, noise_numeric)
             if np.isnan(slope):
                 cells.append("--")
@@ -63,6 +110,13 @@ def _build_noise_slope_body(
                 cells.append(rf"${slope:.3f}_{{\pm {ci:.3f}}}$")
         body.append(" & ".join(cells) + r" \\")
     return body
+
+
+def _section_header_line(section_title: str, n_cols: int) -> str:
+    return (
+        rf"\multicolumn{{{n_cols}}}{{l}}{{\textbf{{{section_title}}}}} "
+        r"\\"
+    )
 
 
 def table_noise_slope(df: pd.DataFrame, output_dir: Path) -> None:
@@ -76,31 +130,74 @@ def table_noise_slope(df: pd.DataFrame, output_dir: Path) -> None:
     noise_levels = ["20", "30", "40"]
     noise_numeric = np.array([20.0, 30.0, 40.0])
 
+    header = "Faixa de Entropia & " + " & ".join(
+        tex_escape(m) for m in selected
+    )
+    body: list[str] = []
+    body_iqr: list[str] = []
+
     for ws in ENTROPY_WINDOWS:
         ecol = f"entropy_{ws}"
         if ecol not in df.columns:
             continue
 
         df_binned = entropy_terciles(df, entropy_col=ecol)
-        body = _build_noise_slope_body(
-            df_binned, selected, noise_levels, noise_numeric
+        section_body = _build_noise_slope_body(
+            df_binned,
+            selected,
+            noise_levels,
+            noise_numeric,
+            use_iqr=False,
+        )
+        section_body_iqr = _build_noise_slope_body(
+            df_binned,
+            selected,
+            noise_levels,
+            noise_numeric,
+            use_iqr=True,
         )
 
-        header = "Faixa de Entropia & " + " & ".join(
-            tex_escape(m) for m in selected
-        )
-        tex = wrap_table(
-            body,
-            caption=(
-                rf"Inclinação do PSNR vs ruído (20/30/40 dB, IC95\%) por faixa "
-                f"de entropia (janela {ws}x{ws})."
-            ),
-            label=f"tab:noise-slope-psnr-e{ws}",
-            col_spec="l" + "c" * len(selected),
-            header=header,
-            resizebox=True,
-        )
-        write_tex(tex, output_dir / f"psnr-noise-slope-entropy-{ws}.tex")
+        if body:
+            body.append(r"\midrule")
+        if body_iqr:
+            body_iqr.append(r"\midrule")
+        section_title = tex_escape(f"Janela de entropia: {ws}x{ws}")
+        section_line = _section_header_line(section_title, len(selected) + 1)
+        body.append(section_line)
+        body_iqr.append(section_line)
+        body.extend(section_body)
+        body_iqr.extend(section_body_iqr)
+
+    if not body:
+        return
+
+    tex = wrap_table(
+        body,
+        caption=(
+            r"Inclinação do PSNR vs ruído (20/30/40 dB, mediana, IC95\%), "
+            "estratificada por faixa de entropia e janela de cálculo."
+        ),
+        label="tab:noise-slope-psnr",
+        col_spec="l" + "c" * len(selected),
+        header=header,
+        env="table*",
+        resizebox=True,
+    )
+    write_tex(tex, output_dir / "psnr-noise-slope-entropy.tex")
+
+    tex_iqr = wrap_table(
+        body_iqr,
+        caption=(
+            "Inclinação do PSNR vs ruído (20/30/40 dB, mediana, IQR), "
+            "estratificada por faixa de entropia e janela de cálculo."
+        ),
+        label="tab:noise-slope-psnr-iqr",
+        col_spec="l" + "c" * len(selected),
+        header=header,
+        env="table*",
+        resizebox=True,
+    )
+    write_tex(tex_iqr, output_dir / "psnr-noise-slope-entropy-iqr.tex")
 
 
 def main() -> None:
