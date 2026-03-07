@@ -82,7 +82,7 @@ def _render_dl_comparison_heatmap(
 ) -> None:
     fig, ax = plt.subplots(
         figsize=(
-            len(col_labels) * 1.0 + 0.8,
+            len(col_labels) * 1.0 + 0,
             len(model_labels) * 0.6 + 0.8,
         ),
         constrained_layout=True,

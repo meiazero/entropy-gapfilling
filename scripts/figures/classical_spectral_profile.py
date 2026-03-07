@@ -9,11 +9,15 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
+from scripts.figures.cli import run_with_df
+
 from ..data_loader import display_method_name, select_top_n
 from ..tables.common import bootstrap_ci_half
 from .common import FONT_SIZE, save_figure, style_axes
 
 log = logging.getLogger(__name__)
+
+_BAND_MARKERS: tuple[str, ...] = ("o", "s", "^", "D")
 
 
 def _prepare_classical_subset(df: pd.DataFrame) -> pd.DataFrame:
@@ -79,7 +83,7 @@ def fig_classical_spectral_profile(df: pd.DataFrame, output_dir: Path) -> None:
     if plot_df.empty:
         return
 
-    fig, ax = plt.subplots(figsize=(6.8, 3.6))
+    fig, ax = plt.subplots(figsize=(4.2, 4.4))
     palette = sns.color_palette("Set2", plot_df["band"].nunique())
     band_order = [label for _, label in bands]
     offsets = dict(
@@ -102,7 +106,7 @@ def fig_classical_spectral_profile(df: pd.DataFrame, output_dir: Path) -> None:
                 float(row["median"].iloc[0]),
                 y,
                 xerr=float(row["ci"].iloc[0]),
-                fmt="o",
+                fmt=_BAND_MARKERS[band_index % len(_BAND_MARKERS)],
                 color=palette[band_index],
                 ecolor=palette[band_index],
                 capsize=2,
@@ -113,16 +117,42 @@ def fig_classical_spectral_profile(df: pd.DataFrame, output_dir: Path) -> None:
     ax.set_yticks(range(len(method_order)))
     ax.set_yticklabels([display_method_name(method) for method in method_order])
     handles = [
-        plt.Line2D([0], [0], marker="o", color=color, linestyle="")
-        for color in palette
+        plt.Line2D(
+            [0],
+            [0],
+            marker=_BAND_MARKERS[index % len(_BAND_MARKERS)],
+            color=color,
+            markerfacecolor=color,
+            markeredgecolor=color,
+            linestyle="",
+        )
+        for index, color in enumerate(palette)
     ]
-    ax.legend(handles, band_order, title="Banda", fontsize=FONT_SIZE - 2)
-    style_axes(
-        ax,
-        xlabel=r"RMSE mediano (IC95\%)",
-        ylabel="Método",
-        grid_axis="x",
+    style_axes(ax, xlabel=r"RMSE mediano (IC95%)", ylabel="Método")
+    ax.legend(
+        handles,
+        band_order,
+        title="Banda",
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.19),
+        ncol=2,
+        fontsize=FONT_SIZE - 2,
+        frameon=False,
+        handletextpad=0.45,
+        columnspacing=1.0,
+        borderaxespad=0.0,
     )
-    plt.tight_layout()
+    fig.subplots_adjust(bottom=0.28)
     save_figure(fig, output_dir, "fig_classical_spectral_profile")
     plt.close(fig)
+
+
+def main() -> None:
+    run_with_df(
+        fig_classical_spectral_profile,
+        "Classical spectral profile",
+    )
+
+
+if __name__ == "__main__":
+    main()

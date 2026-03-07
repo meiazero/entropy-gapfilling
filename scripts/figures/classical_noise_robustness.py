@@ -15,6 +15,7 @@ from ..data_loader import (
     noise_label,
     select_top_n,
 )
+from .cli import run_with_df
 from .common import FONT_SIZE, save_figure, style_axes
 
 log = logging.getLogger(__name__)
@@ -25,6 +26,19 @@ _BIN_SUFFIX = {
     "alta": "alta",
 }
 
+_METHOD_MARKERS: tuple[str, ...] = (
+    "o",
+    "s",
+    "^",
+    "D",
+    "P",
+    "X",
+    "v",
+    "<",
+    ">",
+    "h",
+)
+
 
 def _plot_entropy_bin(
     plot_df: pd.DataFrame,
@@ -34,11 +48,16 @@ def _plot_entropy_bin(
     output_dir: Path,
     *,
     show_legend: bool,
+    show_ylabel: bool,
 ) -> None:
     subset = plot_df[plot_df["entropy_bin"] == entropy_bin].copy()
     noise_positions = dict(
         zip(noise_order, range(len(noise_order)), strict=True)
     )
+    method_markers = {
+        method: _METHOD_MARKERS[index % len(_METHOD_MARKERS)]
+        for index, method in enumerate(methods)
+    }
     subset["noise_level"] = pd.Categorical(
         subset["noise_level"], categories=noise_order, ordered=True
     )
@@ -55,7 +74,7 @@ def _plot_entropy_bin(
         axis.plot(
             method_df["noise_level"].map(noise_positions),
             method_df["psnr"],
-            marker="o",
+            marker=method_markers[method],
             linewidth=1.4,
             markersize=4,
             color=palette[index],
@@ -67,9 +86,11 @@ def _plot_entropy_bin(
     style_axes(
         axis,
         xlabel="Ruído (dB)",
-        ylabel="PSNR mediano (dB)",
-        grid_axis="y",
+        ylabel="PSNR mediano (dB)" if show_ylabel else None,
+        grid=True,
+        grid_axis="both",
     )
+    axis.grid(True, which="major", axis="both", alpha=0.3, linewidth=0.5)
     if show_legend:
         axis.legend(loc="best", fontsize=FONT_SIZE - 2, frameon=True)
 
@@ -120,4 +141,16 @@ def fig_classical_noise_robustness(df: pd.DataFrame, output_dir: Path) -> None:
             entropy_bin,
             output_dir,
             show_legend=index == 0,
+            show_ylabel=index == 0,
         )
+
+
+def main() -> None:
+    run_with_df(
+        fig_classical_noise_robustness,
+        "Classical noise robustness",
+    )
+
+
+if __name__ == "__main__":
+    main()

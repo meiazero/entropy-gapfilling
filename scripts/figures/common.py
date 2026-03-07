@@ -8,17 +8,18 @@ from pathlib import Path
 
 import matplotlib
 
-matplotlib.use("Agg")
+matplotlib.use("pdf")
 
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 log = logging.getLogger(__name__)
 
-DPI = 300
-FONT_SIZE = 8
+DPI = 450
+FONT_SIZE = 10
 
 _PUB_FONT = {
+    "font.family": "serif",
     "font.size": FONT_SIZE,
     "axes.titlesize": FONT_SIZE + 1,
     "axes.labelsize": FONT_SIZE,

@@ -40,12 +40,12 @@ Exemplar-Based aparece como um dos compromissos mais interessantes entre qualida
 Ordinary Kriging preserva qualidade forte, mas seu custo o desloca para uma região de uso mais restrito.
 Como a figura está restrita ao cenário sem ruído e usa medianas com dispersão por IQR, sua leitura deve ser entendida como retrato operacional desse regime específico, e não como síntese de todos os níveis de ruído.
 
-\begin{figure*}[htbp]
+\begin{figure}[htbp]
 \centering
-\includegraphics[width=0.78\linewidth]{figures/fig_classical_pareto}
+\includegraphics[width=\columnwidth]{figures/fig_classical_pareto}
 \caption{Compromisso entre qualidade e custo de inferência para os métodos clássicos no cenário sem ruído.}
 \label{fig:classical-pareto}
-\end{figure*}
+\end{figure}
 
 Do ponto de vista espectral, a \Cref{tab:spectral-rmse-classical} mostra que os métodos mais fortes no ranking global tendem a manter erro competitivo ao longo das quatro bandas analisadas.
 Isso é relevante porque evita uma interpretação superficial em que PSNR global elevado mascararia erro excessivo em bandas específicas.
@@ -172,12 +172,12 @@ Visualmente, a figura reforça que a superioridade da U-Net não está restrita 
 O modelo aparece consistentemente forte em critérios complementares, o que reduz a chance de sua liderança ser artefato de um único indicador.
 Como o painel resume medianas sem intervalos de confiança, ele deve ser lido como apoio visual ao ranking da tabela, e não como evidência inferencial isolada.
 
-\begin{figure*}[htbp]
+\begin{figure}[htbp]
 \centering
-\includegraphics[width=0.82\linewidth]{figures/fig_dl_comparison}
+\includegraphics[width=\columnwidth]{figures/fig_dl_comparison}
 \caption{Comparação interna entre arquiteturas de aprendizado profundo no cenário \texttt{entropy\_all}, usando medianas das métricas de teste.}
 \label{fig:dl-comparison}
-\end{figure*}
+\end{figure}
 
 O segundo eixo do bloco de \gls{DL} é a robustez ao ruído.
 As tabelas \Cref{tab:degradation-psnr-dl} e \Cref{tab:noise-slope-psnr-dl} mostram que a liderança absoluta da U-Net não implica dominância completa em estabilidade relativa.
