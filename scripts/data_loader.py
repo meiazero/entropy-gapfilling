@@ -61,6 +61,53 @@ CATEGORY_LABELS: dict[str, str] = {
     "patch_based": "Baseado em Recortes",
 }
 
+METHOD_LABELS: dict[str, str] = {
+    "nearest": "Nearest Neighbor",
+    "nearest_neighbor": "Nearest Neighbor",
+    "bilinear": "Bilinear",
+    "bicubic": "Bicubic",
+    "lanczos": "Lanczos (PG)",
+    "idw": "IDW",
+    "rbf": "RBF",
+    "spline": "Thin Plate Spline",
+    "thin_plate_spline": "Thin Plate Spline",
+    "kriging": "Ordinary Kriging",
+    "ordinary_kriging": "Ordinary Kriging",
+    "dct": "DCT-ISTA",
+    "dct_ista": "DCT-ISTA",
+    "wavelet": "Wavelet-ISTA",
+    "wavelet_ista": "Wavelet-ISTA",
+    "tv": "Total Variation",
+    "total_variation": "Total Variation",
+    "cs_dct": "L1-DCT (CS)",
+    "l1_dct": "L1-DCT (CS)",
+    "cs_wavelet": "L1-Wavelet (CS)",
+    "l1_wavelet": "L1-Wavelet (CS)",
+    "non_local": "Non-Local Means",
+    "non_local_means": "Non-Local Means",
+    "exemplar": "Exemplar-Based",
+    "exemplar_based": "Exemplar-Based",
+    "ae": "AE",
+    "autoencoder": "AE",
+    "vae": "VAE",
+    "variational_autoencoder": "VAE",
+    "gan": "GAN",
+    "unet": "U-Net",
+    "u_net": "U-Net",
+    "vit": "ViT",
+    "vision_transformer": "ViT",
+}
+
+
+def _normalize_method_key(name: str) -> str:
+    return str(name).strip().lower().replace("-", "_").replace(" ", "_")
+
+
+def display_method_name(name: str) -> str:
+    """Return a publication-friendly display name for a method/model."""
+    key = _normalize_method_key(name)
+    return METHOD_LABELS.get(key, str(name))
+
 
 def load_classic() -> pd.DataFrame:
     """Load classical method results from paper_assets."""

@@ -1,0 +1,27 @@
+\begin{table}[htbp]
+\centering
+\caption{Correlação de Spearman entre entropia (31x31) e métricas de qualidade para os métodos de DL (FDR).}
+\label{tab:spearman-entropy-dl-e31}
+\footnotesize
+\begin{threeparttable}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lcccc}
+\toprule
+Método & $\rho$({\scriptsize PSNR}) & $\rho$({\scriptsize SSIM}) & $\rho$({\scriptsize SAM}) & $\rho$({\scriptsize ERGAS}) \\
+\midrule
+AE & $-0.398^{\ddagger}$ & $-0.331^{\ddagger}$ & $\approx 0$ & $-0.280^{\ddagger}$ \\
+GAN & $-0.395^{\ddagger}$ & $-0.321^{\ddagger}$ & $\approx 0$ & $-0.227^{\ddagger}$ \\
+U-Net & $-0.391^{\ddagger}$ & $-0.295^{\ddagger}$ & $\approx 0$ & $-0.229^{\ddagger}$ \\
+VAE & $-0.416^{\ddagger}$ & $-0.406^{\ddagger}$ & $\approx 0$ & $-0.249^{\ddagger}$ \\
+ViT & $-0.389^{\ddagger}$ & $-0.324^{\ddagger}$ & $\approx 0$ & $-0.238^{\ddagger}$ \\
+\bottomrule
+\end{tabular}
+}
+\begin{tablenotes}
+\scriptsize
+\item $^{*}$ $p_{FDR}<0{,}05$.
+\item $^{\dagger}$ $p_{FDR}<0{,}01$.
+\item $^{\ddagger}$ $p_{FDR}<0{,}001$.
+\end{tablenotes}
+\end{threeparttable}
+\end{table}

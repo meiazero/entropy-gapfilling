@@ -8,21 +8,21 @@
 \toprule
 Tipo & Método & PSNR (dB) $\uparrow$ & Tempo (s/patch) $\downarrow$ & PSNR/s $\uparrow$ \\
 \midrule
-Clássico & nearest & $20.03$ & $0.011$ & $\mathbf{1746.3}$ \\
-Clássico & dct & $18.26$ & $0.032$ & \underline{$575.5$} \\
-Clássico & exemplar\_based & $\mathbf{21.75}$ & $0.043$ & \textit{$511.6$} \\
-Clássico & l1\_dct & $18.26$ & $0.036$ & $501.7$ \\
-Clássico & non\_local & $16.80$ & $0.051$ & $326.6$ \\
-Clássico & lanczos & $19.94$ & $0.096$ & $207.5$ \\
-Clássico & tv & $17.70$ & $0.085$ & $207.2$ \\
-Clássico & idw & $19.27$ & $0.161$ & $119.8$ \\
-Clássico & wavelet & $18.75$ & $0.333$ & $56.3$ \\
-Clássico & bilinear & $21.01$ & $0.578$ & $36.4$ \\
-Clássico & l1\_wavelet & $11.88$ & $0.405$ & $29.3$ \\
-Clássico & bicubic & $19.03$ & $0.704$ & $27.0$ \\
-Clássico & rbf & \underline{$21.56$} & $29.16$ & $0.7$ \\
-Clássico & spline & \underline{$21.56$} & $38.73$ & $0.6$ \\
-Clássico & kriging & $21.43$ & $813.26$ & $0.0$ \\
+Clássico & Nearest Neighbor & $20.03$ & $0.011$ & $\mathbf{1746.3}$ \\
+Clássico & DCT-ISTA & $18.26$ & $0.032$ & \underline{$575.5$} \\
+Clássico & Exemplar-Based & $\mathbf{21.75}$ & $0.043$ & \textit{$511.6$} \\
+Clássico & L1-DCT (CS) & $18.26$ & $0.036$ & $501.7$ \\
+Clássico & Non-Local Means & $16.80$ & $0.051$ & $326.6$ \\
+Clássico & Lanczos (PG) & $19.94$ & $0.096$ & $207.5$ \\
+Clássico & Total Variation & $17.70$ & $0.085$ & $207.2$ \\
+Clássico & IDW & $19.27$ & $0.161$ & $119.8$ \\
+Clássico & Wavelet-ISTA & $18.75$ & $0.333$ & $56.3$ \\
+Clássico & Bilinear & $21.01$ & $0.578$ & $36.4$ \\
+Clássico & L1-Wavelet (CS) & $11.88$ & $0.405$ & $29.3$ \\
+Clássico & Bicubic & $19.03$ & $0.704$ & $27.0$ \\
+Clássico & RBF & \underline{$21.56$} & $29.16$ & $0.7$ \\
+Clássico & Thin Plate Spline & \underline{$21.56$} & $38.73$ & $0.6$ \\
+Clássico & Ordinary Kriging & $21.43$ & $813.26$ & $0.0$ \\
 \bottomrule
 \end{tabular}
 }

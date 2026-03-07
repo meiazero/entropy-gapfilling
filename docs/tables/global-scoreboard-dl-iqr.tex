@@ -1,0 +1,38 @@
+\begin{table*}[htbp]
+\centering
+\caption{Placar global multi-métrica dos métodos de DL por nível de ruído (mediana e IQR). \textbf{Negrito}: melhor por métrica dentro do grupo.}
+\label{tab:global-scoreboard-dl-iqr}
+\footnotesize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{llccccc}
+\toprule
+Tipo & Método & PSNR (dB) $\uparrow$ & SSIM $\uparrow$ & RMSE $\downarrow$ & SAM $\downarrow$ & ERGAS $\downarrow$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Nível de ruído: todos os níveis de ruído}} \\
+DL & U-Net & $\mathbf{23.708\,(IQR\ 6.128)}$ & $\mathbf{0.623\,(IQR\ 0.186)}$ & $\mathbf{0.065\,(IQR\ 0.049)}$ & $\mathbf{5.157\,(IQR\ 3.223)}$ & $\mathbf{27.564\,(IQR\ 15.141)}$ \\
+DL & GAN & $22.926\,(IQR\ 6.173)$ & $0.581\,(IQR\ 0.189)$ & $0.071\,(IQR\ 0.054)$ & $5.692\,(IQR\ 3.531)$ & $29.790\,(IQR\ 15.770)$ \\
+DL & ViT & $22.869\,(IQR\ 6.009)$ & $0.576\,(IQR\ 0.181)$ & $0.072\,(IQR\ 0.052)$ & $5.604\,(IQR\ 3.595)$ & $29.775\,(IQR\ 16.486)$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Nível de ruído: Sem ruído}} \\
+DL & U-Net & $\mathbf{23.942\,(IQR\ 6.313)}$ & $\mathbf{0.654\,(IQR\ 0.188)}$ & $\mathbf{0.064\,(IQR\ 0.049)}$ & $\mathbf{4.988\,(IQR\ 3.224)}$ & $\mathbf{27.056\,(IQR\ 14.975)}$ \\
+DL & GAN & $22.996\,(IQR\ 6.233)$ & $0.602\,(IQR\ 0.194)$ & $0.071\,(IQR\ 0.054)$ & $5.654\,(IQR\ 3.535)$ & $29.651\,(IQR\ 15.829)$ \\
+DL & ViT & $22.926\,(IQR\ 6.060)$ & $0.596\,(IQR\ 0.185)$ & $0.071\,(IQR\ 0.052)$ & $5.574\,(IQR\ 3.591)$ & $29.617\,(IQR\ 16.488)$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Nível de ruído: 40 dB}} \\
+DL & U-Net & $\mathbf{23.932\,(IQR\ 6.289)}$ & $\mathbf{0.652\,(IQR\ 0.187)}$ & $\mathbf{0.064\,(IQR\ 0.049)}$ & $\mathbf{4.997\,(IQR\ 3.234)}$ & $\mathbf{27.056\,(IQR\ 14.994)}$ \\
+DL & GAN & $22.993\,(IQR\ 6.234)$ & $0.601\,(IQR\ 0.194)$ & $0.071\,(IQR\ 0.054)$ & $5.654\,(IQR\ 3.533)$ & $29.636\,(IQR\ 15.823)$ \\
+DL & ViT & $22.929\,(IQR\ 6.051)$ & $0.596\,(IQR\ 0.184)$ & $0.071\,(IQR\ 0.052)$ & $5.571\,(IQR\ 3.599)$ & $29.618\,(IQR\ 16.487)$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Nível de ruído: 30 dB}} \\
+DL & U-Net & $\mathbf{23.860\,(IQR\ 6.176)}$ & $\mathbf{0.641\,(IQR\ 0.180)}$ & $\mathbf{0.064\,(IQR\ 0.049)}$ & $\mathbf{5.055\,(IQR\ 3.191)}$ & $\mathbf{27.314\,(IQR\ 15.008)}$ \\
+DL & GAN & $22.961\,(IQR\ 6.202)$ & $0.593\,(IQR\ 0.189)$ & $0.071\,(IQR\ 0.054)$ & $5.664\,(IQR\ 3.537)$ & $29.686\,(IQR\ 15.812)$ \\
+DL & ViT & $22.897\,(IQR\ 6.031)$ & $0.587\,(IQR\ 0.180)$ & $0.072\,(IQR\ 0.052)$ & $5.584\,(IQR\ 3.598)$ & $29.705\,(IQR\ 16.507)$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Nível de ruído: 20 dB}} \\
+DL & U-Net & $\mathbf{23.102\,(IQR\ 5.672)}$ & $\mathbf{0.557\,(IQR\ 0.148)}$ & $\mathbf{0.070\,(IQR\ 0.048)}$ & $\mathbf{5.565\,(IQR\ 3.168)}$ & $\mathbf{28.875\,(IQR\ 15.252)}$ \\
+DL & GAN & $22.756\,(IQR\ 6.033)$ & $0.533\,(IQR\ 0.166)$ & $0.073\,(IQR\ 0.053)$ & $5.791\,(IQR\ 3.514)$ & $30.145\,(IQR\ 15.736)$ \\
+DL & ViT & $22.733\,(IQR\ 5.925)$ & $0.529\,(IQR\ 0.157)$ & $0.073\,(IQR\ 0.052)$ & $5.682\,(IQR\ 3.598)$ & $30.123\,(IQR\ 16.550)$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table*}

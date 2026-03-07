@@ -1,6 +1,10 @@
 \section{Fundamentação Teórica}
 \label{sec:background}
 
+Esta seção organiza a base conceitual do artigo em quatro eixos: a natureza do problema, o papel da entropia local, a diferença entre famílias metodológicas e a lógica de comparação adotada.
+
+\subsection{Natureza do Problema de Reconstrução}
+
 O preenchimento de lacunas em imagens de satélite pode ser formulado como um problema de reconstrução condicionada por observações parciais.
 Parte dos pixels permanece disponível e parte da informação é removida pela máscara de lacuna.
 O objetivo do algoritmo é inferir os valores ausentes a partir do contexto espacial e espectral ainda observável.
@@ -10,9 +14,11 @@ Ela precisa preservar relações radiométricas e espectrais que serão reutiliz
 Sob essa perspectiva, qualidade de reconstrução não é um conceito unidimensional.
 Uma reconstrução pode apresentar baixo erro quadrático médio e ainda assim distorcer bordas, suavizar estruturas importantes ou alterar a relação entre bandas.
 Da mesma forma, um método pode produzir boa média global e falhar sistematicamente em cenários mais complexos ou mais ruidosos.
-Por isso, a análise do problema exige mais de uma métrica e também exige variáveis descritivas que ajudem a caracterizar a dificuldade da cena reconstruída.
+Por isso, a análise do problema exige mais de uma métrica e também variáveis descritivas que ajudem a caracterizar a dificuldade da cena reconstruída.
 
-A entropia local cumpre justamente esse papel.
+\subsection{Entropia Local e Complexidade Espacial}
+
+A entropia local cumpre justamente esse papel descritivo.
 Quando calculada sobre a vizinhança da lacuna, ela atua como um resumo da diversidade tonal e da organização espacial do entorno disponível para a inferência.
 Regiões homogêneas tendem a exibir baixa entropia.
 Regiões com textura, mistura de materiais, bordas e transições rápidas tendem a exibir entropia mais elevada.
@@ -24,6 +30,8 @@ Uma janela intermediária captura o entorno imediato da lacuna de forma mais est
 Uma janela maior aproxima um contexto regional do recorte.
 Isso significa que a mesma região pode exibir padrões de entropia distintos conforme a escala considerada.
 Logo, não há motivo para assumir, a priori, que a relação entre entropia e qualidade seja a mesma em todas as escalas.
+
+\subsection{Famílias Metodológicas e Regimes de Modelagem}
 
 Do ponto de vista metodológico, os algoritmos avaliados no artigo pertencem a dois regimes de modelagem distintos.
 Os métodos clássicos dependem de hipóteses explícitas sobre suavidade, proximidade espacial, correlação, esparsidade em bases transformadas ou autossimilaridade da própria imagem.
@@ -37,17 +45,18 @@ Robustez diz respeito ao quanto esse desempenho se mantém quando a condição s
 Essas duas dimensões podem caminhar juntas, mas não são equivalentes.
 Um método pode liderar em qualidade e ainda assim sofrer degradação mais acentuada quando o cenário piora.
 
+\subsection{Lógica de Comparação e Validade Interpretativa}
+
 Também é importante distinguir comparação interna de comparação cruzada.
 Comparação interna ocorre quando métodos submetidos ao mesmo contexto experimental são comparados entre si, permitindo conclusões fortes sobre sua hierarquia relativa.
 Comparação cruzada ocorre quando se tenta confrontar métodos avaliados em regimes diferentes.
-Neste artigo, as comparações internas são o foco principal.
-As comparações cruzadas entre blocos clássico e profundo aparecem apenas como contexto interpretativo amplo, nunca como base para um ranking universal.
+Neste artigo, a comparação interna é o foco principal.
+As referências entre o bloco clássico e o bloco profundo aparecem apenas como contexto amplo, e não como base para um ranking universal.
 
 Essa escolha está diretamente relacionada à validade científica da análise.
 Quando resultados de famílias metodológicas distintas são agregados sem ressalvas, o leitor pode confundir diferenças de domínio experimental com diferenças algorítmicas intrínsecas.
 Ao separar os blocos, o estudo preserva a comparabilidade onde ela é mais forte e evita conclusões que excedam o alcance real dos dados.
 
-Em síntese, a fundamentação deste trabalho pode ser condensada em uma ideia central.
-O desempenho em preenchimento de lacunas emerge da interação entre método, estrutura local da cena, ruído no contexto observado e custo computacional.
+Em síntese, o desempenho em preenchimento de lacunas emerge da interação entre método, estrutura local da cena, ruído no contexto observado e custo computacional.
 A entropia local torna essa interação mensurável.
 A separação entre métodos clássicos e aprendizado profundo torna sua interpretação mais rigorosa.

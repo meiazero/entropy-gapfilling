@@ -54,7 +54,7 @@ Divisao: 52.842 treino / 10.225 validacao / 14.849 teste.
 │   └── plot_training.py        # Plota curvas de treinamento a partir de arquivos JSON de historico
 ├── docs/
 │   ├── main.tex                # Fonte LaTeX do artigo
-│   ├── figures/                # Figuras copiadas por make paper-assets
+│   ├── figures/                # Figuras finais do artigo em PDF, geradas por make paper-assets
 │   ├── tables/                 # Tabelas copiadas por make paper-assets
 │   └── dist/                   # Saida PDF compilada
 ├── paper_assets/
@@ -185,11 +185,14 @@ make preprocess-all
 # Smoke test rapido: apenas metodos classicos (1 seed, 1 patch)
 make experiment-quick
 
-# Preview completo: classico + todos os 5 modelos DL + figuras unificadas
+# Preview completo: classico + todos os 5 modelos DL + figuras PDF unificadas
 make preview
 
 # Experimento completo do artigo (producao)
 make experiment
+
+# Gerar assets canonicos do paper com figuras somente em PDF
+make paper-assets
 ```
 
 ## Pipeline do Experimento (Metodos Classicos)

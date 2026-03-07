@@ -1,0 +1,38 @@
+\begin{table*}[htbp]
+\centering
+\caption{Placar global multi-métrica dos métodos clássicos por nível de ruído (mediana e IQR). \textbf{Negrito}: melhor por métrica dentro do grupo.}
+\label{tab:global-scoreboard-classical-iqr}
+\footnotesize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{llccccc}
+\toprule
+Tipo & Método & PSNR (dB) $\uparrow$ & SSIM $\uparrow$ & RMSE $\downarrow$ & SAM $\downarrow$ & ERGAS $\downarrow$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Nível de ruído: todos os níveis de ruído}} \\
+Clássico & Ordinary Kriging & $\mathbf{20.902\,(IQR\ 7.495)}$ & $0.569\,(IQR\ 0.234)$ & $\mathbf{0.090\,(IQR\ 0.078)}$ & $\mathbf{6.269\,(IQR\ 4.935)}$ & $\mathbf{31.976\,(IQR\ 28.745)}$ \\
+Clássico & RBF & $20.401\,(IQR\ 7.703)$ & $0.580\,(IQR\ 0.254)$ & $0.095\,(IQR\ 0.085)$ & $7.692\,(IQR\ 6.296)$ & $33.860\,(IQR\ 28.860)$ \\
+Clássico & Thin Plate Spline & $20.401\,(IQR\ 7.703)$ & $0.580\,(IQR\ 0.254)$ & $0.095\,(IQR\ 0.085)$ & $7.692\,(IQR\ 6.296)$ & $33.860\,(IQR\ 28.860)$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Nível de ruído: Sem ruído}} \\
+Clássico & RBF & $\mathbf{21.131\,(IQR\ 8.205)}$ & $\mathbf{0.627\,(IQR\ 0.270)}$ & $\mathbf{0.088\,(IQR\ 0.084)}$ & $5.949\,(IQR\ 5.651)$ & $32.622\,(IQR\ 26.534)$ \\
+Clássico & Thin Plate Spline & $\mathbf{21.131\,(IQR\ 8.205)}$ & $\mathbf{0.627\,(IQR\ 0.270)}$ & $\mathbf{0.088\,(IQR\ 0.084)}$ & $5.949\,(IQR\ 5.651)$ & $32.622\,(IQR\ 26.534)$ \\
+Clássico & Exemplar-Based & $21.080\,(IQR\ 7.632)$ & $0.627\,(IQR\ 0.250)$ & $0.088\,(IQR\ 0.075)$ & $\mathbf{5.738\,(IQR\ 5.047)}$ & $\mathbf{31.037\,(IQR\ 23.193)}$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Nível de ruído: 40 dB}} \\
+Clássico & RBF & $\mathbf{21.177\,(IQR\ 8.105)}$ & $\mathbf{0.625\,(IQR\ 0.253)}$ & $\mathbf{0.087\,(IQR\ 0.084)}$ & $6.286\,(IQR\ 5.495)$ & $32.424\,(IQR\ 25.785)$ \\
+Clássico & Thin Plate Spline & $\mathbf{21.177\,(IQR\ 8.105)}$ & $\mathbf{0.625\,(IQR\ 0.253)}$ & $\mathbf{0.087\,(IQR\ 0.084)}$ & $6.286\,(IQR\ 5.495)$ & $32.424\,(IQR\ 25.785)$ \\
+Clássico & Exemplar-Based & $21.009\,(IQR\ 7.547)$ & $0.622\,(IQR\ 0.242)$ & $0.089\,(IQR\ 0.075)$ & $6.001\,(IQR\ 5.162)$ & $\mathbf{30.897\,(IQR\ 22.921)}$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Nível de ruído: 30 dB}} \\
+Clássico & Ordinary Kriging & $\mathbf{20.951\,(IQR\ 7.453)}$ & $0.574\,(IQR\ 0.218)$ & $\mathbf{0.090\,(IQR\ 0.076)}$ & $6.166\,(IQR\ 4.798)$ & $32.088\,(IQR\ 28.989)$ \\
+Clássico & RBF & $20.797\,(IQR\ 7.398)$ & $0.601\,(IQR\ 0.239)$ & $0.091\,(IQR\ 0.080)$ & $7.416\,(IQR\ 6.083)$ & $33.490\,(IQR\ 27.428)$ \\
+Clássico & Thin Plate Spline & $20.797\,(IQR\ 7.398)$ & $0.601\,(IQR\ 0.239)$ & $0.091\,(IQR\ 0.080)$ & $7.416\,(IQR\ 6.083)$ & $33.490\,(IQR\ 27.428)$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Nível de ruído: 20 dB}} \\
+Clássico & Ordinary Kriging & $\mathbf{20.744\,(IQR\ 6.905)}$ & $\mathbf{0.527\,(IQR\ 0.210)}$ & $\mathbf{0.092\,(IQR\ 0.074)}$ & $\mathbf{6.896\,(IQR\ 5.035)}$ & $\mathbf{33.290\,(IQR\ 26.918)}$ \\
+Clássico & Bilinear & $19.553\,(IQR\ 5.436)$ & $0.482\,(IQR\ 0.199)$ & $0.105\,(IQR\ 0.064)$ & $8.384\,(IQR\ 4.709)$ & $36.554\,(IQR\ 25.194)$ \\
+Clássico & Exemplar-Based & $19.527\,(IQR\ 7.124)$ & $0.517\,(IQR\ 0.183)$ & $0.106\,(IQR\ 0.087)$ & $9.990\,(IQR\ 7.124)$ & $39.521\,(IQR\ 25.400)$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table*}

@@ -12,7 +12,7 @@ import seaborn as sns
 from scipy import stats
 from statsmodels.stats.multitest import multipletests
 
-from ..data_loader import ENTROPY_WINDOWS
+from ..data_loader import ENTROPY_WINDOWS, display_method_name
 from .cli import run_with_df
 from .common import FONT_SIZE, save_figure, style_axes
 
@@ -35,7 +35,7 @@ def _filter_classical_rows(df: pd.DataFrame) -> pd.DataFrame:
 
 def _build_column_labels(metrics: list[str]) -> list[str]:
     return [
-        f"e{window}x{metric.upper()}"
+        f"{window}x{window}\n{metric.upper()}"
         for window in ENTROPY_WINDOWS
         for metric in metrics
     ]
@@ -133,6 +133,9 @@ def fig_classical_correlation_heatmap(
         vmax=1,
         linewidths=0.5,
     )
+    ax.set_yticklabels([
+        display_method_name(label.get_text()) for label in ax.get_yticklabels()
+    ])
     style_axes(
         ax,
         xlabel="Janela de entropia x métrica",

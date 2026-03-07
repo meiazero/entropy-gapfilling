@@ -1,21 +1,23 @@
 \section{Discussão}
 \label{sec:discussion}
 
+Esta seção interpreta os resultados à luz das restrições operacionais e das escolhas metodológicas do estudo, enfatizando implicações práticas e limites de generalização.
+
 Os resultados apresentados ao longo do artigo indicam que o preenchimento de lacunas em imagens de satélite deve ser tratado como um problema multicritério e dependente do contexto.
 Essa afirmação pode parecer intuitiva, mas as evidências reunidas aqui permitem detalhá-la com maior precisão.
 O comportamento dos métodos não depende apenas de sua formulação matemática ou de sua capacidade média de reduzir erro.
 Ele depende também da estrutura espacial da cena, do nível de ruído no entorno observado e do custo computacional admissível para a aplicação final.
 
 No bloco dos métodos clássicos, a principal implicação prática é que qualidade alta pode vir acompanhada de custo operacional elevado demais para determinadas aplicações.
-Kriging, RBF e spline aparecem repetidamente entre os métodos de melhor qualidade, mas não ocupam a mesma posição quando o tempo de inferência entra explicitamente na análise.
+Ordinary Kriging, RBF e Thin Plate Spline aparecem repetidamente entre os métodos de melhor qualidade, mas não ocupam a mesma posição quando o tempo de inferência entra explicitamente na análise.
 Esse resultado relativiza leituras puramente quantitativas baseadas em PSNR ou SSIM.
 Em sistemas de produção, processamento em lote ou cenários de resposta rápida, a melhor técnica pode não ser aquela com maior qualidade média, e sim aquela que mantém desempenho competitivo sem comprometer a viabilidade computacional.
 
-Esse ponto ajuda a explicar por que exemplar\_based surge como método particularmente interessante no bloco clássico.
+Esse ponto ajuda a explicar por que Exemplar-Based surge como método particularmente interessante no bloco clássico.
 Ele não domina todo o placar, mas se mantém próximo dos melhores em qualidade sem atingir o custo extremo de kriging ou spline.
 Isso o posiciona como solução intermediária robusta em cenários nos quais a qualidade precisa ser alta, mas o custo não pode crescer sem controle.
 Ao mesmo tempo, o artigo mostra que essa atratividade depende da cena.
-Quando a lacuna ocorre em áreas cuja autossimilaridade é baixa, o ganho do método tende a diminuir.
+Quando a lacuna ocorre em áreas cuja autossimilaridade é baixa, o ganho desse método tende a diminuir.
 
 Outro resultado relevante é a ausência de uma relação simples e universal entre entropia local e dificuldade de reconstrução no bloco clássico.
 As análises por correlação, degradação percentual e inclinação das curvas de PSNR mostram que a entropia afeta os métodos de forma heterogênea.

@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
-from ..data_loader import select_top_n
+from ..data_loader import display_method_name, select_top_n
 from ..tables.common import bootstrap_ci_half
 from .common import FONT_SIZE, save_figure, style_axes
 
@@ -58,10 +58,10 @@ def _build_plot_rows(
 def fig_classical_spectral_profile(df: pd.DataFrame, output_dir: Path) -> None:
     """Dot plot of per-band RMSE for the top classical methods."""
     bands = [
-        ("rmse_b0", "B0"),
-        ("rmse_b1", "B1"),
-        ("rmse_b2", "B2"),
-        ("rmse_b3", "B3"),
+        ("rmse_b0", "B2 (Blue)"),
+        ("rmse_b1", "B3 (Green)"),
+        ("rmse_b2", "B4 (Red)"),
+        ("rmse_b3", "B8 (NIR)"),
     ]
     if not all(col in df.columns for col, _ in bands):
         log.warning("Missing band columns for classical spectral profile")
@@ -111,7 +111,7 @@ def fig_classical_spectral_profile(df: pd.DataFrame, output_dir: Path) -> None:
             )
 
     ax.set_yticks(range(len(method_order)))
-    ax.set_yticklabels(method_order)
+    ax.set_yticklabels([display_method_name(method) for method in method_order])
     handles = [
         plt.Line2D([0], [0], marker="o", color=color, linestyle="")
         for color in palette

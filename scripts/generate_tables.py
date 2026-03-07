@@ -77,7 +77,7 @@ def main(argv: list[str] | None = None) -> None:
 
     df = load_combined()
     if df.empty:
-        log.error("No data loaded. Check paper_assets/ paths.")
+        log.error("No data loaded. Check current results inputs.")
         return
 
     output_dir = args.output or Path("docs/tables")

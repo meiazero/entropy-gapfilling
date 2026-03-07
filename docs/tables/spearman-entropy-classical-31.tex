@@ -1,0 +1,37 @@
+\begin{table}[htbp]
+\centering
+\caption{Correlação de Spearman entre entropia (31x31) e métricas de qualidade para os métodos clássicos (FDR).}
+\label{tab:spearman-entropy-classical-e31}
+\footnotesize
+\begin{threeparttable}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lcccc}
+\toprule
+Método & $\rho$({\scriptsize PSNR}) & $\rho$({\scriptsize SSIM}) & $\rho$({\scriptsize SAM}) & $\rho$({\scriptsize ERGAS}) \\
+\midrule
+Bicubic & $\approx 0$ & $-0.201^{\ddagger}$ & $\approx 0$ & $-0.111^{*}$ \\
+Bilinear & $\approx 0$ & $-0.208^{\ddagger}$ & $-0.158^{\ddagger}$ & $-0.208^{\ddagger}$ \\
+DCT-ISTA & $0.125^{\dagger}$ & $-0.103^{*}$ & $-0.325^{\ddagger}$ & $-0.378^{\ddagger}$ \\
+Exemplar-Based & $\approx 0$ & $-0.202^{\ddagger}$ & $-0.101^{*}$ & $-0.112^{*}$ \\
+IDW & $0.126^{\dagger}$ & $\approx 0$ & $-0.308^{\ddagger}$ & $-0.366^{\ddagger}$ \\
+Ordinary Kriging & $\approx 0$ & $-0.163^{\ddagger}$ & $-0.201^{\ddagger}$ & $-0.233^{\ddagger}$ \\
+L1-DCT (CS) & $0.125^{\dagger}$ & $-0.102^{*}$ & $-0.325^{\ddagger}$ & $-0.378^{\ddagger}$ \\
+L1-Wavelet (CS) & $-0.232^{\ddagger}$ & $-0.249^{\ddagger}$ & $-0.298^{\ddagger}$ & $-0.236^{\ddagger}$ \\
+Lanczos (PG) & $\approx 0$ & $-0.209^{\ddagger}$ & $-0.173^{\ddagger}$ & $-0.214^{\ddagger}$ \\
+Nearest Neighbor & $\approx 0$ & $-0.236^{\ddagger}$ & $-0.145^{\dagger}$ & $-0.185^{\ddagger}$ \\
+Non-Local Means & $0.157^{\dagger}$ & $0.106^{*}$ & $-0.353^{\ddagger}$ & $-0.378^{\ddagger}$ \\
+RBF & $\approx 0$ & $-0.203^{\ddagger}$ & $-0.119^{*}$ & $-0.120^{*}$ \\
+Thin Plate Spline & $\approx 0$ & $-0.203^{\ddagger}$ & $-0.119^{*}$ & $-0.120^{*}$ \\
+Total Variation & $0.102^{*}$ & $\approx 0$ & $-0.316^{\ddagger}$ & $-0.343^{\ddagger}$ \\
+Wavelet-ISTA & $0.112^{*}$ & $\approx 0$ & $-0.295^{\ddagger}$ & $-0.344^{\ddagger}$ \\
+\bottomrule
+\end{tabular}
+}
+\begin{tablenotes}
+\scriptsize
+\item $^{*}$ $p_{FDR}<0{,}05$.
+\item $^{\dagger}$ $p_{FDR}<0{,}01$.
+\item $^{\ddagger}$ $p_{FDR}<0{,}001$.
+\end{tablenotes}
+\end{threeparttable}
+\end{table}

@@ -8,38 +8,40 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from ..data_loader import load_all_dl_histories
+from ..data_loader import display_method_name, load_combined
 from .cli import run_no_df
 from .common import FONT_SIZE, save_figure, style_axes
 
 
-def _select_best_epoch(hist: dict) -> dict:
-    epochs = hist.get("epochs", [])
-    if not epochs:
-        return {}
-    valid_loss = [e for e in epochs if e.get("val_loss") is not None]
-    if valid_loss:
-        return min(valid_loss, key=lambda e: e.get("val_loss"))
-    valid_psnr = [e for e in epochs if e.get("val_psnr") is not None]
-    if valid_psnr:
-        return max(valid_psnr, key=lambda e: e.get("val_psnr"))
-    return epochs[-1]
-
-
 def _build_dl_comparison_frame(
-    models: dict[str, dict[str, list[dict[str, float | None]]]],
+    df: pd.DataFrame,
     metric_keys: list[tuple[str, str, bool]],
 ) -> tuple[pd.DataFrame, list[str]]:
-    model_labels: list[str] = []
+    grouped = df.groupby("method", observed=True)
     rows: list[dict[str, float | None]] = []
-    for model, hist in models.items():
-        best = _select_best_epoch(hist)
-        if not best:
-            continue
-        row = {label: best.get(key) for key, label, _ in metric_keys}
+    model_labels: list[str] = []
+    ranking: list[tuple[str, float]] = []
+
+    for method, method_df in grouped:
+        row = {
+            label: float(method_df[key].median())
+            if key in method_df.columns
+            else np.nan
+            for key, label, _ in metric_keys
+        }
         rows.append(row)
-        model_labels.append(model.upper())
-    return pd.DataFrame(rows, index=model_labels), model_labels
+        model_labels.append(method)
+        ranking.append((method, row.get("PSNR", float("nan"))))
+
+    ordered_methods = [
+        method
+        for method, _ in sorted(ranking, key=lambda item: item[1], reverse=True)
+    ]
+    raw_df = pd.DataFrame(rows, index=model_labels)
+    raw_df = raw_df.loc[ordered_methods]
+    display_labels = [display_method_name(method) for method in raw_df.index]
+    raw_df.index = display_labels
+    return raw_df, display_labels
 
 
 def _normalize_dl_metrics(
@@ -119,7 +121,7 @@ def _render_dl_comparison_heatmap(
     plt.colorbar(im, ax=ax, fraction=0.03, pad=0.03, label="Pontuação norm.")
     style_axes(
         ax,
-        xlabel="Métrica de validação",
+        xlabel="Métrica de teste",
         ylabel="Arquitetura",
         grid=False,
     )
@@ -128,32 +130,31 @@ def _render_dl_comparison_heatmap(
 
 
 def fig_dl_comparison(output_dir: Path) -> None:
-    """Heatmap comparing DL models in the main entropy scenario."""
-    histories = load_all_dl_histories()
+    """Heatmap comparing DL models using evaluation medians."""
+    df = load_combined()
+    if df.empty or "type" not in df.columns:
+        return
+
+    df = df[df["type"] == "DL"].copy()
+    if df.empty:
+        return
+    if "entropy_scenario" in df.columns and "entropy_all" in set(
+        df["entropy_scenario"]
+    ):
+        df = df[df["entropy_scenario"] == "entropy_all"]
+    if df.empty:
+        return
 
     metric_keys = [
-        ("val_psnr", "PSNR", True),
-        ("val_ssim", "SSIM", True),
-        ("val_rmse", "RMSE", False),
-        ("val_sam", "SAM", False),
-        ("val_ergas", "ERGAS", False),
-        ("val_f1_002", "F1@0.02", True),
-        ("val_f1_005", "F1@0.05", True),
-        ("val_f1_01", "F1@0.10", True),
+        ("psnr", "PSNR", True),
+        ("ssim", "SSIM", True),
+        ("rmse", "RMSE", False),
+        ("sam", "SAM", False),
+        ("ergas", "ERGAS", False),
     ]
 
-    scenario = (
-        "entropy_all"
-        if "entropy_all" in histories
-        else next(iter(histories), None)
-    )
-    if scenario is None:
-        return
-    models = histories.get(scenario, {})
-    if not models:
-        return
-
-    raw_df, model_labels = _build_dl_comparison_frame(models, metric_keys)
+    scenario = "entropy_all"
+    raw_df, model_labels = _build_dl_comparison_frame(df, metric_keys)
     col_labels = [label for _, label, _ in metric_keys]
     higher_better = {label: higher for _, label, higher in metric_keys}
     normed = _normalize_dl_metrics(raw_df, higher_better)
@@ -166,9 +167,6 @@ def fig_dl_comparison(output_dir: Path) -> None:
         output_dir,
     )
 
-    source = output_dir / f"dl_comparison_{scenario}.png"
-    if source.exists():
-        source.replace(output_dir / "fig_dl_comparison.png")
     source_pdf = output_dir / f"dl_comparison_{scenario}.pdf"
     if source_pdf.exists():
         source_pdf.replace(output_dir / "fig_dl_comparison.pdf")

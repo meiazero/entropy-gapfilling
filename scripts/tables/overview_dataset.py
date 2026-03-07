@@ -78,9 +78,10 @@ def table_overview_dataset(_df: object, output_dir: Path) -> None:
             " & ".join([
                 tex_escape(_SENSOR_LABELS.get(sensor, sensor)),
                 meta.get("resolution", "--"),
-                _format_int(total),
-                _format_int(test),
+                _format_int(train),
                 _format_int(val),
+                _format_int(test),
+                _format_int(total),
             ])
             + r" \\"
         )
@@ -89,9 +90,10 @@ def table_overview_dataset(_df: object, output_dir: Path) -> None:
         " & ".join([
             bold("Total"),
             "--",
-            bold(_format_int(totals["total"])),
-            bold(_format_int(totals["test"])),
+            bold(_format_int(totals["train"])),
             bold(_format_int(totals["val"])),
+            bold(_format_int(totals["test"])),
+            bold(_format_int(totals["total"])),
         ])
         + r" \\"
     )
@@ -103,13 +105,14 @@ def table_overview_dataset(_df: object, output_dir: Path) -> None:
         r" Todos os patches são de $64 \times 64$ pixels com 4 bandas "
         r"espectrais (vermelha, azul, verde e IR).",
         r" Divisão dos dados: 80\% treino, 10\% validação e 10\% teste.}",
-        r"\resizebox{\linewidth}{!}{%",
         r" \label{tab:dataset-stats}",
-        r" \begin{tabular}{lrrrr}",
+        r"\resizebox{\linewidth}{!}{%",
+        r" \begin{tabular}{lrrrrr}",
         r" \toprule",
         (
             r" Sensor & Resolução & \#Patches (Treino) & "
-            r"\#Patches (Teste) & \#Patches (Validação)\\"
+            r"\#Patches (Validação) & \#Patches (Teste) & "
+            r"\#Patches (Total)\\"
         ),
         r" \midrule",
         *rows,

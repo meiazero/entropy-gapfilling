@@ -34,15 +34,13 @@ _PUB_FONT = {
 
 @dataclass
 class FigureSettings:
-    png_only: bool = False
     bootstrap_samples: int = 500
 
 
 SETTINGS = FigureSettings()
 
 
-def configure_settings(*, png_only: bool, bootstrap_samples: int) -> None:
-    SETTINGS.png_only = png_only
+def configure_settings(*, bootstrap_samples: int) -> None:
     SETTINGS.bootstrap_samples = bootstrap_samples
 
 
@@ -81,7 +79,5 @@ def style_axes(
 
 
 def save_figure(fig: plt.Figure, output_dir: Path, name: str) -> None:
-    fig.savefig(output_dir / f"{name}.png", dpi=DPI, bbox_inches="tight")
-    if not SETTINGS.png_only:
-        fig.savefig(output_dir / f"{name}.pdf", bbox_inches="tight")
+    fig.savefig(output_dir / f"{name}.pdf", bbox_inches="tight")
     log.info("Saved %s", name)

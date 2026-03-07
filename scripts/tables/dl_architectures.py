@@ -9,37 +9,42 @@ import pandas as pd
 from .cli import run_table
 from .common import write_tex
 
-_ARCH_TABLE_ROWS: list[tuple[str, str, str, str]] = [
+_ARCH_TABLE_ROWS: list[tuple[str, str, str, str, str]] = [
     (
-        "AE",
+        "Autoencoder (AE)",
         r"$512{\times}1{\times}1$ vector",
         r"MSE$_{\mathcal{G}}$",
         "--",
+        "Adam",
     ),
     (
-        "VAE",
+        "Variational Autoencoder (VAE)",
         r"$\boldsymbol{\mu},\log\boldsymbol{\sigma}^2 \!\in\! "
         r"\mathbb{R}^{256}$",
         r"MSE$_{\mathcal{G}}$+$\beta$KL",
         "--",
+        "Adam",
     ),
     (
-        "GAN",
+        "Generative Adversarial Network (GAN)",
         r"Dilated conv (2,\,4)",
         r"${\ell_1}^{\mathcal{G}}$+BCE$_{\mathrm{adv}}$",
         r"\checkmark",
+        r"Adam $(\beta_1{=}0.5,\beta_2{=}0.999)$",
     ),
     (
         "U-Net",
         r"$1024{\times}4{\times}4$ ResBlock",
         r"MSE$_{\mathcal{G}}$",
         r"\checkmark",
+        "AdamW",
     ),
     (
-        "ViT",
+        "Vision Transformer (ViT)",
         r"4$\times$ Transformer ($d$=256)",
         r"MSE$_{\mathcal{G}}$",
         "--",
+        "AdamW",
     ),
 ]
 
@@ -51,8 +56,8 @@ def table_dl_architectures(df: pd.DataFrame, output_dir: Path) -> None:
         return
 
     body = [
-        " " + " & ".join([model, bottleneck, loss, skip]) + r" \\"
-        for model, bottleneck, loss, skip in _ARCH_TABLE_ROWS
+        " " + " & ".join([model, bottleneck, loss, skip, optimizer]) + r" \\"
+        for model, bottleneck, loss, skip, optimizer in _ARCH_TABLE_ROWS
     ]
 
     lines = [
@@ -61,15 +66,17 @@ def table_dl_architectures(df: pd.DataFrame, output_dir: Path) -> None:
         r" \footnotesize",
         r" \caption{Resumo das arquiteturas de \gls{DL}. Entrada:",
         r" $[\mathbf{x};\, \mathbf{z}] \in \mathbb{R}^{5 \times 64 \times 64}$;",  # noqa: E501
-        r" Saida: $\hat{\mathbf{y}} \in [0,1]^{4 \times 64 \times 64}$.}",
+        r" Saída: $\hat{\mathbf{y}} \in [0,1]^{4 \times 64 \times 64}$.}",
         r" \label{tab:dl-architectures}",
-        r" \begin{tabular}{lllc}",
+        r" \resizebox{\columnwidth}{!}{%",
+        r" \begin{tabular}{llllc}",
         r" \toprule",
-        r" Modelo & \emph{Bottleneck} / \emph{Core} & Função de Perda & \emph{Skip} \\",  # noqa: E501
+        r" Modelo & \emph{Bottleneck} / \emph{Core} & Função de Perda & \emph{Skip} & Otimizador \\",  # noqa: E501
         r" \midrule",
         *body,
         r" \bottomrule",
         r" \end{tabular}",
+        r" }",
         r"\end{table}",
         "",
     ]

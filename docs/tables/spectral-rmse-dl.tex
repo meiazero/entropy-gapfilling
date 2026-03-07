@@ -6,27 +6,27 @@
 \resizebox{\linewidth}{!}{%
 \begin{tabular}{llcccc}
 \toprule
-Tipo & Método & B0 (Azul) $\downarrow$ & B1 (Verde) $\downarrow$ & B2 (Vermelho) $\downarrow$ & B3 (NIR) $\downarrow$ \\
+Tipo & Método & B2 (Blue) $\downarrow$ & B3 (Green) $\downarrow$ & B4 (Red) $\downarrow$ & B8 (NIR) $\downarrow$ \\
 \midrule
 \multicolumn{6}{l}{\textbf{Nível de ruído: Sem ruído}} \\
-DL & unet & $\mathbf{0.057_{\pm 0.002}}$ & $\mathbf{0.058_{\pm 0.001}}$ & $\mathbf{0.067_{\pm 0.001}}$ & $\mathbf{0.057_{\pm 0.001}}$ \\
-DL & gan & \underline{$0.063_{\pm 0.002}$} & \underline{$0.064_{\pm 0.001}$} & \textit{$0.075_{\pm 0.001}$} & \underline{$0.064_{\pm 0.001}$} \\
-DL & vit & \textit{$0.063_{\pm 0.002}$} & \textit{$0.065_{\pm 0.001}$} & \underline{$0.075_{\pm 0.001}$} & \textit{$0.066_{\pm 0.001}$} \\
+DL & U-Net & $\mathbf{0.057_{\pm 0.002}}$ & $\mathbf{0.058_{\pm 0.001}}$ & $\mathbf{0.067_{\pm 0.001}}$ & $\mathbf{0.057_{\pm 0.001}}$ \\
+DL & GAN & \underline{$0.063_{\pm 0.002}$} & \underline{$0.064_{\pm 0.001}$} & \textit{$0.075_{\pm 0.001}$} & \underline{$0.064_{\pm 0.001}$} \\
+DL & ViT & \textit{$0.063_{\pm 0.002}$} & \textit{$0.065_{\pm 0.001}$} & \underline{$0.075_{\pm 0.001}$} & \textit{$0.066_{\pm 0.001}$} \\
 \midrule
 \multicolumn{6}{l}{\textbf{Nível de ruído: 40 dB}} \\
-DL & unet & $\mathbf{0.057_{\pm 0.002}}$ & $\mathbf{0.058_{\pm 0.001}}$ & $\mathbf{0.067_{\pm 0.001}}$ & $\mathbf{0.057_{\pm 0.001}}$ \\
-DL & gan & \underline{$0.063_{\pm 0.002}$} & \underline{$0.065_{\pm 0.001}$} & \textit{$0.075_{\pm 0.001}$} & \underline{$0.064_{\pm 0.001}$} \\
-DL & vit & \textit{$0.063_{\pm 0.002}$} & \textit{$0.065_{\pm 0.001}$} & \underline{$0.075_{\pm 0.001}$} & \textit{$0.066_{\pm 0.001}$} \\
+DL & U-Net & $\mathbf{0.057_{\pm 0.002}}$ & $\mathbf{0.058_{\pm 0.001}}$ & $\mathbf{0.067_{\pm 0.001}}$ & $\mathbf{0.057_{\pm 0.001}}$ \\
+DL & GAN & \underline{$0.063_{\pm 0.002}$} & \underline{$0.065_{\pm 0.001}$} & \textit{$0.075_{\pm 0.001}$} & \underline{$0.064_{\pm 0.001}$} \\
+DL & ViT & \textit{$0.063_{\pm 0.002}$} & \textit{$0.065_{\pm 0.001}$} & \underline{$0.075_{\pm 0.001}$} & \textit{$0.066_{\pm 0.001}$} \\
 \midrule
 \multicolumn{6}{l}{\textbf{Nível de ruído: 30 dB}} \\
-DL & unet & $\mathbf{0.058_{\pm 0.002}}$ & $\mathbf{0.059_{\pm 0.001}}$ & $\mathbf{0.068_{\pm 0.001}}$ & $\mathbf{0.058_{\pm 0.001}}$ \\
-DL & gan & \underline{$0.064_{\pm 0.002}$} & \underline{$0.065_{\pm 0.001}$} & \underline{$0.076_{\pm 0.001}$} & \underline{$0.064_{\pm 0.001}$} \\
-DL & vit & \textit{$0.064_{\pm 0.002}$} & \textit{$0.065_{\pm 0.001}$} & \textit{$0.076_{\pm 0.001}$} & \textit{$0.066_{\pm 0.001}$} \\
+DL & U-Net & $\mathbf{0.058_{\pm 0.002}}$ & $\mathbf{0.059_{\pm 0.001}}$ & $\mathbf{0.068_{\pm 0.001}}$ & $\mathbf{0.058_{\pm 0.001}}$ \\
+DL & GAN & \underline{$0.064_{\pm 0.002}$} & \underline{$0.065_{\pm 0.001}$} & \underline{$0.076_{\pm 0.001}$} & \underline{$0.064_{\pm 0.001}$} \\
+DL & ViT & \textit{$0.064_{\pm 0.002}$} & \textit{$0.065_{\pm 0.001}$} & \textit{$0.076_{\pm 0.001}$} & \textit{$0.066_{\pm 0.001}$} \\
 \midrule
 \multicolumn{6}{l}{\textbf{Nível de ruído: 20 dB}} \\
-DL & unet & $\mathbf{0.064_{\pm 0.002}}$ & $\mathbf{0.065_{\pm 0.001}}$ & $\mathbf{0.074_{\pm 0.001}}$ & $\mathbf{0.064_{\pm 0.001}}$ \\
-DL & vit & \underline{$0.065_{\pm 0.002}$} & \textit{$0.067_{\pm 0.001}$} & \underline{$0.077_{\pm 0.001}$} & \textit{$0.067_{\pm 0.001}$} \\
-DL & gan & \textit{$0.066_{\pm 0.002}$} & \underline{$0.067_{\pm 0.001}$} & \textit{$0.077_{\pm 0.001}$} & \underline{$0.066_{\pm 0.001}$} \\
+DL & U-Net & $\mathbf{0.064_{\pm 0.002}}$ & $\mathbf{0.065_{\pm 0.001}}$ & $\mathbf{0.074_{\pm 0.001}}$ & $\mathbf{0.064_{\pm 0.001}}$ \\
+DL & ViT & \underline{$0.065_{\pm 0.002}$} & \textit{$0.067_{\pm 0.001}$} & \underline{$0.077_{\pm 0.001}$} & \textit{$0.067_{\pm 0.001}$} \\
+DL & GAN & \textit{$0.066_{\pm 0.002}$} & \underline{$0.067_{\pm 0.001}$} & \textit{$0.077_{\pm 0.001}$} & \underline{$0.066_{\pm 0.001}$} \\
 \bottomrule
 \end{tabular}
 }

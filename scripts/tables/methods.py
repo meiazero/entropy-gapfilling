@@ -11,32 +11,13 @@ import pandas as pd
 from pdi_pipeline.config import MethodConfig, load_config
 from pdi_pipeline.methods.registry import list_aliases
 
-from ..data_loader import CATEGORY_LABELS
+from ..data_loader import CATEGORY_LABELS, METHOD_LABELS
 from .cli import run_table
 from .common import tex_escape, write_tex
 
 _DEFAULT_CONFIG = Path("config/paper_results.yaml")
 _CONFIG_ENV_VARS = ("PDI_METHODS_CONFIG", "PDI_EXPERIMENT_CONFIG")
 _RESULTS_ENV_VAR = "PDI_RESULTS_DIR"
-
-_METHOD_LABELS: dict[str, str] = {
-    "nearest": "Nearest Neighbor",
-    "bilinear": "Bilinear",
-    "bicubic": "Bicubic",
-    "lanczos": "Lanczos (PG)",
-    "idw": "IDW",
-    "rbf": "RBF",
-    "spline": "Thin Plate Spline",
-    "kriging": "Ordinary Kriging",
-    "dct": "DCT",
-    "wavelet": "Wavelet",
-    "tv": "Total Variation",
-    "cs_dct": "L1-DCT (CS)",
-    "cs_wavelet": "L1-Wavelet (CS)",
-    "non_local": "Non-Local Means",
-    "exemplar": "Exemplar-Based",
-}
-
 
 _PARAM_SYMBOLS: dict[str, str] = {
     "lam": r"\lambda",
@@ -150,7 +131,7 @@ def table_methods(df: pd.DataFrame, output_dir: Path) -> None:
             continue
         for idx, method in enumerate(methods):
             canonical = _resolve_canonical(method.name, aliases)
-            label = tex_escape(_METHOD_LABELS.get(canonical, canonical))
+            label = tex_escape(METHOD_LABELS.get(canonical, canonical))
             params = _format_params(canonical, method.params)
             category_label = CATEGORY_LABELS[category] if idx == 0 else ""
             category_label = (

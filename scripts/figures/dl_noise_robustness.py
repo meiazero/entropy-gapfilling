@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
-from ..data_loader import load_combined
+from ..data_loader import display_method_name, load_combined, noise_label
 from .common import FONT_SIZE, save_figure, style_axes
 
 
@@ -32,7 +32,7 @@ def fig_dl_noise_robustness(output_dir: Path) -> None:
         .median()
         .sort_values(ascending=False)
     )
-    methods = ranked.head(4).index.tolist()
+    methods = ranked.index.tolist()
     plot_df = (
         dl[dl["method"].isin(methods)]
         .groupby(["method", "noise_level"], observed=True)["psnr"]
@@ -68,11 +68,11 @@ def fig_dl_noise_robustness(output_dir: Path) -> None:
             linewidth=1.6,
             markersize=4,
             color=palette[index],
-            label=method.upper(),
+            label=display_method_name(method),
         )
 
     ax.set_xticks(list(noise_positions.values()))
-    ax.set_xticklabels(noise_order)
+    ax.set_xticklabels([noise_label(noise) for noise in noise_order])
     style_axes(
         ax,
         xlabel="Ruído (dB)",

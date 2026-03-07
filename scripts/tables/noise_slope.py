@@ -7,7 +7,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from ..data_loader import ENTROPY_WINDOWS, entropy_terciles, select_top_n
+from ..data_loader import (
+    ENTROPY_WINDOWS,
+    display_method_name,
+    entropy_terciles,
+    select_top_n,
+)
 from .cli import run_table
 from .common import bootstrap_ci_half, iqr, tex_escape, wrap_table, write_tex
 
@@ -84,7 +89,7 @@ def _build_noise_slope_body(
 ) -> list[str]:
     body: list[str] = []
     for method in methods:
-        cells = [tex_escape(method)]
+        cells = [tex_escape(display_method_name(method))]
         for ebin in entropy_bins:
             mdf = df_binned[
                 (df_binned["method"] == method)

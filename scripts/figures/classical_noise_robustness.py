@@ -9,7 +9,12 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
-from ..data_loader import entropy_terciles, select_top_n
+from ..data_loader import (
+    display_method_name,
+    entropy_terciles,
+    noise_label,
+    select_top_n,
+)
 from .common import FONT_SIZE, save_figure, style_axes
 
 log = logging.getLogger(__name__)
@@ -54,11 +59,11 @@ def _plot_entropy_bin(
             linewidth=1.4,
             markersize=4,
             color=palette[index],
-            label=method,
+            label=display_method_name(method),
         )
 
     axis.set_xticks(list(noise_positions.values()))
-    axis.set_xticklabels(noise_order)
+    axis.set_xticklabels([noise_label(noise) for noise in noise_order])
     style_axes(
         axis,
         xlabel="Ruído (dB)",

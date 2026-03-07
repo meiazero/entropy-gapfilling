@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from ..data_loader import display_method_name
 from .cli import run_with_df
 from .common import FONT_SIZE, save_figure, style_axes
 
@@ -79,7 +80,7 @@ def _plot_pareto(
         )
         for _, row in sub.iterrows():
             ax.annotate(
-                row["method"],
+                display_method_name(str(row["method"])),
                 (row["time_med"], row["psnr_med"]),
                 fontsize=FONT_SIZE - 2,
                 ha="left",

@@ -9,7 +9,7 @@ import pandas as pd
 from scipy import stats
 from statsmodels.stats.multitest import multipletests
 
-from ..data_loader import ENTROPY_WINDOWS
+from ..data_loader import ENTROPY_WINDOWS, display_method_name
 from .cli import run_table
 from .common import stars, tex_escape, wrap_table, write_tex
 
@@ -55,7 +55,7 @@ def _build_spearman_body(
 ) -> list[str]:
     body: list[str] = []
     for method in methods:
-        cells = [tex_escape(method)]
+        cells = [tex_escape(display_method_name(method))]
         for mcol in metric_cols:
             rec = next(r for r in rows if r[0] == method and r[1] == mcol)
             rho = rec[2]

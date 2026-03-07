@@ -1,0 +1,28 @@
+\begin{table}[htbp]
+\centering
+\caption{Queda percentual no PSNR (mediana, IQR) (sem ruído → 20 dB) para os métodos clássicos, estratificada por faixa de entropia e janela de cálculo.}
+\label{tab:degradation-psnr-classical-iqr}
+\footnotesize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lccc}
+\toprule
+Método & Baixa & Média & Alta \\
+\midrule
+\multicolumn{4}{l}{\textbf{Janela de entropia: 7x7}} \\
+Exemplar-Based & $4.1\%\,(IQR\ 6.251)$ & $10.8\%\,(IQR\ 9.812)$ & $6.2\%\,(IQR\ 5.407)$ \\
+RBF & $5.8\%\,(IQR\ 6.505)$ & $14.2\%\,(IQR\ 10.714)$ & $8.0\%\,(IQR\ 8.100)$ \\
+Thin Plate Spline & $5.8\%\,(IQR\ 6.505)$ & $14.2\%\,(IQR\ 10.714)$ & $8.0\%\,(IQR\ 8.100)$ \\
+\midrule
+\multicolumn{4}{l}{\textbf{Janela de entropia: 15x15}} \\
+Exemplar-Based & $2.7\%\,(IQR\ 5.849)$ & $8.2\%\,(IQR\ 8.965)$ & $8.3\%\,(IQR\ 7.773)$ \\
+RBF & $6.1\%\,(IQR\ 6.661)$ & $10.7\%\,(IQR\ 11.779)$ & $8.6\%\,(IQR\ 9.991)$ \\
+Thin Plate Spline & $6.1\%\,(IQR\ 6.661)$ & $10.7\%\,(IQR\ 11.779)$ & $8.6\%\,(IQR\ 9.991)$ \\
+\midrule
+\multicolumn{4}{l}{\textbf{Janela de entropia: 31x31}} \\
+Exemplar-Based & $7.5\%\,(IQR\ 7.130)$ & $4.2\%\,(IQR\ 6.948)$ & $10.6\%\,(IQR\ 9.243)$ \\
+RBF & $9.9\%\,(IQR\ 8.098)$ & $7.1\%\,(IQR\ 9.000)$ & $12.1\%\,(IQR\ 12.734)$ \\
+Thin Plate Spline & $9.9\%\,(IQR\ 8.098)$ & $7.1\%\,(IQR\ 9.000)$ & $12.1\%\,(IQR\ 12.734)$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table}

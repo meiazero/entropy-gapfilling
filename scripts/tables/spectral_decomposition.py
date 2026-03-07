@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from ..data_loader import NOISE_ORDER, noise_label
+from ..data_loader import NOISE_ORDER, display_method_name, noise_label
 from .cli import run_table
 from .common import (
     bootstrap_ci_half,
@@ -87,7 +87,7 @@ def _format_spectral_body(
         row_map = row._asdict()
         cells = [
             str(row_map.get("type", "")),
-            tex_escape(str(row_map["method"])),
+            tex_escape(display_method_name(str(row_map["method"]))),
         ]
         for band in bands:
             med_val = row_map.get(f"{band}_median", np.nan)
@@ -238,7 +238,7 @@ def _write_type_table(
 def table_spectral_decomposition(df: pd.DataFrame, output_dir: Path) -> None:
     """RMSE per spectral band for each method."""
     bands = ["rmse_b0", "rmse_b1", "rmse_b2", "rmse_b3"]
-    band_labels = ["B0 (Azul)", "B1 (Verde)", "B2 (Vermelho)", "B3 (NIR)"]
+    band_labels = ["B2 (Blue)", "B3 (Green)", "B4 (Red)", "B8 (NIR)"]
     for method_type in ["Clássico", "DL"]:
         _write_type_table(
             df,

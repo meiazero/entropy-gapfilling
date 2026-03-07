@@ -7,7 +7,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from ..data_loader import ENTROPY_WINDOWS, entropy_terciles, select_top_n
+from ..data_loader import (
+    ENTROPY_WINDOWS,
+    display_method_name,
+    entropy_terciles,
+    select_top_n,
+)
 from .cli import run_table
 from .common import bootstrap_ci_half, iqr, tex_escape, wrap_table, write_tex
 
@@ -70,8 +75,9 @@ def _build_degradation_rows(
     body: list[str] = []
     body_iqr: list[str] = []
     for method in methods:
-        cells = [tex_escape(method)]
-        cells_iqr = [tex_escape(method)]
+        method_label = tex_escape(display_method_name(method))
+        cells = [method_label]
+        cells_iqr = [method_label]
         for ebin in entropy_bins:
             mdf = df_binned[
                 (df_binned["method"] == method)

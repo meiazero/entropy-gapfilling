@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from ..data_loader import display_method_name
 from .cli import run_table
 from .common import ranked_plain, tex_escape, wrap_table, write_tex
 
@@ -69,7 +70,7 @@ def table_speed_summary(df: pd.DataFrame, output_dir: Path) -> None:
                 row["efficiency"], int(row["eff_rank"]), ".1f"
             )
             body.append(
-                f"{row['type']} & {tex_escape(str(row['method']))} & "
+                f"{row['type']} & {tex_escape(display_method_name(str(row['method'])))} & "  # noqa: E501
                 f"{psnr_cell} & {time_str} & {eff_cell} \\\\"
             )
 

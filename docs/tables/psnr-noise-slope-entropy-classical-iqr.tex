@@ -1,0 +1,28 @@
+\begin{table}[htbp]
+\centering
+\caption{Inclinação do PSNR vs ruído (20/30/40 dB, mediana, IQR) para os métodos clássicos, estratificada por faixa de entropia e janela de cálculo.}
+\label{tab:noise-slope-psnr-classical-iqr}
+\footnotesize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lccc}
+\toprule
+Método & Baixa & Média & Alta \\
+\midrule
+\multicolumn{4}{l}{\textbf{Janela de entropia: 7x7}} \\
+Exemplar-Based & $0.040\,(IQR\ 0.068)$ & $0.128\,(IQR\ 0.140)$ & $0.061\,(IQR\ 0.075)$ \\
+RBF & $0.052\,(IQR\ 0.066)$ & $0.171\,(IQR\ 0.155)$ & $0.084\,(IQR\ 0.100)$ \\
+Thin Plate Spline & $0.052\,(IQR\ 0.066)$ & $0.171\,(IQR\ 0.155)$ & $0.084\,(IQR\ 0.100)$ \\
+\midrule
+\multicolumn{4}{l}{\textbf{Janela de entropia: 15x15}} \\
+Exemplar-Based & $0.027\,(IQR\ 0.072)$ & $0.096\,(IQR\ 0.114)$ & $0.085\,(IQR\ 0.089)$ \\
+RBF & $0.060\,(IQR\ 0.091)$ & $0.125\,(IQR\ 0.139)$ & $0.090\,(IQR\ 0.111)$ \\
+Thin Plate Spline & $0.060\,(IQR\ 0.091)$ & $0.125\,(IQR\ 0.139)$ & $0.090\,(IQR\ 0.111)$ \\
+\midrule
+\multicolumn{4}{l}{\textbf{Janela de entropia: 31x31}} \\
+Exemplar-Based & $0.078\,(IQR\ 0.090)$ & $0.037\,(IQR\ 0.076)$ & $0.115\,(IQR\ 0.105)$ \\
+RBF & $0.108\,(IQR\ 0.113)$ & $0.073\,(IQR\ 0.100)$ & $0.132\,(IQR\ 0.126)$ \\
+Thin Plate Spline & $0.108\,(IQR\ 0.113)$ & $0.073\,(IQR\ 0.100)$ & $0.132\,(IQR\ 0.126)$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table}

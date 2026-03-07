@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from ..data_loader import NOISE_ORDER, noise_label
+from ..data_loader import NOISE_ORDER, display_method_name, noise_label
 from .cli import run_table
 from .common import (
     bootstrap_ci_half,
@@ -165,7 +165,7 @@ def _append_noise_section(
             rf"\multicolumn{{7}}{{l}}{{\textbf{{{section_title}}}}} \\"
         )
     for _idx, row in stats_df.iterrows():
-        method_str = tex_escape(str(row["method"]))
+        method_str = tex_escape(display_method_name(str(row["method"])))
         type_str = str(row.get("type", ""))
         cells = [type_str, method_str]
         cells.extend(_format_metric_cells(row, metrics))

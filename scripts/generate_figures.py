@@ -6,7 +6,6 @@ level, entropy window, model, and entropy scenario.
 Usage:
     uv run python scripts/generate_figures.py
     uv run python scripts/generate_figures.py --output docs/figures
-    uv run python scripts/generate_figures.py --png-only
 """
 
 from __future__ import annotations
@@ -54,6 +53,18 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
+def _remove_stale_raster_outputs(output_dir: Path) -> None:
+    stale_files = []
+    for pattern in ("*.png", "*.jpg", "*.jpeg"):
+        stale_files.extend(output_dir.glob(pattern))
+
+    for file_path in stale_files:
+        file_path.unlink()
+
+    if stale_files:
+        log.info("Removed %d stale raster figure(s)", len(stale_files))
+
+
 # ── CLI ───────────────────────────────────────────────────────────────
 
 
@@ -68,11 +79,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Output directory. Defaults to docs/figures/",
     )
     parser.add_argument(
-        "--png-only",
-        action="store_true",
-        help="Save PNG only (skip PDF).",
-    )
-    parser.add_argument(
         "--bootstrap-samples",
         type=int,
         default=int(SETTINGS.bootstrap_samples),
@@ -84,13 +90,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
     configure_settings(
-        png_only=args.png_only,
         bootstrap_samples=int(args.bootstrap_samples),
     )
     setup_style()
 
     output_dir = args.output or Path("docs/figures")
     output_dir.mkdir(parents=True, exist_ok=True)
+    _remove_stale_raster_outputs(output_dir)
 
     df = load_combined()
 

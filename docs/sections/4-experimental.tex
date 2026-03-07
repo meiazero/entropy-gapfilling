@@ -1,6 +1,8 @@
 \section{Configuração Experimental e Estatísticas}
 \label{sec:experimental}
 
+Esta seção resume o protocolo de amostragem, as métricas de avaliação e os procedimentos estatísticos usados para sustentar as comparações internas do artigo.
+
 \subsection{Amostragem e Avaliação}
 
 O protocolo experimental foi estruturado para responder a duas questões complementares sem misturar regimes de avaliação distintos.
@@ -9,7 +11,7 @@ No bloco de aprendizado profundo, a meta é comparar arquiteturas entre si em um
 
 Os métodos clássicos apresentam custo computacional fortemente heterogêneo.
 Por esse motivo, a avaliação multissensor é conduzida sobre um subconjunto balanceado de recortes por sensor e por nível de ruído.
-Esse desenho preserva comparabilidade entre sensores e mantém a execução viável mesmo para métodos de alto custo, como spline e kriging.
+Esse desenho preserva comparabilidade entre sensores e mantém a execução viável mesmo para métodos de alto custo, como Thin Plate Spline e Ordinary Kriging.
 Mais importante do que o tamanho absoluto do conjunto consolidado é o fato de que todos os métodos clássicos são submetidos exatamente ao mesmo protocolo de avaliação.
 
 Para aprendizado profundo, a avaliação é restrita ao sensor Sentinel-2, utilizando a partição de teste indicada na \Cref{tab:dataset-stats}.

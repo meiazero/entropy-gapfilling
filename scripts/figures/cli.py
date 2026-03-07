@@ -27,11 +27,6 @@ def _parse_args(description: str) -> argparse.Namespace:
         help="Output directory. Defaults to docs/figures/",
     )
     parser.add_argument(
-        "--png-only",
-        action="store_true",
-        help="Save PNG only (skip PDF).",
-    )
-    parser.add_argument(
         "--bootstrap-samples",
         type=int,
         default=int(SETTINGS.bootstrap_samples),
@@ -48,7 +43,6 @@ def _prepare_output_dir(output: Path | None) -> Path:
 
 def _configure_runtime(args: argparse.Namespace) -> Path:
     configure_settings(
-        png_only=args.png_only,
         bootstrap_samples=int(args.bootstrap_samples),
     )
     setup_style()

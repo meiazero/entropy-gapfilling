@@ -15,19 +15,19 @@ Em lugar de um vencedor absoluto, observa-se um grupo relativamente pequeno de m
 
 \input{tables/global-scoreboard-classical}
 
-Nos cenários sem ruído e com 40 dB, RBF e spline aparecem de forma recorrente entre os melhores valores de PSNR e SSIM.
+Nos cenários sem ruído e com 40 dB, RBF e Thin Plate Spline aparecem de forma recorrente entre os melhores valores de PSNR e SSIM.
 Esse resultado sugere que métodos baseados em superfícies suaves e coerência global exploram bem o contexto espacial quando a observação disponível é limpa ou moderadamente degradada.
-Exemplar\_based também aparece competitivo em várias métricas, especialmente quando a estrutura local da cena oferece textura ou padrões reutilizáveis próximos à lacuna.
+Exemplar-Based também aparece competitivo em várias métricas, especialmente quando a estrutura local da cena oferece textura ou padrões reutilizáveis próximos à lacuna.
 Nesse regime, a capacidade de reutilizar patches informativos parece compensar a ausência de um modelo global explícito.
 
 À medida que o ruído aumenta, a hierarquia se altera.
-No nível de 20 dB, kriging passa a ocupar posição de destaque em várias métricas centrais.
+No nível de 20 dB, Ordinary Kriging passa a ocupar posição de destaque em várias métricas centrais.
 Essa mudança de liderança é importante porque revela que o melhor método clássico depende do regime de operação.
 Em condições mais degradadas, a modelagem explícita da dependência espacial parece oferecer estabilidade superior à obtida por interpolantes suaves puramente geométricos ou por estratégias patch-based.
 Isso reforça a necessidade de não interpretar o cenário sem ruído como resumo suficiente do problema.
 
 Outro aspecto decisivo do bloco clássico é o custo computacional.
-A \Cref{tab:runtime-speed-classical} mostra que o ganho em qualidade de métodos como kriging, RBF e spline vem acompanhado de um aumento substancial no tempo de inferência por recorte.
+A \Cref{tab:runtime-speed-classical} mostra que o ganho em qualidade de métodos como Ordinary Kriging, RBF e Thin Plate Spline vem acompanhado de um aumento substancial no tempo de inferência por recorte.
 Esse é um ponto central da contribuição do artigo, porque desloca a análise de uma lógica de ranking puro para uma lógica multicritério.
 Em cenários operacionais de larga escala, um método com desempenho levemente inferior pode ser preferível se mantiver custo muito menor e estabilidade aceitável.
 
@@ -35,9 +35,10 @@ Em cenários operacionais de larga escala, um método com desempenho levemente i
 
 A \Cref{fig:classical-pareto} torna essa relação particularmente clara.
 Quando qualidade e tempo de inferência são colocados no mesmo espaço, vê-se que vários métodos deixam de ser competitivos assim que custo entra no critério de decisão.
-Nearest ocupa uma posição extrema de baixo custo, funcionando como referência prática inferior.
-Exemplar\_based aparece como um dos compromissos mais interessantes entre qualidade alta e custo ainda administrável.
-Kriging preserva qualidade forte, mas seu custo o desloca para uma região de uso mais restrito.
+Nearest Neighbor ocupa uma posição extrema de baixo custo, funcionando como referência prática inferior.
+Exemplar-Based aparece como um dos compromissos mais interessantes entre qualidade alta e custo ainda administrável.
+Ordinary Kriging preserva qualidade forte, mas seu custo o desloca para uma região de uso mais restrito.
+Como a figura está restrita ao cenário sem ruído e usa medianas com dispersão por IQR, sua leitura deve ser entendida como retrato operacional desse regime específico, e não como síntese de todos os níveis de ruído.
 
 \begin{figure*}[htbp]
 \centering
@@ -104,6 +105,8 @@ Esses cruzamentos seriam menos visíveis em tabelas isoladas e ajudam a sustenta
 \label{fig:classical-noise-robustness}
 \end{figure*}
 
+\FloatBarrier
+
 O terceiro eixo da análise clássica é a associação entre entropia local e qualidade de reconstrução.
 Na \Cref{tab:spearman-entropy-classical-e15}, observa-se que a correlação entre entropia e desempenho varia com o método e com a métrica.
 Alguns algoritmos apresentam associação fraca ou próxima de zero em PSNR, mas associação mais marcada em SSIM, SAM ou ERGAS.
@@ -120,17 +123,18 @@ A \Cref{fig:classical-correlation-heatmap} sintetiza essa leitura em um único p
 Ao reunir correlações entre múltiplas janelas de entropia e várias métricas, a figura evidencia o caráter multiescala e multi-métrica do problema.
 Também chama atenção o fato de que nem todas as associações são fortes.
 Isso é relevante porque mostra que a entropia local explica parte importante da variação de desempenho, mas não esgota a heterogeneidade observada entre métodos e cenas.
+Por construção, essa figura é descritiva e exploratória: ela complementa as tabelas inferenciais, mas não as substitui.
 
 \begin{figure*}[htbp]
 \centering
 \includegraphics[width=0.90\linewidth]{figures/fig_classical_correlation_heatmap}
-\caption{Mapa de correlação entre entropia local e métricas de qualidade para os métodos clássicos.}
+\caption{Mapa de correlação entre entropia local e métricas de qualidade para os métodos clássicos. Células vazias indicam correlações não significativas após correção por FDR ou efeitos de magnitude desprezível.}
 \label{fig:classical-correlation-heatmap}
 \end{figure*}
 
 Em conjunto, o bloco clássico sustenta três conclusões centrais.
 Primeiro, existe um grupo pequeno de métodos claramente superiores ao restante, mas sem dominância universal entre qualidade, custo e estabilidade.
-Segundo, kriging se destaca como solução particularmente robusta em cenários mais ruidosos, enquanto RBF, spline e exemplar\_based se mostram muito fortes em qualidade absoluta sob condições menos adversas.
+Segundo, Ordinary Kriging se destaca como solução particularmente robusta em cenários mais ruidosos, enquanto RBF, Thin Plate Spline e Exemplar-Based se mostram muito fortes em qualidade absoluta sob condições menos adversas.
 Terceiro, a complexidade espacial da cena altera o comportamento relativo dos métodos de forma dependente da métrica e da escala de entropia considerada.
 
 \subsection{Resultados dos Modelos de Aprendizado Profundo}
@@ -145,8 +149,8 @@ A tabela mostra que U-Net domina a qualidade absoluta de forma consistente.
 Ela lidera em PSNR, SSIM, RMSE, SAM e ERGAS em todos os níveis de ruído considerados, o que indica forte equilíbrio entre fidelidade radiométrica, preservação estrutural e coerência espectral.
 Esse resultado sugere que as conexões de atalho e a propagação multiescala de contexto continuam sendo uma estratégia muito eficaz para reconstrução de lacunas no domínio Sentinel-2.
 
-GAN e ViT formam um segundo patamar relativamente próximo entre si.
-Eles não alcançam a qualidade absoluta da U-Net, mas também não colapsam para o nível de AE e VAE.
+Generative Adversarial Network (GAN) e Vision Transformer (ViT) formam um segundo patamar relativamente próximo entre si.
+Eles não alcançam a qualidade absoluta da U-Net, mas também não colapsam para o nível de Autoencoder (AE) e Variational Autoencoder (VAE).
 Isso sugere que tanto a modelagem adversarial quanto a atenção conseguem capturar regularidades importantes do problema, embora ainda não superem a vantagem arquitetural oferecida pela combinação de codificação multiescala e skip connections.
 AE e VAE, por sua vez, mantêm papel analítico importante como baselines de gargalo latente, mostrando que compressão simples do contexto observado não é suficiente para atingir o melhor nível de fidelidade.
 
@@ -163,14 +167,15 @@ No bloco clássico, por outro lado, a discussão frequentemente separa métodos 
 Isso ajuda a entender por que a U-Net continua sendo atraente mesmo não liderando em velocidade.
 O ganho absoluto de qualidade é suficientemente alto para justificar o custo extra em muitas aplicações.
 
-A \Cref{fig:dl-comparison} sintetiza esse padrão comparando os modelos no cenário \texttt{entropy\_all}.
+A \Cref{fig:dl-comparison} sintetiza esse padrão a partir das medianas das métricas de teste no cenário \texttt{entropy\_all}.
 Visualmente, a figura reforça que a superioridade da U-Net não está restrita a uma única métrica.
 O modelo aparece consistentemente forte em critérios complementares, o que reduz a chance de sua liderança ser artefato de um único indicador.
+Como o painel resume medianas sem intervalos de confiança, ele deve ser lido como apoio visual ao ranking da tabela, e não como evidência inferencial isolada.
 
 \begin{figure*}[htbp]
 \centering
 \includegraphics[width=0.82\linewidth]{figures/fig_dl_comparison}
-\caption{Comparação interna entre arquiteturas de aprendizado profundo no cenário \texttt{entropy\_all}.}
+\caption{Comparação interna entre arquiteturas de aprendizado profundo no cenário \texttt{entropy\_all}, usando medianas das métricas de teste.}
 \label{fig:dl-comparison}
 \end{figure*}
 
@@ -213,6 +218,8 @@ Primeiro, U-Net é a melhor arquitetura em qualidade absoluta no domínio avalia
 Segundo, essa liderança não implica melhor robustez relativa em todos os cenários, já que GAN e ViT exibem degradação percentual menor em várias condições.
 Terceiro, AE e VAE permanecem úteis como referências eficientes e simples, mas não alcançam o mesmo nível de fidelidade das arquiteturas mais expressivas.
 
+\FloatBarrier
+
 \subsection{Síntese dos Achados Empíricos}
 
 Quando os dois blocos são observados em conjunto, o resultado mais importante do artigo não é a produção de um ranking universal entre todas as técnicas.
@@ -221,6 +228,6 @@ No bloco clássico, a principal tensão é entre qualidade alta, robustez ao ru�
 No bloco de aprendizado profundo, a principal tensão é entre qualidade absoluta, estabilidade relativa e perfil arquitetural.
 
 Isso significa que a melhor escolha metodológica depende da pergunta prática que se quer responder.
-Se a prioridade recai sobre métodos clássicos interpretáveis com forte análise multicritério, kriging, RBF, spline e exemplar\_based aparecem como candidatos centrais, cada um com vantagens e limitações específicas.
+Se a prioridade recai sobre métodos clássicos interpretáveis com forte análise multicritério, Ordinary Kriging, RBF, Thin Plate Spline e Exemplar-Based aparecem como candidatos centrais, cada um com vantagens e limitações específicas.
 Se a prioridade recai sobre melhor qualidade absoluta no domínio Sentinel-2, a U-Net emerge como solução mais forte.
 Se o foco se desloca para estabilidade relativa ou eficiência dentro do bloco de \gls{DL}, a decisão torna-se mais plural e abre espaço para GAN, ViT, AE e VAE conforme o objetivo operacional.

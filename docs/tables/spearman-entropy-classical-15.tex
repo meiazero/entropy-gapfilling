@@ -9,21 +9,21 @@
 \toprule
 Método & $\rho$({\scriptsize PSNR}) & $\rho$({\scriptsize SSIM}) & $\rho$({\scriptsize SAM}) & $\rho$({\scriptsize ERGAS}) \\
 \midrule
-bicubic & $\approx 0$ & $-0.205^{\ddagger}$ & $-0.109^{*}$ & $-0.131^{\dagger}$ \\
-bilinear & $\approx 0$ & $-0.212^{\ddagger}$ & $-0.199^{\ddagger}$ & $-0.221^{\ddagger}$ \\
-dct & $0.241^{\ddagger}$ & $\approx 0$ & $-0.357^{\ddagger}$ & $-0.400^{\ddagger}$ \\
-exemplar\_based & $\approx 0$ & $-0.214^{\ddagger}$ & $-0.122^{*}$ & $-0.108^{*}$ \\
-idw & $0.240^{\ddagger}$ & $\approx 0$ & $-0.347^{\ddagger}$ & $-0.388^{\ddagger}$ \\
-kriging & $\approx 0$ & $-0.144^{\dagger}$ & $-0.229^{\ddagger}$ & $-0.248^{\ddagger}$ \\
-l1\_dct & $0.241^{\ddagger}$ & $\approx 0$ & $-0.357^{\ddagger}$ & $-0.400^{\ddagger}$ \\
-l1\_wavelet & $-0.184^{\ddagger}$ & $-0.272^{\ddagger}$ & $-0.299^{\ddagger}$ & $-0.197^{\ddagger}$ \\
-lanczos & $0.107^{*}$ & $-0.175^{\ddagger}$ & $-0.233^{\ddagger}$ & $-0.242^{\ddagger}$ \\
-nearest & $\approx 0$ & $-0.216^{\ddagger}$ & $-0.198^{\ddagger}$ & $-0.212^{\ddagger}$ \\
-non\_local & $0.297^{\ddagger}$ & $0.203^{\ddagger}$ & $-0.390^{\ddagger}$ & $-0.421^{\ddagger}$ \\
-rbf & $\approx 0$ & $-0.213^{\ddagger}$ & $-0.146^{\dagger}$ & $-0.129^{\dagger}$ \\
-spline & $\approx 0$ & $-0.213^{\ddagger}$ & $-0.146^{\dagger}$ & $-0.129^{\dagger}$ \\
-tv & $0.245^{\ddagger}$ & $\approx 0$ & $-0.360^{\ddagger}$ & $-0.377^{\ddagger}$ \\
-wavelet & $0.234^{\ddagger}$ & $\approx 0$ & $-0.337^{\ddagger}$ & $-0.370^{\ddagger}$ \\
+Bicubic & $\approx 0$ & $-0.205^{\ddagger}$ & $-0.109^{*}$ & $-0.131^{\dagger}$ \\
+Bilinear & $\approx 0$ & $-0.212^{\ddagger}$ & $-0.199^{\ddagger}$ & $-0.221^{\ddagger}$ \\
+DCT-ISTA & $0.241^{\ddagger}$ & $\approx 0$ & $-0.357^{\ddagger}$ & $-0.400^{\ddagger}$ \\
+Exemplar-Based & $\approx 0$ & $-0.214^{\ddagger}$ & $-0.122^{*}$ & $-0.108^{*}$ \\
+IDW & $0.240^{\ddagger}$ & $\approx 0$ & $-0.347^{\ddagger}$ & $-0.388^{\ddagger}$ \\
+Ordinary Kriging & $\approx 0$ & $-0.144^{\dagger}$ & $-0.229^{\ddagger}$ & $-0.248^{\ddagger}$ \\
+L1-DCT (CS) & $0.241^{\ddagger}$ & $\approx 0$ & $-0.357^{\ddagger}$ & $-0.400^{\ddagger}$ \\
+L1-Wavelet (CS) & $-0.184^{\ddagger}$ & $-0.272^{\ddagger}$ & $-0.299^{\ddagger}$ & $-0.197^{\ddagger}$ \\
+Lanczos (PG) & $0.107^{*}$ & $-0.175^{\ddagger}$ & $-0.233^{\ddagger}$ & $-0.242^{\ddagger}$ \\
+Nearest Neighbor & $\approx 0$ & $-0.216^{\ddagger}$ & $-0.198^{\ddagger}$ & $-0.212^{\ddagger}$ \\
+Non-Local Means & $0.297^{\ddagger}$ & $0.203^{\ddagger}$ & $-0.390^{\ddagger}$ & $-0.421^{\ddagger}$ \\
+RBF & $\approx 0$ & $-0.213^{\ddagger}$ & $-0.146^{\dagger}$ & $-0.129^{\dagger}$ \\
+Thin Plate Spline & $\approx 0$ & $-0.213^{\ddagger}$ & $-0.146^{\dagger}$ & $-0.129^{\dagger}$ \\
+Total Variation & $0.245^{\ddagger}$ & $\approx 0$ & $-0.360^{\ddagger}$ & $-0.377^{\ddagger}$ \\
+Wavelet-ISTA & $0.234^{\ddagger}$ & $\approx 0$ & $-0.337^{\ddagger}$ & $-0.370^{\ddagger}$ \\
 \bottomrule
 \end{tabular}
 }

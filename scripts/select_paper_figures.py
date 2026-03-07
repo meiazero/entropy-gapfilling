@@ -13,21 +13,13 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     selected = [
-        "fig_classical_pareto.png",
         "fig_classical_pareto.pdf",
-        "fig_classical_spectral_profile.png",
         "fig_classical_spectral_profile.pdf",
-        "fig_classical_noise_robustness_baixa.png",
         "fig_classical_noise_robustness_baixa.pdf",
-        "fig_classical_noise_robustness_media.png",
         "fig_classical_noise_robustness_media.pdf",
-        "fig_classical_noise_robustness_alta.png",
         "fig_classical_noise_robustness_alta.pdf",
-        "fig_classical_correlation_heatmap.png",
         "fig_classical_correlation_heatmap.pdf",
-        "fig_dl_comparison.png",
         "fig_dl_comparison.pdf",
-        "fig_dl_noise_robustness.png",
         "fig_dl_noise_robustness.pdf",
     ]
 
