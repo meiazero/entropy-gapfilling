@@ -118,13 +118,16 @@ def main(argv: list[str] | None = None) -> None:
         log.warning("No evaluation data loaded. Skipping eval figures.")
 
     dl_figs = [
-        ("DL Comparison", fig_dl_comparison),
-        ("DL Noise Robustness", fig_dl_noise_robustness),
+        ("DL Comparison", fig_dl_comparison, False),
+        ("DL Noise Robustness", fig_dl_noise_robustness, True),
     ]
-    for name, func in dl_figs:
+    for name, func, needs_df in dl_figs:
         try:
             log.info("Generating %s...", name)
-            func(output_dir)
+            if needs_df:
+                func(df, output_dir)
+            else:
+                func(output_dir)
         except Exception:
             log.exception("Error generating %s", name)
 

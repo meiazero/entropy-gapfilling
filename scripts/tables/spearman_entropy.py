@@ -9,7 +9,11 @@ import pandas as pd
 from scipy import stats
 from statsmodels.stats.multitest import multipletests
 
-from ..data_loader import ENTROPY_WINDOWS, display_method_name
+from ..data_loader import (
+    ENTROPY_WINDOWS,
+    display_method_name,
+    filter_main_dl_scenario,
+)
 from .cli import run_table
 from .common import stars, tex_escape, wrap_table, write_tex
 
@@ -84,6 +88,8 @@ def table_spearman_entropy(df: pd.DataFrame, output_dir: Path) -> None:
         ("DL", "dl", "de DL"),
     ]:
         type_df = df[df["type"] == method_type]
+        if method_type == "DL":
+            type_df = filter_main_dl_scenario(type_df)
         if type_df.empty:
             continue
         methods = sorted(type_df["method"].unique())

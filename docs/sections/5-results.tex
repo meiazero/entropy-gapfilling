@@ -14,6 +14,12 @@ Não existe um método que lidere simultaneamente em qualidade radiométrica, pr
 Em lugar de um vencedor absoluto, observa-se um grupo relativamente pequeno de métodos fortes, com perfis distintos e compensações claras entre desempenho e viabilidade prática.
 
 \input{tables/global-scoreboard-classical}
+\input{tables/inferential-summary-classical}
+
+A \Cref{tab:inferential-summary-classical} complementa esse quadro com um teste global de diferenças em PSNR entre métodos.
+O resultado de Kruskal-Wallis indica diferença global estatisticamente detectável entre as distribuições ($H=1277.01$, $p=4.76\times10^{-264}$), com tamanho de efeito agregado moderado ($\varepsilon^2=0.177$).
+Ao mesmo tempo, entre os cinco métodos líderes em PSNR, os contrastes par a par deixam de ser significativos após correção de Bonferroni.
+Na prática, isso sugere que o bloco clássico contém um grupo de ponta relativamente coeso, mais do que uma liderança isolada e inequivocamente separada dos demais concorrentes fortes.
 
 Nos cenários sem ruído e com 40 dB, RBF e Thin Plate Spline aparecem de forma recorrente entre os melhores valores de PSNR e SSIM.
 Esse resultado sugere que métodos baseados em superfícies suaves e coerência global exploram bem o contexto espacial quando a observação disponível é limpa ou moderadamente degradada.
@@ -141,13 +147,17 @@ Terceiro, a complexidade espacial da cena altera o comportamento relativo dos m�
 
 O bloco de aprendizado profundo apresenta uma dinâmica interna distinta da observada nos métodos clássicos.
 Aqui, a questão principal não é o custo extremo de inferência, mas a diferença de perfil entre arquiteturas que compartilham o mesmo domínio de avaliação.
-A \Cref{tab:global-scoreboard-dl} fornece o resumo mais direto dessa comparação.
+A \Cref{tab:global-scoreboard-dl} fornece o resumo mais direto dessa comparação no cenário principal \texttt{entropy\_all}.
 
 \input{tables/global-scoreboard-dl}
+\input{tables/inferential-summary-dl}
 
-A tabela mostra que U-Net domina a qualidade absoluta de forma consistente.
-Ela lidera em PSNR, SSIM, RMSE, SAM e ERGAS em todos os níveis de ruído considerados, o que indica forte equilíbrio entre fidelidade radiométrica, preservação estrutural e coerência espectral.
+A tabela mostra que a U-Net ocupa a primeira posição em qualidade absoluta de forma consistente.
+Ela apresenta os melhores valores de PSNR, SSIM, RMSE, SAM e ERGAS em todos os níveis de ruído considerados, o que indica forte equilíbrio entre fidelidade radiométrica, preservação estrutural e coerência espectral.
 Esse resultado sugere que as conexões de atalho e a propagação multiescala de contexto continuam sendo uma estratégia muito eficaz para reconstrução de lacunas no domínio Sentinel-2.
+Do ponto de vista inferencial, a \Cref{tab:inferential-summary-dl} mostra que as diferenças globais em PSNR são estatisticamente detectáveis ($H=1745.81$, $p<10^{-300}$), mas com tamanho de efeito agregado pequeno ($\varepsilon^2=0.012$).
+Entre os cinco modelos comparados, o contraste par a par mais forte envolve AE e U-Net, ainda assim com efeito pequeno em magnitude ($d=-0.179$).
+Esse ponto é importante porque evita interpretar a liderança da U-Net como uma separação abrupta de toda a família profunda; o que os resultados indicam é uma vantagem consistente, porém inserida em um bloco de modelos relativamente próximos.
 
 Generative Adversarial Network (GAN) e Vision Transformer (ViT) formam um segundo patamar relativamente próximo entre si.
 Eles não alcançam a qualidade absoluta da U-Net, mas também não colapsam para o nível de Autoencoder (AE) e Variational Autoencoder (VAE).

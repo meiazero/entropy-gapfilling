@@ -22,6 +22,7 @@ if __package__ in {None, ""}:
     from scripts.tables.degradation_entropy import table_degradation_entropy
     from scripts.tables.dl_architectures import table_dl_architectures
     from scripts.tables.global_scoreboard import table_global_scoreboard
+    from scripts.tables.inferential_summary import table_inferential_summary
     from scripts.tables.methods import table_methods
     from scripts.tables.noise_slope import table_noise_slope
     from scripts.tables.overview_dataset import table_overview_dataset
@@ -36,6 +37,7 @@ else:
     from .tables.degradation_entropy import table_degradation_entropy
     from .tables.dl_architectures import table_dl_architectures
     from .tables.global_scoreboard import table_global_scoreboard
+    from .tables.inferential_summary import table_inferential_summary
     from .tables.methods import table_methods
     from .tables.noise_slope import table_noise_slope
     from .tables.overview_dataset import table_overview_dataset
@@ -88,6 +90,7 @@ def main(argv: list[str] | None = None) -> None:
         ("Table 0b: Methods", table_methods),
         ("Table 0c: DL Architectures", table_dl_architectures),
         ("Table 1: Global Scoreboard", table_global_scoreboard),
+        ("Table 1b: Inferential Summary", table_inferential_summary),
         ("Table 2: Spectral Decomposition", table_spectral_decomposition),
         ("Table 3: Degradation by Entropy", table_degradation_entropy),
         ("Table 3b: Noise Slope", table_noise_slope),

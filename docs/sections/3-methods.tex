@@ -13,6 +13,8 @@ As estatísticas gerais do conjunto de dados, incluindo distribuição por senso
 
 O pré-processamento organiza cada amostra em três componentes principais: imagem limpa de referência, máscara binária de lacuna e versão degradada observada pelo algoritmo de reconstrução.
 Essa organização permite controlar explicitamente a região a ser inferida e separar a dificuldade induzida pela ausência de dados daquela induzida pela degradação do contexto observado.
+As máscaras sintéticas são lidas de arquivos já persistidos no conjunto de dados, validadas como binárias com forma $1\times64\times64$ e então convertidas para a convenção do pipeline em que 1 indica pixel ausente e 0 indica pixel observado.
+Como consequência, a geometria da lacuna é fixa por recorte e é reutilizada de forma idêntica por todos os métodos, em todos os níveis de ruído e em todas as etapas de avaliação.
 
 \input{tables/dataset-stats}
 
@@ -49,13 +51,14 @@ A entropia local é então calculada pixel a pixel em uma janela quadrada desliz
 \]
 onde $p_k$ denota a frequência normalizada do bin $k$ dentro da vizinhança $\Omega_{hw}^{(s)}$.
 
-Para obter um descritor escalar único por recorte, calculamos a média da entropia sobre o conjunto de pixels de lacuna:
+Para obter um descritor escalar único por recorte no pipeline experimental efetivamente executado, calculamos a média do mapa de entropia em todo o patch:
 \[
   \bar{H}_s
-  = \frac{1}{\lvert\mathcal{G}\rvert}
-  \sum_{(h,w)\,\in\,\mathcal{G}} H_s(h,w).
+  = \frac{1}{H\,W}
+  \sum_{h=1}^{H} \sum_{w=1}^{W} H_s(h,w).
 \]
 
+Esse resumo é pré-computado por patch e persistido no manifesto de dados, sendo depois reutilizado tanto na estratificação por entropia quanto na análise estatística.
 Como a interpretação de $H$ depende da escala espacial, cada janela é tratada como um preditor distinto nas análises.
 Essa decisão evita colapsar múltiplas escalas em um único resumo e preserva a possibilidade de detectar mudanças de comportamento entre estruturas locais finas, intermediárias e mais amplas.
 

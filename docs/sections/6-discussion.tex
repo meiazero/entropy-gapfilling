@@ -14,7 +14,7 @@ Esse resultado relativiza leituras puramente quantitativas baseadas em PSNR ou S
 Em sistemas de produção, processamento em lote ou cenários de resposta rápida, a melhor técnica pode não ser aquela com maior qualidade média, e sim aquela que mantém desempenho competitivo sem comprometer a viabilidade computacional.
 
 Esse ponto ajuda a explicar por que Exemplar-Based surge como método particularmente interessante no bloco clássico.
-Ele não domina todo o placar, mas se mantém próximo dos melhores em qualidade sem atingir o custo extremo de kriging ou spline.
+Ele não lidera todo o placar, mas se mantém próximo dos melhores em qualidade sem atingir o custo extremo de kriging ou spline.
 Isso o posiciona como solução intermediária robusta em cenários nos quais a qualidade precisa ser alta, mas o custo não pode crescer sem controle.
 Ao mesmo tempo, o artigo mostra que essa atratividade depende da cena.
 Quando a lacuna ocorre em áreas cuja autossimilaridade é baixa, o ganho desse método tende a diminuir.
@@ -33,7 +33,7 @@ Existe um regime intermediário de complexidade em que vários algoritmos se tor
 Isso sugere que a dificuldade da reconstrução não cresce apenas com a diversidade tonal, mas também com a forma como essa diversidade se organiza espacialmente no entorno da lacuna.
 
 No bloco de aprendizado profundo, a discussão assume outra forma.
-A dominância da U-Net em qualidade absoluta é clara e consistente, o que reforça a efetividade da modelagem multiescala com conexões de atalho para esse problema.
+A liderança da U-Net em qualidade absoluta é clara e consistente, o que reforça a efetividade da modelagem multiescala com conexões de atalho para esse problema.
 No entanto, a análise de robustez mostra que qualidade absoluta e estabilidade relativa não são sinônimos.
 GAN e ViT frequentemente degradam menos em termos percentuais quando o ruído aumenta.
 Isso significa que a escolha da arquitetura depende do critério de desempenho considerado mais relevante para a aplicação final.

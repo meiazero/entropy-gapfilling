@@ -11,6 +11,7 @@ from ..data_loader import (
     ENTROPY_WINDOWS,
     display_method_name,
     entropy_terciles,
+    filter_main_dl_scenario,
     select_top_n,
 )
 from .cli import run_table
@@ -131,6 +132,8 @@ def table_degradation_entropy(df: pd.DataFrame, output_dir: Path) -> None:
         ("DL", "dl", "de DL"),
     ]:
         type_df = df[df["type"] == method_type]
+        if method_type == "DL":
+            type_df = filter_main_dl_scenario(type_df)
         methods = select_top_n(type_df, n=3)
         if not methods:
             continue

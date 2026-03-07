@@ -18,6 +18,8 @@ def main() -> None:
         "dl-architectures.tex",
         "global-scoreboard-classical.tex",
         "global-scoreboard-dl.tex",
+        "inferential-summary-classical.tex",
+        "inferential-summary-dl.tex",
         "spectral-rmse-classical.tex",
         "spectral-rmse-dl.tex",
         "runtime-speed-classical.tex",

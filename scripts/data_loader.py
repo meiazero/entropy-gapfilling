@@ -51,6 +51,21 @@ DL_SCENARIOS: tuple[str, ...] = (
     "entropy_medium_high",
 )
 
+
+def filter_main_dl_scenario(df: pd.DataFrame) -> pd.DataFrame:
+    """Keep the canonical DL comparison scenario used in the paper.
+
+    Main DL tables and figures are reported on ``entropy_all`` when the
+    column is available. Scenario-specific analyses should bypass this helper.
+    """
+    if "entropy_scenario" not in df.columns:
+        return df
+    scenarios = set(df["entropy_scenario"].dropna().astype(str))
+    if "entropy_all" not in scenarios:
+        return df
+    return df[df["entropy_scenario"] == "entropy_all"].copy()
+
+
 # Method category display names
 CATEGORY_LABELS: dict[str, str] = {
     "spatial": "Espacial",

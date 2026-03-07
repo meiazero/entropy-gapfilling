@@ -7,13 +7,23 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from ..data_loader import display_method_name
+from ..data_loader import display_method_name, filter_main_dl_scenario
 from .cli import run_table
 from .common import ranked_plain, tex_escape, wrap_table, write_tex
 
 
-def table_speed_summary(df: pd.DataFrame, output_dir: Path) -> None:
+def table_speed_summary(df: pd.DataFrame, output_dir: Path) -> None:  # noqa: C901
     """PSNR vs inference time per method."""
+    if "type" in df.columns:
+        dl_mask = df["type"] == "DL"
+        if dl_mask.any():
+            df = pd.concat(
+                [
+                    df[~dl_mask],
+                    filter_main_dl_scenario(df[dl_mask]),
+                ],
+                ignore_index=True,
+            )
     subset = df[df["noise_level"] == "inf"]
     if subset.empty:
         subset = df

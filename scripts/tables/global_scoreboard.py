@@ -7,7 +7,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from ..data_loader import NOISE_ORDER, display_method_name, noise_label
+from ..data_loader import (
+    NOISE_ORDER,
+    display_method_name,
+    filter_main_dl_scenario,
+    noise_label,
+)
 from .cli import run_table
 from .common import (
     bootstrap_ci_half,
@@ -200,6 +205,8 @@ def _write_type_table(
     higher_better: dict[str, bool],
 ) -> None:
     type_df = df[df["type"] == method_type]
+    if method_type == "DL":
+        type_df = filter_main_dl_scenario(type_df)
     if type_df.empty:
         return
 

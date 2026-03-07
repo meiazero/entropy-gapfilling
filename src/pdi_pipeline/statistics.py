@@ -275,7 +275,18 @@ def robust_regression(
         entropy_cols = sorted(c for c in df.columns if c.startswith("entropy_"))
 
     required = [metric_col, "method", "noise_level", *entropy_cols]
-    valid = df[required].dropna()
+    valid = df[required].dropna().copy()
+    if len(valid) < 10:
+        return RegressionResult(
+            coefficients=pd.DataFrame(),
+            r_squared_adj=float("nan"),
+            n=len(valid),
+            model_type="rlm",
+        )
+
+    for col in [metric_col, *entropy_cols]:
+        valid[col] = pd.to_numeric(valid[col], errors="coerce")
+    valid = valid.dropna(subset=[metric_col, *entropy_cols])
     if len(valid) < 10:
         return RegressionResult(
             coefficients=pd.DataFrame(),
@@ -300,7 +311,7 @@ def robust_regression(
         ],
         axis=1,
     )
-    X = sm.add_constant(X)
+    X = sm.add_constant(X).astype(np.float64)
     y = valid[metric_col].reset_index(drop=True).to_numpy()
 
     # Fit RLM with Huber's T

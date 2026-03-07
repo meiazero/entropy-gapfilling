@@ -1,0 +1,15 @@
+\begin{table}[htbp]
+\centering
+\caption{Síntese inferencial do bloco de DL: teste global de diferenças em PSNR, contraste par a par mais forte entre os métodos líderes e regressão robusta com entropia, método e nível de ruído.}
+\label{tab:inferential-summary-dl}
+\footnotesize
+\begin{tabular}{p{0.42\linewidth}p{0.50\linewidth}}
+\toprule
+Análise & Resultado \\
+\midrule
+Kruskal-Wallis global (PSNR) & $H=1745.81$, $p<10^{-300}$, $\varepsilon^2=0.012$ \\
+Comparações par a par (top-5 por PSNR) & AE vs U-Net \\
+Maior efeito par a par & $d=-0.179$, $p_{corr}<10^{-300}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
