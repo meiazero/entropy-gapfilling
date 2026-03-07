@@ -1,8 +1,7 @@
+% !TEX program = xelatex % (can also use "lualatex")
 \documentclass{sbc2019}%
 
 \usepackage{graphicx}
-\usepackage[utf8]{inputenc}
-\usepackage[brazil]{babel}
 \usepackage[misc,geometry]{ifsym}
 \usepackage{fontspec}
 \usepackage{fontawesome}
@@ -14,138 +13,139 @@
 \usepackage{supertabular}
 \usepackage{afterpage}
 \usepackage{url}
-\usepackage{underscore}
 \usepackage{pifont}
 \usepackage{multicol}
 \usepackage{multirow}
 
+% Meus pacotes
+\usepackage[table,xcdraw]{xcolor}
 \usepackage{cleveref}
-\usepackage{booktabs}
-
-% Siglas
+\usepackage{balance}
+\usepackage{booktabs} % Para linhas de tabela profissionais
+\usepackage{threeparttable} % Essencial para tablenotes
+\usepackage{duckuments}
 \usepackage[acronym]{glossaries-extra}
 \setabbreviationstyle[acronym]{long-short}
 \input{acronyms}
 
 \setcitestyle{square}
+% \setlength{\headheight}{37pt}
+% \setlength{\hfuzz}{1000pt}
+% \setlength{\vfuzz}{1000pt}
+% \hbadness=10000
+% \vbadness=10000
+% \emergencystretch=3em
+% \sloppy
 
 \definecolor{orcidlogo}{rgb}{0.37,0.48,0.13}
 \definecolor{unilogo}{rgb}{0.16, 0.26, 0.58}
 \definecolor{maillogo}{rgb}{0.58, 0.16, 0.26}
 \definecolor{darkblue}{rgb}{0.0,0.0,0.0}
 \hypersetup{colorlinks,breaklinks,
-            linkcolor=darkblue,urlcolor=darkblue,
-            anchorcolor=darkblue,citecolor=darkblue}
+  linkcolor=darkblue,urlcolor=darkblue,
+anchorcolor=darkblue,citecolor=darkblue}
 %\hypersetup{colorlinks,citecolor=blue,linkcolor=blue,urlcolor=blue}
-% \setlength{\headheight}{36.90002pt}
-% \addtolength{\topmargin}{-8.90002pt}
-% Macro TODO usada no rascunho. Substituir ou remover na submissao final.
-\newcommand{\TODO}[1]{#1}
 
-% --- Paper build hygiene -----------------------------------------------------
-% Fancyhdr warning: header is taller than default.
-\setlength{\headheight}{37pt}
-\addtolength{\topmargin}{-9pt}
-
-% FontAwesome: there is no italic font shape; map italic to normal.
-\makeatletter
-\DeclareFontShape{TU}{FontAwesome(0)}{m}{it}{<->ssub*FontAwesome(0)/m/n}{}
-\DeclareFontShape{TU}{FontAwesome(0)}{b}{it}{<->ssub*FontAwesome(0)/m/n}{}
-\makeatother
-
-%%%%%%% IMPORTANTE: Desabilitamos os hyperlinks por padrao com esta linha,
-% para evitar o erro "\pdfendlink ended up in different nesting level" durante a escrita.
+%%%%%%% IMPORTANT: We disable hyperlinks by default with this line, to avoid the error "\pdfendlink ended up in different nesting level" while writing.
 %\hypersetup{draft}
 
-\jid{JISA}
-\jtitle{Journal of Internet Services and Applications, 2026, 17:1, }
-\doi{10.5753/jisa.2026.XXXXXX}
+\jid{JBCS}
+\jtitle{Journal of Internet Services and Applications, 2023, 13:1, }
+\doi{10.5753/jisa.2023.XXXXXX}
 \copyrightstatement{This work is licensed under a Creative Commons Attribution 4.0 International License}
-\jyear{2026}
+\jyear{2023}
 
+\title[Preenchimento de Lacunas Guiado por Entropia]{Entropia de Shannon no Preenchimento de Lacunas em Imagens de Satélite}
 
+\author[Pires, E. 2023]{
+  \affil{\textbf{Emanuel Ávila C. Pires}~\href{https://orcid.org/0009-0006-0317-3021}{\textcolor{orcidlogo}{\aiOrcid}}~\textcolor{blue}{\faEnvelopeO}~~[~\textbf{Universidade Federal do Ceará}~|\href{mailto:emanuel.pires@alu.ufc.br}{~\textbf{\textit{emanuel.pires@alu.ufc.br}}}~]}
 
-\title[Preenchimento de Lacunas Guiado por Entropia]{Entropia de Shannon como Guia da Qualidade do Preenchimento de Lacunas em Imagens de Satélite}
+  % \affil{\textbf{Clodis Boscarioli}~\href{https://orcid.org/0000-0002-7110-2026}{\textcolor{orcidlogo}{\aiOrcid}}~~[~\textbf{Universidade Estadual do Oeste do Paraná}~|\href{mailto:clodis.boscarioli@unioeste}{~\textbf{\textit{clodis.boscarioli@unioeste}}}~]}
 
+  % \affil{\textbf{Roberto Pereira}~\href{https://orcid.org/0000-0003-3052-3016}{\textcolor{orcidlogo}{\aiOrcid}}~~[~\textbf{Universidade Federal do Paraná}~|\href{mailto:robertop.ihc@gmail.com}{~\textbf{\textit{robertop.ihc@gmail.com}}}~]}
 
-\author[Pires et al. 2026]{
-\affil{\textbf{Emanuel Pires}\textsuperscript{$\ast$}~\href{https://orcid.org/0009-0006-0317-3021}{\textcolor{orcidlogo}{\aiOrcid}}\\
-\textcolor{blue}{\textup{\faEnvelopeO}}~~[~\textbf{Universidade Federal do Ceará}~\newline\href{mailto:emanuel.pires@alu.ufc.br}{\nolinkurl{emanuel.pires@alu.ufc.br}}~]}
-
-% \affil{\textbf{\TODO{Autor Dois}}~\href{https://orcid.org/0000-0000-0000-0000}{\textcolor{orcidlogo}{\aiOrcid}}~~[~\textbf{Universidade Federal do Ceará}~\newline\href{mailto:author2@ufc.br}{\textbf{\textit{author2@ufc.br}}}~]}
+  % \affil{\textbf{Cristiano Maciel}~\href{https://orcid.org/0000-0002-2431-8457}{\textcolor{orcidlogo}{\aiOrcid}}~~[~\textbf{Universidade Federal de Mato Grosso~}|\href{mailto:cmaciel@ufmt.br}{~\textbf{\textit{cmaciel@ufmt.br}}}~]}
 
 }
-% * Autor correspondente
 
 \begin{document}
 
 \begin{frontmatter}
-\maketitle
+  \maketitle
 
-\begin{mail}
-PPGETI, Universidade Federal do Ceará, Fortaleza, Ceará, Brasil.
-\textsuperscript{$\ast$}Autor correspondente.
-\end{mail}
+  \begin{mail}
+    PPGETI, Universidade Federal do Ceará, Fortaleza, Ceará, Brasil.
+    % Institute of Computing, Universidade Federal Fluminense, Av. Gal. Milton Tavares de Souza, s/n, São Domingos, Niterói, RJ, 24210-590, Brazil.
+    %Full list of authors' information is available at the end of the article.
+  \end{mail}
 
-\begin{dates}
-\small{\textbf{Recebido:} DD Mês AAAA~~~$\bullet$~~~\textbf{Aceito:} DD Mês AAAA~~~$\bullet$~~~\textbf{Publicado:} DD Mês AAAA}
-%Lista completa de informações dos autores disponível ao final do artigo.
-\end{dates}
+  \begin{dates}
+    \small{\textbf{Received:} DD Month YYYY~~~$\bullet$~~~\textbf{Accepted:} DD Month YYYY~~~$\bullet$~~~\textbf{Published:} DD Month YYYY}
+    %Full list of authors' information is available at the end of the article.
+  \end{dates}
 
+  \begin{abstract}
+    \textbf{Abstract}
+    \noindent Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+  \end{abstract}
 
-\begin{abstract}
-% \noindent O preenchimento de lacunas em imagens de satélite é um pré-requisito para análises confiáveis quando há oclusões por nuvens, degradações atmosféricas ou falhas instrumentais. Apesar da ampla disponibilidade de métodos, a seleção prática ainda carece de critérios objetivos que antecipem a qualidade de reconstrução em nível local.
-% Este trabalho investiga a associação entre complexidade de cena e qualidade de preenchimento, empregando a entropia de Shannon local como medida de complexidade e avaliando sua relação com métricas de qualidade calculadas estritamente sobre pixels ausentes.
-% Em um benchmark multi-sensor, com 15 métodos clássicos e cinco baselines de aprendizado profundo, analisamos \gls{PSNR}, \gls{SSIM}, \gls{RMSE}, \gls{SAM} e \gls{ERGAS} sob diferentes níveis de ruído e múltiplas escalas de entropia. Os resultados evidenciam que a relação entropia-qualidade é dependente do método e da escala, o que favorece análises multi-escala em vez de uma única janela como resumo.
-\end{abstract}
+  \begin{keywords}
+    Proceedings, Template, BCS, Content Repository, Indexing
+  \end{keywords}
 
-\begin{keywords}
-imagens de satélite; preenchimento de lacunas; entropia de Shannon; interpolação espacial; avaliação de qualidade de imagem; sensoriamento remoto.
-\end{keywords}
-
-%\begin{license}
-%Publicado sob a Licença Pública Internacional Creative Commons Atribuição 4.0 (CC BY 4.0)
-%\end{license}
+  \begin{license}
+    Published under the Creative Commons Attribution 4.0 International Public License (CC BY 4.0)
+  \end{license}
 
 \end{frontmatter}
 
-% tables
+% ======= Sections ======================
+\input{sections/1-introduction}
+\input{sections/2-related-work}
+\input{sections/3-methods}
+\input{sections/4-experimental}
+\input{sections/5-results}
+\input{sections/6-discussion}
+\input{sections/7-conclusion}
 
-\input{tables/}
-\input{tables/}
-\input{tables/}
-
-% ============================================================
-% \input{sections/1-introduction}
-% \input{sections/2-related-work}
-% \input{sections/3-methods}
-% \input{sections/4-experimental}
-% \input{sections/5-results}
-% \input{sections/6-discussion}
-% \input{sections/7-conclusion}
+% ================ TESTES =====================
+% \input{tables/dataset-stats}
+% \input{tables/dl-architectures}
+% \input{tables/global-scoreboard}
+% \input{tables/global-scoreboard-iqr}
+% \input{tables/methods}
+% \input{tables/psnr-drop-entropy}
+% \input{tables/psnr-drop-entropy-iqr}
+% \input{tables/psnr-noise-slope-entropy}
+% \input{tables/psnr-noise-slope-entropy-iqr}
+% \input{tables/runtime-speed}
+% \input{tables/spearman-entropy-7}
+% \input{tables/spearman-entropy-15}
+% \input{tables/spearman-entropy-31}
+% \input{tables/spectral-rmse}
+% \input{tables/spectral-rmse-iqr}
 
 \begin{acknowledgements}
-O(s) autor(es) agradece(m) ao Centro Nacional de Processamento de Alto Desempenho da Universidade Federal do Ceará (CENAPAD-UFC) pelo suporte computacional e recursos de processamento de alto desempenho disponibilizados para a realização deste trabalho.
+  Os autores agradecem à Universidade Federal do Ceará (UFC) e ao Centro Nacional de Processamento de Alto Desempenho (CENAPAD-UFC) pelo suporte técnico, pela infraestrutura e pelos recursos computacionais de alto desempenho disponibilizados para a execução desta pesquisa.
 \end{acknowledgements}
 
 \begin{funding}
-O presente trabalho foi realizado com apoio da Coordenação de Aperfeiçoamento de Pessoal de Nível Superior - Brasil (CAPES) - Código de Financiamento 001.
+  O presente trabalho foi realizado com apoio da Coordenação de Aperfeiçoamento de Pessoal de Nível Superior – Brasil (CAPES), por meio do Programa de Excelência Acadêmica (PROEX) – Código de Financiamento 001.
 \end{funding}
 
-\begin{contributions}
-Emanuel Ávila Pires: conceituação, metodologia, desenvolvimento de software, execução experimental, análise estatística, redação (primeira versão) e revisão/edição.
-\end{contributions}
+% \begin{contributions}
+% JV contributed to the conception of this study. CB, RP and CM performed the experiments. JV is the main contributor and writer of this manuscript. All authors read and approved the final manuscript.
+% \end{contributions}
 
 \begin{interests}
-Os autores declaram que não há conflito de interesses.
+  Os autores declaram que não há conflito de interesses.
 \end{interests}
 
 \begin{materials}
-Os conjuntos de dados gerados e analisados durante o presente estudo, juntamente com todo o código-fonte, estão disponíveis em \url{https://github.com/meiazero/pdi-entropy-gapfilling}.
+  Os conjuntos de dados gerados e analisados no presente estudo, juntamente com todo o código-fonte, estão disponíveis em \url{https://github.com/meiazero/entropy-gapfilling}.
 \end{materials}
 
-% \printnoidxglossaries
-
+\balance
 \bibliographystyle{apalike-sol}
 \bibliography{refs}
 

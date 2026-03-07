@@ -28,7 +28,7 @@
 
 %\renewcommand*\ttdefault{cmvtt}
 \usepackage{fontspec}
-% \setmainfont{Times New Roman}
+\setmainfont{Times New Roman}
 
 \renewcommand{\title}[2][]{%
   \gdef\@shorttitle{#1}

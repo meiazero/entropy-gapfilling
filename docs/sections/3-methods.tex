@@ -5,7 +5,7 @@
 \label{sec:dataset}
 
 Utiliza-se um conjunto de dados de recortes multiespectrais com dimensão $64\times64$ pixels e quatro bandas (B2, B3, B4 e B8) provenientes de quatro sensores: Sentinel-2, Landsat-8, Landsat-9 e MODIS.
-As estatísticas do conjunto de dados, incluindo número de recortes por sensor e partição em treino, validação e teste, são apresentadas na \Cref{tab:dataset-stats}.
+As estatísticas do conjunto de dados, incluindo o número de recortes por sensor e a partição em treino, validação e teste, são apresentadas na \Cref{tab:dataset-stats}.
 
 \input{tables/dataset-stats}
 
@@ -29,7 +29,7 @@ Considera-se degradação por ruído em quatro níveis (\texttt{inf}, 40, 30 e 2
 \subsection{Entropia Local}
 \label{sec:entropy}
 
-A entropia de Shannon~\cite{shannon1948mathematical} quantifica a complexidade local da cena.
+A entropia de Shannon~\citep{shannon1948mathematical} quantifica a complexidade local da cena.
 Para um recorte limpo $\mathbf{y}$, as bandas são primeiro convertidas em escala de cinza (média das bandas), reescaladas para o intervalo $[0,255]$ e quantizadas em \texttt{uint8}.
 A entropia local é então calculada pixel a pixel em uma janela quadrada deslizante de lado $s \in \{7, 15, 31\}$:
 \[
@@ -143,8 +143,8 @@ Propaga textura de regiões válidas para lacunas por meio de busca de patches, 
 \subsection{Baselines de Aprendizado Profundo}
 \label{sec:dl-models}
 
-Cinco baselines de aprendizado profundo (\gls{AE}~\cite{hinton2006reducing}, \gls{VAE}~\cite{kingma2014auto}, \gls{GAN}~\cite{goodfellow2014generative,isola2017image}, U-Net~\cite{ronneberger2015unet} e \gls{ViT}~\cite{dosovitskiy2021image}) são incluídos para comparação no sensor Sentinel-2.
-A \Cref{tab:dl-architectures} resume as arquiteturas e funções de perda. Todos os modelos utilizam o otimizador AdamW~\cite{kingma2015adam,loshchilov2019decoupled} com parada antecipada por paciência, inicialização de Kaiming~\cite{he2015delving} e ativação \gls{GELU}~\cite{hendrycks2016gaussian} onde aplicável.
+Cinco baselines de aprendizado profundo (\gls{AE}~\citep{hinton2006reducing}, \gls{VAE}~\citep{kingma2014auto}, \gls{GAN}~\citep{goodfellow2014generative,isola2017image}, U-Net~\citep{ronneberger2015unet} e \gls{ViT}~\citep{dosovitskiy2021image}) são incluídos para comparação no sensor Sentinel-2.
+A \Cref{tab:dl-architectures} resume as arquiteturas e funções de perda. Todos os modelos utilizam o otimizador AdamW~\citep{kingma2015adam,loshchilov2019decoupled} com parada antecipada por paciência, inicialização de Kaiming~\citep{he2015delving} e ativação \gls{GELU}~\citep{hendrycks2016gaussian} onde aplicável.
 Os hiperparâmetros foram selecionados por busca em grade (\emph{grid search}) com subconjunto reduzido e avaliados com 10 sementes experimentais.
 
 \input{tables/dl-architectures}
