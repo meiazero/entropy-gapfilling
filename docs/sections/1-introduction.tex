@@ -1,40 +1,8 @@
 \section{Introdução}
 \label{sec:introduction}
 
-O sensoriamento remoto por satélite oferece suporte empírico a aplicações críticas, como monitoramento ambiental, agricultura de precisão, planejamento urbano e estudos climáticos~\cite{drusch2012sentinel,roy2014landsat}. Ainda assim, uma fração relevante das aquisições apresenta dados ausentes ou degradados devido a oclusões por nuvens e neblina, contaminações atmosféricas ou falhas instrumentais~\cite{shen2015missing,zeng2013recovering,jayakumar2023Evaluation,alhan2021Spatial}.
-Nesses cenários, o preenchimento de lacunas é necessário para viabilizar produtos derivados e análises quantitativas~\cite{zhang2018missing}.
-
-Embora exista uma ampla diversidade de abordagens, desde interpoladores determinísticos~\cite{shepard1968two,deboor1978practical} até métodos de otimização~\cite{rudin1992nonlinear,donoho2006compressed} e modelos de aprendizado profundo~\cite{ronneberger2015unet,goodfellow2014generative,dosovitskiy2021image}, persistem dificuldades na seleção prática de técnicas.
-Em particular, ainda é limitada a quantificação de como características \emph{locais} da cena condicionam a qualidade esperada do preenchimento.
-Como consequência, decisões metodológicas tendem a depender de médias globais ou de recomendações genéricas, que podem mascarar variações importantes em regiões heterogêneas.
-
-A entropia de Shannon~\cite{shannon1948mathematical} é frequentemente utilizada como medida de complexidade de cena em sensoriamento remoto, mas sua relação com a qualidade de reconstrução raramente é analisada de forma sistemática e por método.
-Este trabalho quantifica essa associação, empregando a entropia local em múltiplas escalas.
-A avaliação considera 15 métodos clássicos em um benchmark multi-sensor e inclui, como referência, cinco baselines de aprendizado profundo.
-A análise é conduzida em múltiplos níveis de ruído e reporta métricas calculadas estritamente sobre os pixels ausentes, evitando inflar desempenho por áreas não reconstruídas.
-
-\textbf{Hipóteses.}
-Este estudo testa as seguintes hipóteses:
-
 \begin{itemize}
   \item \textbf{H1.} A relação entre entropia local e qualidade de reconstrução depende do método e da escala, podendo mudar de sinal entre janelas.
   \item \textbf{H2.} Métodos com priors espaciais mais fortes (regularização, patch-based ou geoestatísticos) são menos sensíveis à entropia em cenas de baixa complexidade.
   \item \textbf{H3.} Para cada janela de entropia analisada separadamente, a entropia é um preditor estatisticamente significativo das métricas de qualidade, controlando por método e ruído.
 \end{itemize}
-
-\textbf{Contribuições.}
-O artigo apresenta:
-
-\begin{enumerate}
-  \item Um benchmark multi-sensor para preenchimento de lacunas com 15 métodos clássicos, quatro níveis de ruído e entropia local em múltiplas escalas.
-  \item Uma avaliação comparativa, em Sentinel-2, que posiciona métodos clássicos e baselines de aprendizado profundo sob o mesmo protocolo de métricas e de avaliação em pixels de lacuna.
-  \item Uma análise estatística multi-escala que relaciona entropia e qualidade por método, com correções para múltiplos testes~\cite{benjamini1995controlling} e medidas de tamanho de efeito.
-\end{enumerate}
-
-O restante do trabalho está organizado da seguinte forma:
-a Seção \ref{sec:related} apresenta trabalhos relacionados; a Seção
-\ref{sec:methods} descreve dados e métodos; a Seção \ref{sec:experimental}
-detalha o protocolo experimental e as análises estatísticas; a Seção
-\ref{sec:results} reporta os resultados; a Seção \ref{sec:discussion}
-discute implicações e limitações; e a Seção \ref{sec:conclusion} conclui o
-trabalho.

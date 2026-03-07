@@ -1,22 +1,17 @@
 \section{Dados e Métodos}
 \label{sec:methods}
 
-\subsection{Conjunto de Dados e Preprocessamento}
+\subsection{Conjunto de Dados e Pré-processamento}
 \label{sec:dataset}
 
-Utiliza-se um conjunto de dados de recortes multiespectrais com dimensão
-$64\times64$ pixels e quatro bandas (B2, B3, B4 e B8) provenientes de quatro
-sensores: Sentinel-2~\cite{drusch2012sentinel}, Landsat-8~\cite{roy2014landsat}, Landsat-9 e MODIS. As estatísticas do conjunto
-de dados, incluindo número de recortes por sensor e partição em treino,
-validação e teste, são apresentadas na \Cref{tab:dataset-stats}.
+Utiliza-se um conjunto de dados de recortes multiespectrais com dimensão $64\times64$ pixels e quatro bandas (B2, B3, B4 e B8) provenientes de quatro sensores: Sentinel-2, Landsat-8, Landsat-9 e MODIS.
+As estatísticas do conjunto de dados, incluindo número de recortes por sensor e partição em treino, validação e teste, são apresentadas na \Cref{tab:dataset-stats}.
 
 \input{tables/dataset-stats}
 
 \subsection{Modelo de Degradação}
 
-Seja $\mathbf{y} \in \mathbb{R}^{H \times W \times C}$ o recorte limpo de
-referência, $\mathbf{z} \in \{0,1\}^{H \times W}$ a máscara binária de lacunas e
-$\varepsilon_{hwc} \sim \mathcal{N}(0, \sigma^2)$ o ruído aditivo do sensor.
+Seja $\mathbf{y} \in \mathbb{R}^{H \times W \times C}$ o recorte limpo de referência, $\mathbf{z} \in \{0,1\}^{H \times W}$ a máscara binária de lacunas e $\varepsilon_{hwc} \sim \mathcal{N}(0, \sigma^2)$ o ruído aditivo do sensor.
 A imagem degradada observada pelo método de preenchimento é:
 \[
   x_{hwc} =
@@ -25,47 +20,37 @@ A imagem degradada observada pelo método de preenchimento é:
     0 & \text{se } z_{hw} = 1 \quad \text{(lacuna)},
   \end{cases}
 \]
-onde a fração de lacuna é aproximadamente 10\%. Cada método recebe
-$(\mathbf{x}, \mathbf{z})$ e produz uma reconstrução $\hat{\mathbf{y}}$; as
-métricas de qualidade são computadas entre $\hat{\mathbf{y}}$ e $\mathbf{y}$
-exclusivamente nos pixels de lacuna
-$\mathcal{G} = \{(h,w) : z_{hw} = 1\}$.
+onde a fração de lacuna é aproximadamente 10\%.
+Cada método recebe $(\mathbf{x}, \mathbf{z})$ e produz uma reconstrução $\hat{\mathbf{y}}$;
+as métricas de qualidade são computadas entre $\hat{\mathbf{y}}$ e $\mathbf{y}$ exclusivamente nos pixels de lacuna $\mathcal{G} = \{(h,w) : z_{hw} = 1\}$.
 
-Considera-se degradação por ruído em quatro níveis
-(\texttt{inf}, 40, 30 e 20 dB de \gls{SNR}), o que permite avaliar robustez sob cenários
-controlados.
+Considera-se degradação por ruído em quatro níveis (\texttt{inf}, 40, 30 e 20 dB de \gls{SNR}), o que permite avaliar robustez sob cenários controlados.
 
 \subsection{Entropia Local}
 \label{sec:entropy}
 
 A entropia de Shannon~\cite{shannon1948mathematical} quantifica a complexidade local da cena.
-Para um recorte limpo $\mathbf{y}$, as bandas são primeiro convertidas em
-escala de cinza (média das bandas), reescaladas para o intervalo $[0,255]$ e
-quantizadas em \texttt{uint8}. A entropia local é então calculada pixel a pixel
-em uma janela quadrada deslizante de lado $s \in \{7, 15, 31\}$:
+Para um recorte limpo $\mathbf{y}$, as bandas são primeiro convertidas em escala de cinza (média das bandas), reescaladas para o intervalo $[0,255]$ e quantizadas em \texttt{uint8}.
+A entropia local é então calculada pixel a pixel em uma janela quadrada deslizante de lado $s \in \{7, 15, 31\}$:
 \[
   H_s(h,w) = -\sum_{k=0}^{255} p_k \log_2 p_k,
 \]
-onde $p_k$ denota a frequência normalizada do bin $k$ dentro da vizinhança
-$\Omega_{hw}^{(s)}$.
+onde $p_k$ denota a frequência normalizada do bin $k$ dentro da vizinhança $\Omega_{hw}^{(s)}$.
 
-Para obter um descritor escalar único por recorte, calculamos a média da
-entropia sobre o conjunto de pixels de lacuna:
+Para obter um descritor escalar único por recorte, calculamos a média da entropia sobre o conjunto de pixels de lacuna:
 \[
   \bar{H}_s
   = \frac{1}{\lvert\mathcal{G}\rvert}
-    \sum_{(h,w)\,\in\,\mathcal{G}} H_s(h,w).
+  \sum_{(h,w)\,\in\,\mathcal{G}} H_s(h,w).
 \]
 
-Como a interpretação de $H$ depende da escala espacial, cada janela é tratada
-como um preditor distinto nas análises, evitando colapsar múltiplas escalas em
-um único resumo.
+Como a interpretação de $H$ depende da escala espacial, cada janela é tratada como um preditor distinto nas análises, evitando colapsar múltiplas escalas em um único resumo.
 
 \subsection{Métodos Clássicos}
 \label{sec:interpolation-methods}
 
-Avaliam-se 15 métodos clássicos organizados em seis famílias
-(\Cref{tab:methods}). Todos operam independentemente em cada banda espectral.
+Avaliam-se 15 métodos clássicos organizados em seis famílias (\Cref{tab:methods}).
+Todos operam independentemente em cada banda espectral.
 A seguir, descrevemos o princípio de funcionamento de cada família.
 
 \input{tables/methods}
@@ -73,32 +58,24 @@ A seguir, descrevemos o princípio de funcionamento de cada família.
 \subsubsection{Métodos Espaciais}
 
 \paragraph{Vizinho mais próximo.}
-Cada pixel de lacuna recebe o valor do pixel válido mais próximo em distância
-Euclidiana. O método é livre de parâmetros e preserva arestas nítidas, mas
-introduz artefatos em blocos.
+Cada pixel de lacuna recebe o valor do pixel válido mais próximo em distância Euclidiana.
+O método é livre de parâmetros e preserva arestas nítidas, mas introduz artefatos em blocos.
 
 \paragraph{Bilinear.}
-Uma triangulação de Delaunay é construída a partir das coordenadas dos pixels
-válidos. Cada pixel de lacuna é interpolado como uma média ponderada dos três
-vértices do triângulo que o contém, via coordenadas baricêntricas, resultando em
-uma superfície $C^0$-contínua.
+Uma triangulação de Delaunay é construída a partir das coordenadas dos pixels válidos.
+Cada pixel de lacuna é interpolado como uma média ponderada dos três vértices do triângulo que o contém, via coordenadas baricêntricas, resultando em uma superfície $C^0$-contínua.
 
 \paragraph{Bicúbico.}
-A mesma triangulação é utilizada, mas um esquema cúbico por partes de
-Clough-Tocher substitui o interpolante linear, produzindo uma superfície
-$C^1$-contínua que captura curvatura local.
+A mesma triangulação é utilizada, mas um esquema cúbico por partes de Clough-Tocher substitui o interpolante linear, produzindo uma superfície $C^1$-contínua que captura curvatura local.
 
 \paragraph{Lanczos.}
-Um algoritmo iterativo de Papoulis-Gerchberg é aplicado no domínio da
-frequência com janela Lanczos de ordem $a{=}3$~\cite{deboor1978practical}. A cada iteração, os valores
-conhecidos são restaurados exatamente (projeção de fidelidade aos dados).
+Um algoritmo iterativo de Papoulis-Gerchberg é aplicado no domínio da frequência com janela Lanczos de ordem $a{=}3$.
+A cada iteração, os valores conhecidos são restaurados exatamente (projeção de fidelidade aos dados).
 
 \subsubsection{Métodos de Kernel}
 
 \paragraph{Ponderação pelo Inverso da Distância (IDW).}
-Cada pixel de lacuna é estimado como uma média ponderada de todos os pixels
-válidos, com pesos inversamente proporcionais à distância Euclidiana elevada à
-potência $p{=}2$~\cite{shepard1968two}:
+Cada pixel de lacuna é estimado como uma média ponderada de todos os pixels válidos, com pesos inversamente proporcionais à distância euclidiana elevada à potência $p{=}2$:
 \[
   \hat{X}_{hw} = \frac{\sum_i w_i \, X_i}{\sum_i w_i},
   \quad
@@ -107,8 +84,7 @@ potência $p{=}2$~\cite{shepard1968two}:
 onde $d_i$ é a distância ao $i$-ésimo pixel válido e $\varepsilon = 10^{-10}$.
 
 \paragraph{Função de Base Radial (RBF).}
-Um interpolante RBF de spline de placa fina~\cite{buhmann2003radial} é construído a partir dos
-pixels válidos:
+Um interpolante RBF de spline de placa fina é construído a partir dos pixels válidos:
 \[
   s(\mathbf{x})
   = \sum_k w_k \, \varphi\!\bigl(\|\mathbf{x} - \mathbf{x}_k\|\bigr),
@@ -117,8 +93,7 @@ pixels válidos:
 \]
 
 \paragraph{Spline de placa fina.}
-Estruturalmente idêntico ao RBF com kernel de spline de placa fina~\cite{duchon1977splines}, minimiza a
-energia de curvatura:
+Estruturalmente idêntico ao RBF com kernel de spline de placa fina, minimiza a energia de curvatura:
 \[
   E(u) = \iint \bigl(\nabla^2 u\bigr)^2 \, \mathrm{d}A.
 \]
@@ -126,24 +101,19 @@ energia de curvatura:
 \subsubsection{Método Geoestatístico}
 
 \paragraph{Krigagem ordinária.}
-Um semivariograma empírico é ajustado usando modelo esférico com seis
-lags~\cite{cressie1993statistics,matheron1963principles}. A krigagem fornece o melhor preditor linear
-não-viesado (BLUP) derivado da estrutura de correlação espacial.
+Um semivariograma empírico é ajustado usando modelo esférico com seis lags.
+A krigagem fornece o melhor preditor linear não enviesado (BLUP) derivado da estrutura de correlação espacial.
 
 \subsubsection{Domínio de Transformada}
 
 \paragraph{DCT-ISTA.}
-Algoritmo de Limiarização-Encolhimento Iterativo no domínio da
-DCT~\cite{ahmed1974discrete}, com soft-limiarização em nível $\lambda{=}0{,}05$ e convergência
-após 50 iterações ou quando $\Delta_{\mathrm{RMSE}} < 10^{-4}$.
+Algoritmo de Limiarização-Encolhimento Iterativo no domínio da DCT, com soft-limiarização em nível $\lambda{=}0{,}05$ e convergência após 50 iterações ou quando $\Delta_{\mathrm{RMSE}} < 10^{-4}$.
 
 \paragraph{Wavelet-ISTA.}
-O mesmo arcabouço ISTA é utilizado com decomposição
-wavelet~\cite{mallat1989theory,daubechies1988orthonormal} (Daubechies db4, $L{=}3$ níveis).
+O mesmo arcabouço ISTA é utilizado com decomposição wavelet (Daubechies db4, $L{=}3$ níveis).
 
 \paragraph{Variação Total (TV).}
-Minimiza o funcional de regularização por variação total~\cite{rudin1992nonlinear},
-promovendo reconstruções suaves por partes:
+Minimiza o funcional de regularização por variação total, promovendo reconstruções suaves por partes:
 \[
   \min_{\hat{\mathbf{y}}} \; \|\hat{\mathbf{y}} - \mathbf{x}\|_2^2
   + \lambda \, \mathrm{TV}(\hat{\mathbf{y}}),
@@ -154,37 +124,27 @@ promovendo reconstruções suaves por partes:
 \subsubsection{Sensoriamento Compressivo}
 
 \paragraph{$\ell_1$-DCT e $\ell_1$-Wavelet.}
-Formulações de sensoriamento compressivo~\cite{donoho2006compressed,candes2006robust} que resolvem:
+Formulações de sensoriamento compressivo que resolvem:
 \[
   \min_{\boldsymbol{\alpha}} \; \|\boldsymbol{\alpha}\|_1
   \quad \text{s.a.} \quad
   \mathbf{M} \, \Psi \boldsymbol{\alpha} \approx \mathbf{x}_{\mathcal{G}},
 \]
-onde $\Psi$ é a base de DCT ou wavelet e $\mathbf{M}$ é o operador de máscara.
+Onde $\Psi$ é a base de DCT ou wavelet e $\mathbf{M}$ é o operador de máscara.
 
 \subsubsection{Métodos Patch-Based}
 
 \paragraph{Médias não-locais (NLM).}
-Estima cada pixel como uma média ponderada de todos os pixels com vizinhanças
-semelhantes~\cite{buades2005non}, explorando a auto-similaridade global.
+Estima cada pixel como uma média ponderada de todos os pixels com vizinhanças semelhantes, explorando a autossimilaridade global.
 
 \paragraph{Inpainting baseado em exemplares.}
-Propaga textura de regiões válidas para lacunas por meio de busca de
-patches~\cite{criminisi2004region}, priorizando regiões de borda para preservar
-estrutura linear.
+Propaga textura de regiões válidas para lacunas por meio de busca de patches, priorizando regiões de borda para preservar a estrutura linear.
 
 \subsection{Baselines de Aprendizado Profundo}
 \label{sec:dl-models}
 
-Cinco baselines de aprendizado profundo (\gls{AE}~\cite{hinton2006reducing},
-\gls{VAE}~\cite{kingma2014auto}, \gls{GAN}~\cite{goodfellow2014generative,isola2017image},
-U-Net~\cite{ronneberger2015unet} e \gls{ViT}~\cite{dosovitskiy2021image}) são incluídos
-para comparação no sensor Sentinel-2. A \Cref{tab:dl-architectures} resume as
-arquiteturas e funções de perda. Todos os modelos utilizam o
-otimizador AdamW~\cite{kingma2015adam,loshchilov2019decoupled} com parada
-antecipada por paciência, inicialização de Kaiming~\cite{he2015delving} e ativação
-\gls{GELU}~\cite{hendrycks2016gaussian} onde aplicável. Os hiperparâmetros foram selecionados por
-busca em grade (\emph{grid search}) com subconjunto reduzido e avaliados com
-10 sementes experimentais.
+Cinco baselines de aprendizado profundo (\gls{AE}~\cite{hinton2006reducing}, \gls{VAE}~\cite{kingma2014auto}, \gls{GAN}~\cite{goodfellow2014generative,isola2017image}, U-Net~\cite{ronneberger2015unet} e \gls{ViT}~\cite{dosovitskiy2021image}) são incluídos para comparação no sensor Sentinel-2.
+A \Cref{tab:dl-architectures} resume as arquiteturas e funções de perda. Todos os modelos utilizam o otimizador AdamW~\cite{kingma2015adam,loshchilov2019decoupled} com parada antecipada por paciência, inicialização de Kaiming~\cite{he2015delving} e ativação \gls{GELU}~\cite{hendrycks2016gaussian} onde aplicável.
+Os hiperparâmetros foram selecionados por busca em grade (\emph{grid search}) com subconjunto reduzido e avaliados com 10 sementes experimentais.
 
 \input{tables/dl-architectures}
