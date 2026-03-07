@@ -16,12 +16,12 @@ Em lugar de um vencedor absoluto, observa-se um grupo relativamente pequeno de m
 \input{tables/global-scoreboard-classical}
 \input{tables/inferential-summary-classical}
 
-A \Cref{tab:inferential-summary-classical} complementa esse quadro com um teste global de diferenças em PSNR entre métodos.
+A \Cref{tab:inferential-summary-classical} complementa esse quadro com um teste global de diferenças em \gls{PSNR} entre métodos.
 O resultado de Kruskal-Wallis indica diferença global estatisticamente detectável entre as distribuições ($H=1277.01$, $p=4.76\times10^{-264}$), com tamanho de efeito agregado moderado ($\varepsilon^2=0.177$).
-Ao mesmo tempo, entre os cinco métodos líderes em PSNR, os contrastes par a par deixam de ser significativos após correção de Bonferroni.
+Ao mesmo tempo, entre os cinco métodos líderes em \gls{PSNR}, os contrastes par a par deixam de ser significativos após correção de Bonferroni.
 Na prática, isso sugere que o bloco clássico contém um grupo de ponta relativamente coeso, mais do que uma liderança isolada e inequivocamente separada dos demais concorrentes fortes.
 
-Nos cenários sem ruído e com 40 dB, RBF e Thin Plate Spline aparecem de forma recorrente entre os melhores valores de PSNR e SSIM.
+Nos cenários sem ruído e com 40 dB, \gls{RBF} e Thin Plate Spline aparecem de forma recorrente entre os melhores valores de \gls{PSNR} e \gls{SSIM}.
 Esse resultado sugere que métodos baseados em superfícies suaves e coerência global exploram bem o contexto espacial quando a observação disponível é limpa ou moderadamente degradada.
 Exemplar-Based também aparece competitivo em várias métricas, especialmente quando a estrutura local da cena oferece textura ou padrões reutilizáveis próximos à lacuna.
 Nesse regime, a capacidade de reutilizar patches informativos parece compensar a ausência de um modelo global explícito.
@@ -33,7 +33,7 @@ Em condições mais degradadas, a modelagem explícita da dependência espacial 
 Isso reforça a necessidade de não interpretar o cenário sem ruído como resumo suficiente do problema.
 
 Outro aspecto decisivo do bloco clássico é o custo computacional.
-A \Cref{tab:runtime-speed-classical} mostra que o ganho em qualidade de métodos como Ordinary Kriging, RBF e Thin Plate Spline vem acompanhado de um aumento substancial no tempo de inferência por recorte.
+A \Cref{tab:runtime-speed-classical} mostra que o ganho em qualidade de métodos como Ordinary Kriging, \gls{RBF} e Thin Plate Spline vem acompanhado de um aumento substancial no tempo de inferência por recorte.
 Esse é um ponto central da contribuição do artigo, porque desloca a análise de uma lógica de ranking puro para uma lógica multicritério.
 Em cenários operacionais de larga escala, um método com desempenho levemente inferior pode ser preferível se mantiver custo muito menor e estabilidade aceitável.
 
@@ -44,7 +44,7 @@ Quando qualidade e tempo de inferência são colocados no mesmo espaço, vê-se 
 Nearest Neighbor ocupa uma posição extrema de baixo custo, funcionando como referência prática inferior.
 Exemplar-Based aparece como um dos compromissos mais interessantes entre qualidade alta e custo ainda administrável.
 Ordinary Kriging preserva qualidade forte, mas seu custo o desloca para uma região de uso mais restrito.
-Como a figura está restrita ao cenário sem ruído e usa medianas com dispersão por IQR, sua leitura deve ser entendida como retrato operacional desse regime específico, e não como síntese de todos os níveis de ruído.
+Como a figura está restrita ao cenário sem ruído e usa medianas com dispersão por \gls{IQR}, sua leitura deve ser entendida como retrato operacional desse regime específico, e não como síntese de todos os níveis de ruído.
 
 \begin{figure}[htbp]
 \centering
@@ -54,13 +54,13 @@ Como a figura está restrita ao cenário sem ruído e usa medianas com dispersã
 \end{figure}
 
 Do ponto de vista espectral, a \Cref{tab:spectral-rmse-classical} mostra que os métodos mais fortes no ranking global tendem a manter erro competitivo ao longo das quatro bandas analisadas.
-Isso é relevante porque evita uma interpretação superficial em que PSNR global elevado mascararia erro excessivo em bandas específicas.
+Isso é relevante porque evita uma interpretação superficial em que \gls{PSNR} global elevado mascararia erro excessivo em bandas específicas.
 Os melhores métodos clássicos não aparecem fortes apenas por uma média agregada favorável.
 Eles sustentam desempenho relativamente uniforme ao longo do espectro disponível.
 
 \input{tables/spectral-rmse-classical}
 
-A \Cref{fig:classical-spectral-profile} reforça essa leitura ao resumir o RMSE mediano por banda dos principais métodos clássicos.
+A \Cref{fig:classical-spectral-profile} reforça essa leitura ao resumir o \gls{RMSE} mediano por banda dos principais métodos clássicos.
 Visualmente, a figura mostra que métodos fracos tendem a exibir maior separação entre bandas, enquanto os mais fortes preservam perfil espectral mais compacto.
 Essa regularidade sugere que a qualidade observada não é apenas radiométrica em sentido amplo, mas também espectralmente consistente.
 
@@ -115,7 +115,7 @@ Esses cruzamentos seriam menos visíveis em tabelas isoladas e ajudam a sustenta
 
 O terceiro eixo da análise clássica é a associação entre entropia local e qualidade de reconstrução.
 Na \Cref{tab:spearman-entropy-classical-e15}, observa-se que a correlação entre entropia e desempenho varia com o método e com a métrica.
-Alguns algoritmos apresentam associação fraca ou próxima de zero em PSNR, mas associação mais marcada em SSIM, SAM ou ERGAS.
+Alguns algoritmos apresentam associação fraca ou próxima de zero em \gls{PSNR}, mas associação mais marcada em \gls{SSIM}, \gls{SAM} ou \gls{ERGAS}.
 Em outros casos, a direção do efeito muda conforme a escala da entropia ou o indicador analisado.
 
 \input{tables/spearman-entropy-classical-15}
@@ -140,7 +140,7 @@ Por construção, essa figura é descritiva e exploratória: ela complementa as 
 
 Em conjunto, o bloco clássico sustenta três conclusões centrais.
 Primeiro, existe um grupo pequeno de métodos claramente superiores ao restante, mas sem dominância universal entre qualidade, custo e estabilidade.
-Segundo, Ordinary Kriging se destaca como solução particularmente robusta em cenários mais ruidosos, enquanto RBF, Thin Plate Spline e Exemplar-Based se mostram muito fortes em qualidade absoluta sob condições menos adversas.
+Segundo, Ordinary Kriging se destaca como solução particularmente robusta em cenários mais ruidosos, enquanto \gls{RBF}, Thin Plate Spline e Exemplar-Based se mostram muito fortes em qualidade absoluta sob condições menos adversas.
 Terceiro, a complexidade espacial da cena altera o comportamento relativo dos métodos de forma dependente da métrica e da escala de entropia considerada.
 
 \subsection{Resultados dos Modelos de Aprendizado Profundo}
@@ -153,20 +153,20 @@ A \Cref{tab:global-scoreboard-dl} fornece o resumo mais direto dessa comparaçã
 \input{tables/inferential-summary-dl}
 
 A tabela mostra que a U-Net ocupa a primeira posição em qualidade absoluta de forma consistente.
-Ela apresenta os melhores valores de PSNR, SSIM, RMSE, SAM e ERGAS em todos os níveis de ruído considerados, o que indica forte equilíbrio entre fidelidade radiométrica, preservação estrutural e coerência espectral.
+Ela apresenta os melhores valores de \gls{PSNR}, \gls{SSIM}, \gls{RMSE}, \gls{SAM} e \gls{ERGAS} em todos os níveis de ruído considerados, o que indica forte equilíbrio entre fidelidade radiométrica, preservação estrutural e coerência espectral.
 Esse resultado sugere que as conexões de atalho e a propagação multiescala de contexto continuam sendo uma estratégia muito eficaz para reconstrução de lacunas no domínio Sentinel-2.
-Do ponto de vista inferencial, a \Cref{tab:inferential-summary-dl} mostra que as diferenças globais em PSNR são estatisticamente detectáveis ($H=1745.81$, $p<10^{-300}$), mas com tamanho de efeito agregado pequeno ($\varepsilon^2=0.012$).
-Entre os cinco modelos comparados, o contraste par a par mais forte envolve AE e U-Net, ainda assim com efeito pequeno em magnitude ($d=-0.179$).
+Do ponto de vista inferencial, a \Cref{tab:inferential-summary-dl} mostra que as diferenças globais em \gls{PSNR} são estatisticamente detectáveis ($H=1745.81$, $p<10^{-300}$), mas com tamanho de efeito agregado pequeno ($\varepsilon^2=0.012$).
+Entre os cinco modelos comparados, o contraste par a par mais forte envolve \gls{AE} e U-Net, ainda assim com efeito pequeno em magnitude ($d=-0.179$).
 Esse ponto é importante porque evita interpretar a liderança da U-Net como uma separação abrupta de toda a família profunda; o que os resultados indicam é uma vantagem consistente, porém inserida em um bloco de modelos relativamente próximos.
 
-Generative Adversarial Network (GAN) e Vision Transformer (ViT) formam um segundo patamar relativamente próximo entre si.
-Eles não alcançam a qualidade absoluta da U-Net, mas também não colapsam para o nível de Autoencoder (AE) e Variational Autoencoder (VAE).
+\gls{GAN} e \gls{ViT} formam um segundo patamar relativamente próximo entre si.
+Eles não alcançam a qualidade absoluta da U-Net, mas também não colapsam para o nível de \gls{AE} e \gls{VAE}.
 Isso sugere que tanto a modelagem adversarial quanto a atenção conseguem capturar regularidades importantes do problema, embora ainda não superem a vantagem arquitetural oferecida pela combinação de codificação multiescala e skip connections.
-AE e VAE, por sua vez, mantêm papel analítico importante como baselines de gargalo latente, mostrando que compressão simples do contexto observado não é suficiente para atingir o melhor nível de fidelidade.
+\gls{AE} e \gls{VAE}, por sua vez, mantêm papel analítico importante como baselines de gargalo latente, mostrando que compressão simples do contexto observado não é suficiente para atingir o melhor nível de fidelidade.
 
 Em termos de custo, a \Cref{tab:runtime-speed-dl} revela um cenário diferente do bloco clássico.
 Embora existam diferenças entre arquiteturas, todas permanecem em uma faixa operacional muito mais favorável do que os métodos clássicos mais pesados.
-AE e VAE aparecem como os modelos mais rápidos e com melhor relação PSNR/s, enquanto U-Net cobra um custo adicional em troca de qualidade superior.
+\gls{AE} e \gls{VAE} aparecem como os modelos mais rápidos e com melhor relação \gls{PSNR}/s, enquanto U-Net cobra um custo adicional em troca de qualidade superior.
 Esse custo, porém, é marginal quando comparado ao salto de tempo observado entre os clássicos de alto custo e os demais métodos.
 
 \input{tables/runtime-speed-dl}
@@ -191,7 +191,7 @@ Como o painel resume medianas sem intervalos de confiança, ele deve ser lido co
 
 O segundo eixo do bloco de \gls{DL} é a robustez ao ruído.
 As tabelas \Cref{tab:degradation-psnr-dl} e \Cref{tab:noise-slope-psnr-dl} mostram que a liderança absoluta da U-Net não implica dominância completa em estabilidade relativa.
-GAN e ViT frequentemente exibem menor degradação percentual em vários cenários, mesmo permanecendo abaixo da U-Net em valor absoluto de PSNR.
+\gls{GAN} e \gls{ViT} frequentemente exibem menor degradação percentual em vários cenários, mesmo permanecendo abaixo da U-Net em valor absoluto de \gls{PSNR}.
 
 \input{tables/psnr-drop-entropy-dl}
 
@@ -204,7 +204,7 @@ Para aplicações em que previsibilidade sob degradação importa tanto quanto q
 
 A \Cref{fig:dl-noise-robustness} resume esse comportamento ao longo dos quatro níveis de ruído.
 As curvas mostram que U-Net permanece à frente em termos absolutos, mas também deixam visível que as inclinações não são idênticas entre arquiteturas.
-GAN e ViT preservam parte do desempenho relativo de forma mais estável, enquanto AE e VAE ocupam um regime inferior, porém regular.
+\gls{GAN} e \gls{ViT} preservam parte do desempenho relativo de forma mais estável, enquanto \gls{AE} e \gls{VAE} ocupam um regime inferior, porém regular.
 
 \begin{figure}[htbp]
 \centering
@@ -214,7 +214,7 @@ GAN e ViT preservam parte do desempenho relativo de forma mais estável, enquant
 \end{figure}
 
 No que diz respeito à relação entre entropia e qualidade, a \Cref{tab:spearman-entropy-dl-e15} mostra um padrão mais uniforme do que o observado no bloco clássico.
-As correlações entre entropia e PSNR ou SSIM tendem a ser mais claramente negativas para a maioria das arquiteturas, sugerindo que o aumento de complexidade espacial atua como fator de dificuldade relativamente consistente dentro do conjunto de modelos profundos analisado.
+As correlações entre entropia e \gls{PSNR} ou \gls{SSIM} tendem a ser mais claramente negativas para a maioria das arquiteturas, sugerindo que o aumento de complexidade espacial atua como fator de dificuldade relativamente consistente dentro do conjunto de modelos profundos analisado.
 
 \input{tables/spearman-entropy-dl-15}
 
@@ -225,8 +225,8 @@ Uma leitura plausível é que o treinamento supervisionado leva os modelos a int
 
 Em síntese, o bloco de aprendizado profundo sustenta três conclusões principais.
 Primeiro, U-Net é a melhor arquitetura em qualidade absoluta no domínio avaliado.
-Segundo, essa liderança não implica melhor robustez relativa em todos os cenários, já que GAN e ViT exibem degradação percentual menor em várias condições.
-Terceiro, AE e VAE permanecem úteis como referências eficientes e simples, mas não alcançam o mesmo nível de fidelidade das arquiteturas mais expressivas.
+Segundo, essa liderança não implica melhor robustez relativa em todos os cenários, já que \gls{GAN} e \gls{ViT} exibem degradação percentual menor em várias condições.
+Terceiro, \gls{AE} e \gls{VAE} permanecem úteis como referências eficientes e simples, mas não alcançam o mesmo nível de fidelidade das arquiteturas mais expressivas.
 
 \FloatBarrier
 
@@ -238,6 +238,6 @@ No bloco clássico, a principal tensão é entre qualidade alta, robustez ao ru�
 No bloco de aprendizado profundo, a principal tensão é entre qualidade absoluta, estabilidade relativa e perfil arquitetural.
 
 Isso significa que a melhor escolha metodológica depende da pergunta prática que se quer responder.
-Se a prioridade recai sobre métodos clássicos interpretáveis com forte análise multicritério, Ordinary Kriging, RBF, Thin Plate Spline e Exemplar-Based aparecem como candidatos centrais, cada um com vantagens e limitações específicas.
+Se a prioridade recai sobre métodos clássicos interpretáveis com forte análise multicritério, Ordinary Kriging, \gls{RBF}, Thin Plate Spline e Exemplar-Based aparecem como candidatos centrais, cada um com vantagens e limitações específicas.
 Se a prioridade recai sobre melhor qualidade absoluta no domínio Sentinel-2, a U-Net emerge como solução mais forte.
-Se o foco se desloca para estabilidade relativa ou eficiência dentro do bloco de \gls{DL}, a decisão torna-se mais plural e abre espaço para GAN, ViT, AE e VAE conforme o objetivo operacional.
+Se o foco se desloca para estabilidade relativa ou eficiência dentro do bloco de \gls{DL}, a decisão torna-se mais plural e abre espaço para \gls{GAN}, \gls{ViT}, \gls{AE} e \gls{VAE} conforme o objetivo operacional.

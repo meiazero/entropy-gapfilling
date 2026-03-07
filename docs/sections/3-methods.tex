@@ -11,10 +11,20 @@ Os recortes são provenientes de quatro sensores: Sentinel-2, Landsat-8, Landsat
 Essa diversidade é importante porque expõe os métodos a cenários com diferenças de resolução, textura aparente e estrutura radiométrica, ampliando a relevância do estudo para aplicações reais.
 As estatísticas gerais do conjunto de dados, incluindo distribuição por sensor e partições de treino, validação e teste, são apresentadas na \Cref{tab:dataset-stats}.
 
+O benchmark foi originalmente construído a partir de cenas coletadas para a região do Castanhão, no Ceará, e depois padronizadas em um pipeline multissensor antes do recorte em patches.
+Na etapa de coleta, cada sensor foi consultado com bandas compatíveis com azul, verde, vermelho e infravermelho próximo; em seguida, as cenas exportadas foram normalizadas com fatores específicos por sensor e ajuste de contraste por percentis para produzir uma representação numérica comum.
+Sobre essas cenas processadas, o gerador aplicou janelamento deslizante com patches de $64\times64$ e sobreposição de 50\%, o que equivale a stride de 32 pixels.
+Recortes com excesso de valores ausentes ou com sinal médio praticamente nulo foram descartados antes de entrar no benchmark final.
+
+As partições de treino, validação e teste foram definidas no nível da imagem-fonte, e não no nível do patch.
+Na prática, isso significa que recortes derivados da mesma cena permanecem no mesmo split, reduzindo vazamento entre conjuntos e preservando a dependência estrutural inerente ao processo de recorte.
+
 O pré-processamento organiza cada amostra em três componentes principais: imagem limpa de referência, máscara binária de lacuna e versão degradada observada pelo algoritmo de reconstrução.
 Essa organização permite controlar explicitamente a região a ser inferida e separar a dificuldade induzida pela ausência de dados daquela induzida pela degradação do contexto observado.
-As máscaras sintéticas são lidas de arquivos já persistidos no conjunto de dados, validadas como binárias com forma $1\times64\times64$ e então convertidas para a convenção do pipeline em que 1 indica pixel ausente e 0 indica pixel observado.
-Como consequência, a geometria da lacuna é fixa por recorte e é reutilizada de forma idêntica por todos os métodos, em todos os níveis de ruído e em todas as etapas de avaliação.
+No benchmark original, a lacuna sintética é gerada uma vez por imagem-fonte como uma composição aleatória de 3 a 7 blobs suaves, posteriormente suavizados e limiarizados para produzir cobertura aproximada de 10\% da área.
+Essa máscara é então reutilizada nos diferentes recortes extraídos da mesma cena, de modo que patches irmãos compartilham a mesma geometria global de ausência de dados, observada sob diferentes deslocamentos do janelamento.
+As máscaras sintéticas persistidas são lidas no reempacotamento atual, validadas como binárias com forma $1\times64\times64$ e então convertidas da convenção original do benchmark, em que 1 indica pixel válido e 0 indica lacuna, para a convenção do pipeline experimental atual, em que 1 indica pixel ausente e 0 indica pixel observado.
+Como consequência, todos os métodos recebem exatamente a mesma geometria de lacuna para cada patch avaliado, em todos os níveis de ruído e em todas as etapas do estudo.
 
 \input{tables/dataset-stats}
 
@@ -38,6 +48,7 @@ Essa escolha evita inflar artificialmente o desempenho por conta dos pixels já 
 
 Considera-se degradação por ruído em quatro níveis, identificados como \texttt{inf}, 40, 30 e 20 dB de \gls{SNR}.
 O caso \texttt{inf} representa o cenário sem ruído adicional, enquanto os demais níveis produzem contextos progressivamente mais adversos.
+No benchmark de origem, os cenários degradados são construídos aplicando primeiro a máscara sintética ao patch limpo e, em seguida, adicionando ruído gaussiano aditivo apenas ao contexto observado, preservando a região ausente como dado faltante.
 Essa gradação permite estudar robustez ao ruído de forma sistemática e comparável.
 
 \subsection{Entropia Local}
@@ -102,10 +113,10 @@ Cada pixel de lacuna é estimado como uma média ponderada de todos os pixels v�
   w_i = \frac{1}{d_i^{\,p} + \varepsilon},
 \]
 onde $d_i$ é a distância ao $i$-ésimo pixel válido e $\varepsilon = 10^{-10}$.
-O IDW explicita a hipótese de que proximidade espacial é um bom substituto para relevância local na reconstrução.
+O \gls{IDW} explicita a hipótese de que proximidade espacial é um bom substituto para relevância local na reconstrução.
 
 \paragraph{Radial Basis Function (RBF).}
-Um interpolante de função de base radial é construído a partir dos pixels válidos. No experimento, o kernel utilizado é o de thin plate spline:
+Um interpolante de \gls{RBF} é construído a partir dos pixels válidos. No experimento, o kernel utilizado é o de thin plate spline:
 \[
   s(\mathbf{x})
   = \sum_k w_k \, \varphi\!\bigl(\|\mathbf{x} - \mathbf{x}_k\|\bigr),
@@ -115,7 +126,7 @@ Um interpolante de função de base radial é construído a partir dos pixels v�
 O método procura uma superfície suave globalmente coerente e costuma produzir resultados fortes em cenários com ruído moderado e estrutura espacial bem comportada.
 
 \paragraph{Thin Plate Spline.}
-Estruturalmente idêntico ao RBF com kernel de spline de placa fina, minimiza a energia de curvatura:
+Estruturalmente idêntico à \gls{RBF} com kernel de spline de placa fina, minimiza a energia de curvatura:
 \[
   E(u) = \iint \bigl(\nabla^2 u\bigr)^2 \, \mathrm{d}A.
 \]
@@ -125,21 +136,21 @@ No contexto deste artigo, Thin Plate Spline e RBF são avaliados como métodos a
 
 \paragraph{Ordinary Kriging.}
 Um semivariograma empírico é ajustado usando modelo esférico com seis lags.
-A krigagem fornece o melhor preditor linear não enviesado (BLUP) derivado da estrutura de correlação espacial.
+A krigagem fornece o melhor preditor linear não enviesado (\gls{BLUP}) derivado da estrutura de correlação espacial.
 Sua vantagem conceitual é incorporar explicitamente a dependência espacial da cena, o que tende a favorecer robustez em cenários degradados.
 
 \subsubsection{Domínio de Transformada}
 
 \paragraph{DCT-ISTA.}
-Algoritmo de Limiarização-Encolhimento Iterativo no domínio da DCT, com soft-limiarização em nível $\lambda{=}0{,}05$ e convergência após 50 iterações ou quando $\Delta_{\mathrm{RMSE}} < 10^{-4}$.
+Algoritmo de \gls{ISTA} no domínio da \gls{DCT}, com soft-limiarização em nível $\lambda{=}0{,}05$ e convergência após 50 iterações ou quando $\Delta_{\mathrm{RMSE}} < 10^{-4}$.
 Métodos dessa família assumem que a imagem pode ser representada de forma aproximadamente esparsa em uma base transformada.
 
 \paragraph{Wavelet-ISTA.}
-O mesmo arcabouço ISTA é utilizado com decomposição wavelet (Daubechies db4, $L{=}3$ níveis).
+O mesmo arcabouço \gls{ISTA} é utilizado com decomposição wavelet (Daubechies db4, $L{=}3$ níveis).
 Ao operar em base wavelet, o método tende a responder melhor a estruturas localizadas do que representações globais muito rígidas.
 
 \paragraph{Total Variation (TV).}
-Minimiza o funcional de regularização por variação total, promovendo reconstruções suaves por partes:
+Minimiza o funcional de regularização por \gls{TV}, promovendo reconstruções suaves por partes:
 \[
   \min_{\hat{\mathbf{y}}} \; \|\hat{\mathbf{y}} - \mathbf{x}\|_2^2
   + \lambda \, \mathrm{TV}(\hat{\mathbf{y}}),
@@ -151,13 +162,13 @@ Essa formulação costuma preservar contornos mais intensos, mas pode atenuar te
 \subsubsection{Sensoriamento Compressivo}
 
 \paragraph{$\ell_1$-DCT e $\ell_1$-Wavelet.}
-Formulações de sensoriamento compressivo que resolvem:
+Formulações de \gls{CS} que resolvem:
 \[
   \min_{\boldsymbol{\alpha}} \; \|\boldsymbol{\alpha}\|_1
   \quad \text{s.a.} \quad
   \mathbf{M} \, \Psi \boldsymbol{\alpha} \approx \mathbf{x}_{\mathcal{G}},
 \]
-Onde $\Psi$ é a base de DCT ou wavelet e $\mathbf{M}$ é o operador de máscara.
+Onde $\Psi$ é a base de \gls{DCT} ou wavelet e $\mathbf{M}$ é o operador de máscara.
 Esses modelos representam uma versão mais restritiva da hipótese de esparsidade, tratando a reconstrução como problema de recuperação de sinal sob observação parcial.
 
 \subsubsection{Métodos Patch-Based}
@@ -173,7 +184,7 @@ Essa família é particularmente sensível à existência de padrões reutilizá
 \subsection{Baselines de Aprendizado Profundo}
 \label{sec:dl-models}
 
-Cinco baselines de aprendizado profundo são incluídos para comparação no sensor Sentinel-2: Autoencoder (\gls{AE}), Variational Autoencoder (\gls{VAE}), Generative Adversarial Network (\gls{GAN}), U-Net e Vision Transformer (\gls{ViT}).
+Cinco baselines de aprendizado profundo são incluídos para comparação no sensor Sentinel-2: \gls{AE}, \gls{VAE}, \gls{GAN}, U-Net e \gls{ViT}.
 A \Cref{tab:dl-architectures} resume as arquiteturas, as funções objetivo e os otimizadores efetivamente usados.
 Esses modelos representam estratégias distintas de reconstrução.
 Autoencoder e Variational Autoencoder enfatizam compressão em espaço latente.
@@ -181,18 +192,18 @@ Generative Adversarial Network combina perda de reconstrução com treinamento a
 U-Net explora conexões de atalho para preservar informação multiescala.
 Vision Transformer utiliza atenção para modelar relações espaciais de longo alcance.
 
-Em termos de objetivo, Autoencoder, U-Net e Vision Transformer minimizam erro quadrático médio mascarado na região de lacuna:
+Em termos de objetivo, \gls{AE}, U-Net e \gls{ViT} minimizam erro quadrático médio mascarado na região de lacuna:
 \[
   \mathcal{L}_{\mathrm{MSE}} = \frac{1}{|\mathcal{G}|\,C}
   \sum_{(h,w)\in\mathcal{G}} \sum_c
   \bigl(y_{hwc} - \hat{y}_{hwc}\bigr)^2.
 \]
-Variational Autoencoder adiciona regularização variacional com peso $\beta$:
+O \gls{VAE} adiciona regularização variacional com peso $\beta$:
 \[
   \mathcal{L}_{\mathrm{VAE}} = \mathcal{L}_{\mathrm{MSE}} +
   \beta\, D_{\mathrm{KL}}\!\left(q(\mathbf{z}|\mathbf{x})\,\|\,p(\mathbf{z})\right).
 \]
-Generative Adversarial Network combina perda $\ell_1$ na lacuna com um termo adversarial binário:
+A \gls{GAN} combina perda $\ell_1$ na lacuna com um termo adversarial binário:
 \[
   \mathcal{L}_{\mathrm{GAN}} =
   \lambda_{\ell_1}\,\mathcal{L}_{\ell_1,\mathcal{G}} +
@@ -201,9 +212,9 @@ Generative Adversarial Network combina perda $\ell_1$ na lacuna com um termo adv
 Assim, a comparação no bloco de \gls{DL} não envolve apenas diferenças arquiteturais, mas também diferenças explícitas de objetivo de treinamento.
 
 Também é importante registrar a configuração de otimização como ela realmente foi executada no código.
-Autoencoder e Variational Autoencoder usam Adam.
-Generative Adversarial Network usa Adam com $\beta_1{=}0.5$ e $\beta_2{=}0.999$ para gerador e discriminador.
-U-Net e Vision Transformer usam AdamW, com agendamento de taxa de aprendizado específico em cada caso.
+\gls{AE} e \gls{VAE} usam Adam.
+\gls{GAN} usa Adam com $\beta_1{=}0.5$ e $\beta_2{=}0.999$ para gerador e discriminador.
+U-Net e \gls{ViT} usam AdamW, com agendamento de taxa de aprendizado específico em cada caso.
 Todos os modelos adotam parada antecipada por paciência, e os hiperparâmetros finais são selecionados por busca em grade sobre subconjunto reduzido antes da avaliação comparativa no conjunto de teste.
 
 A presença dos modelos de aprendizado profundo neste artigo não substitui a análise dos métodos clássicos.

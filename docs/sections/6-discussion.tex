@@ -9,8 +9,8 @@ O comportamento dos métodos não depende apenas de sua formulação matemática
 Ele depende também da estrutura espacial da cena, do nível de ruído no entorno observado e do custo computacional admissível para a aplicação final.
 
 No bloco dos métodos clássicos, a principal implicação prática é que qualidade alta pode vir acompanhada de custo operacional elevado demais para determinadas aplicações.
-Ordinary Kriging, RBF e Thin Plate Spline aparecem repetidamente entre os métodos de melhor qualidade, mas não ocupam a mesma posição quando o tempo de inferência entra explicitamente na análise.
-Esse resultado relativiza leituras puramente quantitativas baseadas em PSNR ou SSIM.
+Ordinary Kriging, \gls{RBF} e Thin Plate Spline aparecem repetidamente entre os métodos de melhor qualidade, mas não ocupam a mesma posição quando o tempo de inferência entra explicitamente na análise.
+Esse resultado relativiza leituras puramente quantitativas baseadas em \gls{PSNR} ou \gls{SSIM}.
 Em sistemas de produção, processamento em lote ou cenários de resposta rápida, a melhor técnica pode não ser aquela com maior qualidade média, e sim aquela que mantém desempenho competitivo sem comprometer a viabilidade computacional.
 
 Esse ponto ajuda a explicar por que Exemplar-Based surge como método particularmente interessante no bloco clássico.
@@ -20,7 +20,7 @@ Ao mesmo tempo, o artigo mostra que essa atratividade depende da cena.
 Quando a lacuna ocorre em áreas cuja autossimilaridade é baixa, o ganho desse método tende a diminuir.
 
 Outro resultado relevante é a ausência de uma relação simples e universal entre entropia local e dificuldade de reconstrução no bloco clássico.
-As análises por correlação, degradação percentual e inclinação das curvas de PSNR mostram que a entropia afeta os métodos de forma heterogênea.
+As análises por correlação, degradação percentual e inclinação das curvas de \gls{PSNR} mostram que a entropia afeta os métodos de forma heterogênea.
 Em alguns algoritmos, o aumento da entropia coincide com piora consistente de qualidade.
 Em outros, o efeito é fraco, próximo de zero ou depende fortemente da métrica observada.
 Isso significa que a entropia não deve ser interpretada como marcador universal de dificuldade com direção fixa.
@@ -35,13 +35,13 @@ Isso sugere que a dificuldade da reconstrução não cresce apenas com a diversi
 No bloco de aprendizado profundo, a discussão assume outra forma.
 A liderança da U-Net em qualidade absoluta é clara e consistente, o que reforça a efetividade da modelagem multiescala com conexões de atalho para esse problema.
 No entanto, a análise de robustez mostra que qualidade absoluta e estabilidade relativa não são sinônimos.
-GAN e ViT frequentemente degradam menos em termos percentuais quando o ruído aumenta.
+\gls{GAN} e \gls{ViT} frequentemente degradam menos em termos percentuais quando o ruído aumenta.
 Isso significa que a escolha da arquitetura depende do critério de desempenho considerado mais relevante para a aplicação final.
 
 Essa distinção tem consequências práticas.
 Se o objetivo é maximizar a qualidade final da reconstrução em um domínio semelhante ao do treinamento, a U-Net é a opção mais convincente entre as arquiteturas avaliadas.
-Se o objetivo é obter comportamento mais previsível sob degradação do sinal observado, GAN e ViT passam a merecer atenção maior.
-AE e VAE, embora inferiores em qualidade absoluta, continuam relevantes como referências de eficiência e simplicidade arquitetural.
+Se o objetivo é obter comportamento mais previsível sob degradação do sinal observado, \gls{GAN} e \gls{ViT} passam a merecer atenção maior.
+\gls{AE} e \gls{VAE}, embora inferiores em qualidade absoluta, continuam relevantes como referências de eficiência e simplicidade arquitetural.
 Em outras palavras, o bloco de aprendizado profundo não produz apenas um vencedor.
 Ele organiza um espaço de decisão com compromissos diferentes entre precisão, robustez e custo marginal.
 
@@ -67,7 +67,7 @@ Isso enfraquece a interpretação isolada de coeficientes e recomenda cautela na
 Em outras palavras, o modelo é forte como evidência de associação multivariada, mas menos apropriado como instrumento de interpretação causal fina entre escalas.
 
 Também é importante reconhecer que o artigo avalia qualidade de reconstrução, não impacto em tarefa final.
-Uma técnica que preserve bem PSNR, RMSE, SAM e ERGAS ainda precisa ser validada em aplicações posteriores, como classificação temática, análise temporal ou estimativa biofísica.
+Uma técnica que preserve bem \gls{PSNR}, \gls{RMSE}, \gls{SAM} e \gls{ERGAS} ainda precisa ser validada em aplicações posteriores, como classificação temática, análise temporal ou estimativa biofísica.
 Esse ponto delimita o alcance das conclusões sem diminuir sua relevância.
 O estudo entrega um retrato consistente da reconstrução em si, que pode servir como base para avaliações orientadas a tarefa em trabalhos futuros.
 

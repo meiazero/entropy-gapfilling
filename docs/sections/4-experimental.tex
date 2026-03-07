@@ -12,17 +12,17 @@ No bloco de aprendizado profundo, a meta é comparar arquiteturas entre si em um
 Os métodos clássicos apresentam custo computacional fortemente heterogêneo.
 Por esse motivo, a avaliação multissensor é conduzida sobre um subconjunto balanceado de recortes por sensor e por nível de ruído.
 Esse desenho preserva comparabilidade entre sensores e mantém a execução viável mesmo para métodos de alto custo, como Thin Plate Spline e Ordinary Kriging.
-No experimento consolidado usado neste artigo, a seleção parte do split de treino do manifesto pré-processado.
+No experimento consolidado usado neste artigo, a seleção parte do split de treino do manifesto pré-processado, que por sua vez reempacota o benchmark original construído a partir de partições por imagem-fonte.
 Para cada sensor, o pipeline simula a seleção determinística de patches sob 10 seeds de amostragem (42, 123, 456, 789, 1011, 1213, 1415, 1617, 1819 e 2021), agrega a união dos patches selecionados e reaplica um teto final de 30 recortes por sensor com uma sequência pseudoaleatória específica por sensor.
 As seeds são usadas apenas para amostragem e composição do subconjunto, e não para multiplicar o número de avaliações do mesmo patch.
-Mais importante do que o tamanho absoluto do conjunto consolidado é o fato de que todos os métodos clássicos são submetidos exatamente ao mesmo protocolo de avaliação, com a mesma máscara por patch e os mesmos níveis de ruído.
+Mais importante do que o tamanho absoluto do conjunto consolidado é o fato de que todos os métodos clássicos são submetidos exatamente ao mesmo protocolo de avaliação, com a mesma máscara por patch, a mesma herança de split da cena de origem e os mesmos níveis de ruído.
 
-Para aprendizado profundo, o treinamento e a seleção de hiperparâmetros são restritos ao sensor Sentinel-2, enquanto a avaliação final reportada no artigo utiliza a partição de teste indicada na \Cref{tab:dataset-stats}.
+Para aprendizado profundo, o treinamento e a seleção de hiperparâmetros são restritos ao sensor Sentinel-2, enquanto a avaliação final reportada no artigo utiliza a partição de teste indicada na \Cref{tab:dataset-stats}, preservando a separação por imagem-fonte herdada da construção original do benchmark.
 O pipeline também permite treinar cenários estratificados por entropia, mas as tabelas principais do manuscrito usam o cenário canônico \texttt{entropy\_all}; os cenários \texttt{entropy\_high} e \texttt{entropy\_medium\_high} permanecem como análises auxiliares de sensibilidade.
 Essa escolha é coerente com o regime de treinamento dos modelos e evita transferir para as arquiteturas profundas uma heterogeneidade de domínio que não foi explorada no mesmo grau durante o aprendizado.
 Como consequência, as conclusões do bloco de \gls{DL} são formuladas como comparações internas entre arquiteturas, e não como afirmações universais sobre superioridade da família profunda frente aos métodos clássicos.
 
-Os hiperparâmetros dos modelos de \gls{DL} são selecionados por busca em grade em subconjunto reduzido de Sentinel-2, com \texttt{max\_patches}=10 por split e 40 combinações ao todo: 4 para AE, 12 para VAE, 8 para GAN, 8 para U-Net e 8 para ViT.
+Os hiperparâmetros dos modelos de \gls{DL} são selecionados por busca em grade em subconjunto reduzido de Sentinel-2, com \texttt{max\_patches}=10 por split e 40 combinações ao todo: 4 para \acrshort{AE}, 12 para \acrshort{VAE}, 8 para \acrshort{GAN}, 8 para U-Net e 8 para \acrshort{ViT}.
 O critério de escolha é o menor \texttt{val\_loss} observado no histórico de treinamento de cada execução.
 Na etapa final, cada arquitetura é então treinada uma vez com a configuração vencedora, usando parada antecipada por paciência e salvando o checkpoint de melhor validação.
 
@@ -32,7 +32,7 @@ Na etapa final, cada arquitetura é então treinada uma vez com a configuração
 Todas as métricas são computadas exclusivamente nos pixels de lacuna $\mathcal{G} = \{(h,w) : z_{hw}=1\}$ para evitar diluir o sinal com pixels já observados.
 
 \paragraph{PSNR.}
-Relação Sinal-Ruído de Pico, em decibéis:
+\gls{PSNR}, em decibéis:
 \[
   \begin{aligned}
     \text{PSNR} &= 10 \log_{10}\!\left(\frac{1}{\text{MSE}_{\mathcal{G}}}\right), \\
@@ -42,21 +42,21 @@ Relação Sinal-Ruído de Pico, em decibéis:
 \]
 
 \paragraph{SSIM.}
-Índice de Similaridade Estrutural.
+\gls{SSIM}.
 O mapa completo de \gls{SSIM} entre $\mathbf{y}$ e $\hat{\mathbf{y}}$ é computado e a média é calculada sobre $\mathcal{G}$.
-Na interpretação dos resultados, PSNR e SSIM são lidos como métricas complementares, e não redundantes.
-PSNR resume fidelidade radiométrica média.
-SSIM enfatiza preservação de estrutura e contraste local.
+Na interpretação dos resultados, \gls{PSNR} e \gls{SSIM} são lidos como métricas complementares, e não redundantes.
+\gls{PSNR} resume fidelidade radiométrica média.
+\gls{SSIM} enfatiza preservação de estrutura e contraste local.
 
 \paragraph{RMSE.}
-Raiz do Erro Quadrático Médio, computada por banda e depois agregada:
+\gls{RMSE}, computada por banda e depois agregada:
 \[
   \text{RMSE}_c = \sqrt{\frac{1}{|\mathcal{G}|}
   \sum_{(h,w)\in\mathcal{G}} (y_{hwc} - \hat{y}_{hwc})^2}.
 \]
 
 \paragraph{SAM.}
-Mapeador de Ângulo Espectral, que mede a distorsão espectral como o ângulo entre vetores espectrais:
+\gls{SAM}, que mede a distorsão espectral como o ângulo entre vetores espectrais:
 \[
   \text{SAM}(h,w) = \arccos\!\left(
     \frac{\mathbf{y}_{hw}^\top \hat{\mathbf{y}}_{hw}}
@@ -65,7 +65,7 @@ Mapeador de Ângulo Espectral, que mede a distorsão espectral como o ângulo en
 \]
 
 \paragraph{ERGAS.}
-\emph{Erreur Relative Globale Adimensionnelle de Synthèse}, indicador global adimensional:
+\gls{ERGAS}, indicador global adimensional:
 \[
   \text{ERGAS} = 100 \sqrt{
     \frac{1}{C} \sum_{c=1}^{C}
@@ -73,7 +73,7 @@ Mapeador de Ângulo Espectral, que mede a distorsão espectral como o ângulo en
   },
 \]
 onde $\mu_c$ é a média da banda $c$ nos pixels de referência.
-O uso conjunto de RMSE por banda, SAM e ERGAS é especialmente importante quando o interesse não se limita ao erro global e passa a incluir coerência espectral da reconstrução.
+O uso conjunto de \gls{RMSE} por banda, \gls{SAM} e \gls{ERGAS} é especialmente importante quando o interesse não se limita ao erro global e passa a incluir coerência espectral da reconstrução.
 
 \subsection{Análise Estatística}
 

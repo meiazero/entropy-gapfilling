@@ -9,15 +9,15 @@ O segundo bloco examinou modelos de aprendizado profundo no domínio Sentinel-2,
 Essa separação permitiu formular conclusões mais precisas e evitar generalizações indevidas entre contextos experimentais distintos.
 
 No bloco clássico, os resultados mostraram que não existe um método universalmente dominante.
-Ordinary Kriging, RBF, Thin Plate Spline e Exemplar-Based concentram o melhor desempenho em várias métricas, mas exibem compensações relevantes entre fidelidade absoluta, robustez ao ruído e tempo de inferência.
+Ordinary Kriging, \gls{RBF}, Thin Plate Spline e Exemplar-Based concentram o melhor desempenho em várias métricas, mas exibem compensações relevantes entre fidelidade absoluta, robustez ao ruído e tempo de inferência.
 Ordinary Kriging destacou-se como solução particularmente robusta em cenários mais degradados.
-RBF e Thin Plate Spline mostraram desempenho muito forte em condições menos adversas.
+\gls{RBF} e Thin Plate Spline mostraram desempenho muito forte em condições menos adversas.
 Exemplar-Based destacou-se como compromisso prático de alto interesse, combinando qualidade elevada com custo menos extremo.
 
 No bloco de aprendizado profundo, a U-Net apresentou a melhor qualidade absoluta em todo o domínio avaliado, sugerindo que a propagação multiescala de contexto com conexões de atalho continua sendo uma estratégia muito eficaz para reconstrução de lacunas.
 Entretanto, a análise de robustez mostrou que liderança em qualidade não implica estabilidade relativa máxima.
-GAN e ViT perderam menos em vários cenários quando a comparação passou a enfatizar degradação percentual ao ruído.
-AE e VAE mantiveram papel importante como referências de eficiência e simplicidade, embora abaixo das arquiteturas mais expressivas em fidelidade final.
+\gls{GAN} e \gls{ViT} perderam menos em vários cenários quando a comparação passou a enfatizar degradação percentual ao ruído.
+\gls{AE} e \gls{VAE} mantiveram papel importante como referências de eficiência e simplicidade, embora abaixo das arquiteturas mais expressivas em fidelidade final.
 
 Do ponto de vista conceitual, o trabalho mostrou que a entropia local é uma variável útil para estruturar a análise do problema, mas sua interpretação depende do método, da métrica e da escala consideradas.
 Nos métodos clássicos, a relação entre entropia e qualidade é heterogênea e muitas vezes não monotônica.
@@ -32,4 +32,4 @@ Quando robustez relativa ou eficiência marginal passam a ser os critérios cent
 Como continuidade natural, três direções se destacam.
 Primeiro, ampliar a avaliação clássica para conjuntos consolidados ainda mais extensos, preservando equilíbrio entre sensores.
 Segundo, levar o bloco de aprendizado profundo para cenários multissensor e testar a estabilidade da hierarquia arquitetural observada aqui.
-Terceiro, conectar qualidade de reconstrução a tarefas posteriores, verificando em que medida ganhos em PSNR, SSIM ou coerência espectral se traduzem em benefícios reais para pipelines analíticos de sensoriamento remoto.
+Terceiro, conectar qualidade de reconstrução a tarefas posteriores, verificando em que medida ganhos em \gls{PSNR}, \gls{SSIM} ou coerência espectral se traduzem em benefícios reais para pipelines analíticos de sensoriamento remoto.

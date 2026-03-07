@@ -24,7 +24,7 @@ Isso significa que os intervalos de confiança resumem incerteza empírica relev
 \subsection{Validade de Construção}
 
 Uma ameaça de construção vem da própria escolha das métricas.
-PSNR, SSIM, RMSE, SAM e ERGAS capturam aspectos centrais da reconstrução, mas não são equivalentes a utilidade em tarefa final.
+\gls{PSNR}, \gls{SSIM}, \gls{RMSE}, \gls{SAM} e \gls{ERGAS} capturam aspectos centrais da reconstrução, mas não são equivalentes a utilidade em tarefa final.
 Um método pode apresentar ótimo desempenho radiométrico e espectral sem necessariamente produzir a melhor entrada para classificação, detecção de mudança ou estimativa biofísica.
 Portanto, este artigo avalia a qualidade da reconstrução em si, e não o impacto downstream em toda cadeia de sensoriamento remoto.
 
@@ -56,7 +56,7 @@ A validade externa do bloco clássico é condicionada pelo conjunto de sensores 
 Os resultados são informativos para Sentinel-2, Landsat-8, Landsat-9 e MODIS sob máscaras e níveis de ruído controlados, mas não cobrem automaticamente outros sensores, outras resoluções espaciais, outros padrões de lacuna ou ruídos com distribuição distinta.
 
 No bloco de aprendizado profundo, a limitação externa é ainda mais clara.
-As arquiteturas foram treinadas e avaliadas em domínio Sentinel-2, de modo que as conclusões sobre U-Net, GAN, ViT, AE e VAE devem ser entendidas como válidas para esse contexto experimental específico.
+As arquiteturas foram treinadas e avaliadas em domínio Sentinel-2, de modo que as conclusões sobre U-Net, \gls{GAN}, \gls{ViT}, \gls{AE} e \gls{VAE} devem ser entendidas como válidas para esse contexto experimental específico.
 Generalizar a mesma hierarquia arquitetural para cenário multissensor, para outras estações do ano ou para distribuições geográficas muito diferentes exigirá reavaliação empírica dedicada.
 
 Por fim, o artigo analisa recortes estáticos e não incorpora dependência temporal explícita.
