@@ -79,39 +79,47 @@ def table_spearman_entropy(df: pd.DataFrame, output_dir: Path) -> None:
     if not metric_cols:
         return
 
-    methods = sorted(df["method"].unique())
-
-    for ws in ENTROPY_WINDOWS:
-        ecol = f"entropy_{ws}"
-        if ecol not in df.columns:
+    for method_type, slug, caption_label in [
+        ("Clássico", "classical", "clássicos"),
+        ("DL", "dl", "de DL"),
+    ]:
+        type_df = df[df["type"] == method_type]
+        if type_df.empty:
             continue
+        methods = sorted(type_df["method"].unique())
 
-        rows = _spearman_rows(df, methods, ecol, metric_cols)
-        corrected = _fdr_correct(rows)
-        body = _build_spearman_body(rows, corrected, methods, metric_cols)
+        for ws in ENTROPY_WINDOWS:
+            ecol = f"entropy_{ws}"
+            if ecol not in type_df.columns:
+                continue
 
-        header = "Método & " + " & ".join(
-            f"$\\rho$({{\\scriptsize {m.upper()}}})" for m in metric_cols
-        )
-        tablenotes = [
-            r"\item $^{*}$ $p_{FDR}<0{,}05$.",
-            r"\item $^{\dagger}$ $p_{FDR}<0{,}01$.",
-            r"\item $^{\ddagger}$ $p_{FDR}<0{,}001$.",
-        ]
-        tex = wrap_table(
-            body,
-            caption=(
-                f"Correlação de Spearman entre entropia "
-                f"({ws}x{ws}) e métricas de qualidade (FDR)."
-            ),
-            label=f"tab:spearman-entropy-e{ws}",
-            col_spec="l" + "c" * len(metric_cols),
-            header=header,
-            env="table",
-            resizebox=True,
-            tablenotes=tablenotes,
-        )
-        write_tex(tex, output_dir / f"spearman-entropy-{ws}.tex")
+            rows = _spearman_rows(type_df, methods, ecol, metric_cols)
+            corrected = _fdr_correct(rows)
+            body = _build_spearman_body(rows, corrected, methods, metric_cols)
+
+            header = "Método & " + " & ".join(
+                f"$\\rho$({{\\scriptsize {m.upper()}}})" for m in metric_cols
+            )
+            tablenotes = [
+                r"\item $^{*}$ $p_{FDR}<0{,}05$.",
+                r"\item $^{\dagger}$ $p_{FDR}<0{,}01$.",
+                r"\item $^{\ddagger}$ $p_{FDR}<0{,}001$.",
+            ]
+            tex = wrap_table(
+                body,
+                caption=(
+                    "Correlação de Spearman entre entropia "
+                    f"({ws}x{ws}) e métricas "
+                    f"de qualidade para os métodos {caption_label} (FDR)."
+                ),
+                label=f"tab:spearman-entropy-{slug}-e{ws}",
+                col_spec="l" + "c" * len(metric_cols),
+                header=header,
+                env="table",
+                resizebox=True,
+                tablenotes=tablenotes,
+            )
+            write_tex(tex, output_dir / f"spearman-entropy-{slug}-{ws}.tex")
 
 
 def main() -> None:

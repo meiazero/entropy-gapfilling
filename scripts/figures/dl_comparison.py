@@ -1,4 +1,4 @@
-"""Figure 11: DL model comparison heatmap."""
+"""DL model comparison heatmap."""
 
 from __future__ import annotations
 
@@ -117,20 +117,18 @@ def _render_dl_comparison_heatmap(
             )
 
     plt.colorbar(im, ax=ax, fraction=0.03, pad=0.03, label="Pontuação norm.")
-    scenario_title = scenario.replace("_", " ").title()
     style_axes(
         ax,
-        title=f"Comparação DL (melhor época) - {scenario_title}",
+        xlabel="Métrica de validação",
+        ylabel="Arquitetura",
         grid=False,
-        title_size=FONT_SIZE + 1,
-        title_pad=8,
     )
     save_figure(fig, output_dir, f"dl_comparison_{scenario}")
     plt.close(fig)
 
 
-def fig11_dl_comparison(output_dir: Path) -> None:
-    """Heatmap comparing all DL models across final-epoch metrics."""
+def fig_dl_comparison(output_dir: Path) -> None:
+    """Heatmap comparing DL models in the main entropy scenario."""
     histories = load_all_dl_histories()
 
     metric_keys = [
@@ -144,26 +142,40 @@ def fig11_dl_comparison(output_dir: Path) -> None:
         ("val_f1_01", "F1@0.10", True),
     ]
 
-    for scenario, models in histories.items():
-        if not models:
-            continue
+    scenario = (
+        "entropy_all"
+        if "entropy_all" in histories
+        else next(iter(histories), None)
+    )
+    if scenario is None:
+        return
+    models = histories.get(scenario, {})
+    if not models:
+        return
 
-        raw_df, model_labels = _build_dl_comparison_frame(models, metric_keys)
-        col_labels = [label for _, label, _ in metric_keys]
-        higher_better = {label: higher for _, label, higher in metric_keys}
-        normed = _normalize_dl_metrics(raw_df, higher_better)
-        _render_dl_comparison_heatmap(
-            raw_df,
-            normed,
-            col_labels,
-            model_labels,
-            scenario,
-            output_dir,
-        )
+    raw_df, model_labels = _build_dl_comparison_frame(models, metric_keys)
+    col_labels = [label for _, label, _ in metric_keys]
+    higher_better = {label: higher for _, label, higher in metric_keys}
+    normed = _normalize_dl_metrics(raw_df, higher_better)
+    _render_dl_comparison_heatmap(
+        raw_df,
+        normed,
+        col_labels,
+        model_labels,
+        scenario,
+        output_dir,
+    )
+
+    source = output_dir / f"dl_comparison_{scenario}.png"
+    if source.exists():
+        source.replace(output_dir / "fig_dl_comparison.png")
+    source_pdf = output_dir / f"dl_comparison_{scenario}.pdf"
+    if source_pdf.exists():
+        source_pdf.replace(output_dir / "fig_dl_comparison.pdf")
 
 
 def main() -> None:
-    run_no_df(fig11_dl_comparison, "DL comparison heatmap")
+    run_no_df(fig_dl_comparison, "DL comparison heatmap")
 
 
 if __name__ == "__main__":

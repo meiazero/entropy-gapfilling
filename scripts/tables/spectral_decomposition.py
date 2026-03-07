@@ -145,20 +145,40 @@ def _append_spectral_section(
     body_iqr.extend(_format_spectral_body(stats_df, bands, use_iqr=True))
 
 
-def table_spectral_decomposition(df: pd.DataFrame, output_dir: Path) -> None:
-    """RMSE per spectral band for each method."""
-    bands = ["rmse_b0", "rmse_b1", "rmse_b2", "rmse_b3"]
-    band_labels = ["B0 (Azul)", "B1 (Verde)", "B2 (Vermelho)", "B3 (NIR)"]
-
-    noise_levels = [n for n in NOISE_ORDER if n in df["noise_level"].unique()]
-    grouped_noise = df.groupby(
-        "noise_level",
-        observed=True,
-        sort=False,
+def _table_caption(group_label: str, *, use_iqr: bool) -> str:
+    spread = (
+        "mediano por banda com IQR"
+        if use_iqr
+        else r"mediano por banda (IC95\%)"
+    )
+    return (
+        f"RMSE {spread} dos métodos {group_label} por nível de ruído. "
+        "Menor é melhor."
     )
 
+
+def _type_slug(method_type: str) -> str:
+    return "classical" if method_type == "Clássico" else "dl"
+
+
+def _write_type_table(
+    df: pd.DataFrame,
+    output_dir: Path,
+    *,
+    method_type: str,
+    bands: list[str],
+    band_labels: list[str],
+) -> None:
+    type_df = df[df["type"] == method_type]
+    if type_df.empty:
+        return
+
+    noise_levels = [
+        n for n in NOISE_ORDER if n in type_df["noise_level"].unique()
+    ]
     body: list[str] = []
     body_iqr: list[str] = []
+    grouped_noise = type_df.groupby("noise_level", observed=True, sort=False)
     for noise in noise_levels:
         try:
             subset = grouped_noise.get_group(noise)
@@ -173,7 +193,6 @@ def table_spectral_decomposition(df: pd.DataFrame, output_dir: Path) -> None:
 
         stats_df = stats_df.sort_values("rmse_b0_median", ascending=True)
         stats_df = _select_top_methods(stats_df)
-
         _append_spectral_section(
             body,
             body_iqr,
@@ -188,36 +207,46 @@ def table_spectral_decomposition(df: pd.DataFrame, output_dir: Path) -> None:
     header = "Tipo & Método & " + " & ".join(
         f"{bl} $\\downarrow$" for bl in band_labels
     )
+    slug = _type_slug(method_type)
+    group_label = "clássicos" if method_type == "Clássico" else "de DL"
     tex = wrap_table(
         body,
-        caption=(
-            r"RMSE mediano por banda (IC95\%) por nível de ruído. "
-            r"Menor é melhor."
-        ),
-        label="tab:spectral-rmse",
+        caption=_table_caption(group_label, use_iqr=False),
+        label=f"tab:spectral-rmse-{slug}",
         col_spec="llcccc",
         header=header,
         env="table*",
         resizebox=True,
     )
-    write_tex(tex, output_dir / "spectral-rmse.tex")
+    write_tex(tex, output_dir / f"spectral-rmse-{slug}.tex")
 
     if not body_iqr:
         return
 
     tex_iqr = wrap_table(
         body_iqr,
-        caption=(
-            r"RMSE mediano por banda com IQR por nível de ruído. "
-            r"Menor é melhor."
-        ),
-        label="tab:spectral-rmse-iqr",
+        caption=_table_caption(group_label, use_iqr=True),
+        label=f"tab:spectral-rmse-{slug}-iqr",
         col_spec="llcccc",
         header=header,
         env="table*",
         resizebox=True,
     )
-    write_tex(tex_iqr, output_dir / "spectral-rmse-iqr.tex")
+    write_tex(tex_iqr, output_dir / f"spectral-rmse-{slug}-iqr.tex")
+
+
+def table_spectral_decomposition(df: pd.DataFrame, output_dir: Path) -> None:
+    """RMSE per spectral band for each method."""
+    bands = ["rmse_b0", "rmse_b1", "rmse_b2", "rmse_b3"]
+    band_labels = ["B0 (Azul)", "B1 (Verde)", "B2 (Vermelho)", "B3 (NIR)"]
+    for method_type in ["Clássico", "DL"]:
+        _write_type_table(
+            df,
+            output_dir,
+            method_type=method_type,
+            bands=bands,
+            band_labels=band_labels,
+        )
 
 
 def main() -> None:

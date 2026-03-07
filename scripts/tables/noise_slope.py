@@ -122,75 +122,41 @@ def _section_header_line(section_title: str, n_cols: int) -> str:
 
 def table_noise_slope(df: pd.DataFrame, output_dir: Path) -> None:
     """PSNR slope vs noise level (20/30/40 dB) by entropy bin."""
-    top_classic = select_top_n(df[df["type"] == "Clássico"], n=3)
-    top_dl = select_top_n(df[df["type"] == "DL"], n=3)
     entropy_bins = ["baixa", "média", "alta"]
-    if not (top_classic or top_dl):
-        return
-
     noise_levels = ["20", "30", "40"]
     noise_numeric = np.array([20.0, 30.0, 40.0])
-
     header = "Método & " + " & ".join(b.capitalize() for b in entropy_bins)
-    body: list[str] = []
-    body_iqr: list[str] = []
 
-    for ws in ENTROPY_WINDOWS:
-        ecol = f"entropy_{ws}"
-        if ecol not in df.columns:
+    for method_type, slug, caption_label in [
+        ("Clássico", "classical", "clássicos"),
+        ("DL", "dl", "de DL"),
+    ]:
+        type_df = df[df["type"] == method_type]
+        methods = select_top_n(type_df, n=3)
+        if not methods:
             continue
 
-        df_binned = entropy_terciles(df, entropy_col=ecol)
-        if body:
-            body.append(r"\midrule")
-        if body_iqr:
-            body_iqr.append(r"\midrule")
-        section_title = tex_escape(f"Janela de entropia: {ws}x{ws}")
-        section_line = _section_header_line(
-            section_title, len(entropy_bins) + 1
-        )
-        body.append(section_line)
-        body_iqr.append(section_line)
+        body: list[str] = []
+        body_iqr: list[str] = []
+        for ws in ENTROPY_WINDOWS:
+            ecol = f"entropy_{ws}"
+            if ecol not in type_df.columns:
+                continue
 
-        if top_classic:
-            classic_line = _section_header_line(
-                tex_escape("Clássico"),
-                len(entropy_bins) + 1,
-            )
-            body.append(classic_line)
-            body_iqr.append(classic_line)
-            section_body = _build_noise_slope_body(
-                df_binned,
-                top_classic,
-                entropy_bins,
-                noise_levels,
-                noise_numeric,
-                use_iqr=False,
-            )
-            section_body_iqr = _build_noise_slope_body(
-                df_binned,
-                top_classic,
-                entropy_bins,
-                noise_levels,
-                noise_numeric,
-                use_iqr=True,
-            )
-            body.extend(section_body)
-            body_iqr.extend(section_body_iqr)
-
-        if top_dl:
-            if top_classic:
+            df_binned = entropy_terciles(type_df, entropy_col=ecol)
+            if body:
                 body.append(r"\midrule")
+            if body_iqr:
                 body_iqr.append(r"\midrule")
-            dl_line = _section_header_line(
-                tex_escape("DL"),
-                len(entropy_bins) + 1,
+            section_title = tex_escape(f"Janela de entropia: {ws}x{ws}")
+            section_line = _section_header_line(
+                section_title, len(entropy_bins) + 1
             )
-            body.append(dl_line)
-            body_iqr.append(dl_line)
+            body.append(section_line)
+            body_iqr.append(section_line)
             section_body = _build_noise_slope_body(
                 df_binned,
-                top_dl,
+                methods,
                 entropy_bins,
                 noise_levels,
                 noise_numeric,
@@ -198,7 +164,7 @@ def table_noise_slope(df: pd.DataFrame, output_dir: Path) -> None:
             )
             section_body_iqr = _build_noise_slope_body(
                 df_binned,
-                top_dl,
+                methods,
                 entropy_bins,
                 noise_levels,
                 noise_numeric,
@@ -207,36 +173,40 @@ def table_noise_slope(df: pd.DataFrame, output_dir: Path) -> None:
             body.extend(section_body)
             body_iqr.extend(section_body_iqr)
 
-    if not body:
-        return
+        if not body:
+            continue
 
-    tex = wrap_table(
-        body,
-        caption=(
-            r"Inclinação do PSNR vs ruído (20/30/40 dB, mediana, IC95\%), "
-            "estratificada por faixa de entropia e janela de cálculo."
-        ),
-        label="tab:noise-slope-psnr",
-        col_spec="l" + "c" * len(entropy_bins),
-        header=header,
-        env="table",
-        resizebox=True,
-    )
-    write_tex(tex, output_dir / "psnr-noise-slope-entropy.tex")
+        tex = wrap_table(
+            body,
+            caption=(
+                r"Inclinação do PSNR vs ruído (20/30/40 dB, mediana, IC95\%) "
+                f"para os métodos {caption_label}, estratificada por faixa de "
+                "entropia e janela de cálculo."
+            ),
+            label=f"tab:noise-slope-psnr-{slug}",
+            col_spec="l" + "c" * len(entropy_bins),
+            header=header,
+            env="table",
+            resizebox=True,
+        )
+        write_tex(tex, output_dir / f"psnr-noise-slope-entropy-{slug}.tex")
 
-    tex_iqr = wrap_table(
-        body_iqr,
-        caption=(
-            "Inclinação do PSNR vs ruído (20/30/40 dB, mediana, IQR), "
-            "estratificada por faixa de entropia e janela de cálculo."
-        ),
-        label="tab:noise-slope-psnr-iqr",
-        col_spec="l" + "c" * len(entropy_bins),
-        header=header,
-        env="table",
-        resizebox=True,
-    )
-    write_tex(tex_iqr, output_dir / "psnr-noise-slope-entropy-iqr.tex")
+        tex_iqr = wrap_table(
+            body_iqr,
+            caption=(
+                "Inclinação do PSNR vs ruído (20/30/40 dB, mediana, IQR) "
+                f"para os métodos {caption_label}, estratificada por faixa de "
+                "entropia e janela de cálculo."
+            ),
+            label=f"tab:noise-slope-psnr-{slug}-iqr",
+            col_spec="l" + "c" * len(entropy_bins),
+            header=header,
+            env="table",
+            resizebox=True,
+        )
+        write_tex(
+            tex_iqr, output_dir / f"psnr-noise-slope-entropy-{slug}-iqr.tex"
+        )
 
 
 def main() -> None:

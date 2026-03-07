@@ -1,0 +1,33 @@
+\begin{table*}[htbp]
+\centering
+\caption{RMSE mediano por banda (IC95\%) dos métodos clássicos por nível de ruído. Menor é melhor.}
+\label{tab:spectral-rmse-classical}
+\footnotesize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{llcccc}
+\toprule
+Tipo & Método & B0 (Azul) $\downarrow$ & B1 (Verde) $\downarrow$ & B2 (Vermelho) $\downarrow$ & B3 (NIR) $\downarrow$ \\
+\midrule
+\multicolumn{6}{l}{\textbf{Nível de ruído: Sem ruído}} \\
+Clássico & kriging & $\mathbf{0.080_{\pm 0.016}}$ & $\mathbf{0.082_{\pm 0.015}}$ & $0.092_{\pm 0.016}$ & $0.087_{\pm 0.018}$ \\
+Clássico & exemplar\_based & \underline{$0.081_{\pm 0.019}$} & $0.083_{\pm 0.015}$ & \textit{$0.085_{\pm 0.016}$} & $\mathbf{0.086_{\pm 0.014}}$ \\
+Clássico & rbf & \textit{$0.082_{\pm 0.020}$} & \underline{$0.082_{\pm 0.016}$} & $\mathbf{0.083_{\pm 0.015}}$ & \underline{$0.086_{\pm 0.016}$} \\
+\midrule
+\multicolumn{6}{l}{\textbf{Nível de ruído: 40 dB}} \\
+Clássico & exemplar\_based & $\mathbf{0.080_{\pm 0.018}}$ & $\mathbf{0.080_{\pm 0.015}}$ & $\mathbf{0.084_{\pm 0.015}}$ & $\mathbf{0.084_{\pm 0.014}}$ \\
+Clássico & kriging & \underline{$0.080_{\pm 0.016}$} & $0.083_{\pm 0.015}$ & $0.091_{\pm 0.016}$ & $0.087_{\pm 0.017}$ \\
+Clássico & rbf & \textit{$0.082_{\pm 0.019}$} & \underline{$0.081_{\pm 0.017}$} & \underline{$0.084_{\pm 0.015}$} & \underline{$0.086_{\pm 0.015}$} \\
+\midrule
+\multicolumn{6}{l}{\textbf{Nível de ruído: 30 dB}} \\
+Clássico & kriging & $\mathbf{0.083_{\pm 0.016}}$ & \underline{$0.083_{\pm 0.015}$} & $0.092_{\pm 0.016}$ & $\mathbf{0.087_{\pm 0.016}}$ \\
+Clássico & exemplar\_based & \underline{$0.085_{\pm 0.014}$} & $\mathbf{0.083_{\pm 0.012}}$ & $\mathbf{0.087_{\pm 0.013}}$ & \underline{$0.088_{\pm 0.013}$} \\
+Clássico & rbf & \textit{$0.086_{\pm 0.015}$} & \textit{$0.089_{\pm 0.015}$} & \underline{$0.089_{\pm 0.013}$} & \textit{$0.091_{\pm 0.017}$} \\
+\midrule
+\multicolumn{6}{l}{\textbf{Nível de ruído: 20 dB}} \\
+Clássico & kriging & $\mathbf{0.084_{\pm 0.014}}$ & $\mathbf{0.084_{\pm 0.010}}$ & $\mathbf{0.093_{\pm 0.015}}$ & $\mathbf{0.088_{\pm 0.015}}$ \\
+Clássico & exemplar\_based & \underline{$0.101_{\pm 0.016}$} & \textit{$0.098_{\pm 0.014}$} & \underline{$0.101_{\pm 0.013}$} & \textit{$0.108_{\pm 0.013}$} \\
+Clássico & bilinear & \textit{$0.101_{\pm 0.014}$} & \underline{$0.095_{\pm 0.013}$} & \textit{$0.104_{\pm 0.014}$} & \underline{$0.101_{\pm 0.014}$} \\
+\bottomrule
+\end{tabular}
+}
+\end{table*}

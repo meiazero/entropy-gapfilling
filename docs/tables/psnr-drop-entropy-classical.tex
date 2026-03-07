@@ -1,0 +1,28 @@
+\begin{table}[htbp]
+\centering
+\caption{Queda percentual no PSNR (mediana, IC95\%) (sem ruído → 20 dB) para os métodos clássicos, estratificada por faixa de entropia e janela de cálculo.}
+\label{tab:degradation-psnr-classical}
+\footnotesize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lccc}
+\toprule
+Método & Baixa & Média & Alta \\
+\midrule
+\multicolumn{4}{l}{\textbf{Janela de entropia: 7x7}} \\
+exemplar\_based & $4.1\%_{\pm 3.645}$ & $10.8\%_{\pm 7.629}$ & $6.2\%_{\pm 4.993}$ \\
+rbf & $5.8\%_{\pm 4.659}$ & $14.2\%_{\pm 7.203}$ & $8.0\%_{\pm 5.669}$ \\
+spline & $5.8\%_{\pm 4.659}$ & $14.2\%_{\pm 7.203}$ & $8.0\%_{\pm 5.669}$ \\
+\midrule
+\multicolumn{4}{l}{\textbf{Janela de entropia: 15x15}} \\
+exemplar\_based & $2.7\%_{\pm 5.677}$ & $8.2\%_{\pm 8.153}$ & $8.3\%_{\pm 7.339}$ \\
+rbf & $6.1\%_{\pm 5.595}$ & $10.7\%_{\pm 7.259}$ & $8.6\%_{\pm 6.677}$ \\
+spline & $6.1\%_{\pm 5.595}$ & $10.7\%_{\pm 7.259}$ & $8.6\%_{\pm 6.677}$ \\
+\midrule
+\multicolumn{4}{l}{\textbf{Janela de entropia: 31x31}} \\
+exemplar\_based & $7.5\%_{\pm 5.544}$ & $4.2\%_{\pm 4.535}$ & $10.6\%_{\pm 8.373}$ \\
+rbf & $9.9\%_{\pm 6.210}$ & $7.1\%_{\pm 5.784}$ & $12.1\%_{\pm 9.047}$ \\
+spline & $9.9\%_{\pm 6.210}$ & $7.1\%_{\pm 5.784}$ & $12.1\%_{\pm 9.047}$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table}

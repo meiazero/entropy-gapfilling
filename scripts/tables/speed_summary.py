@@ -37,47 +37,60 @@ def table_speed_summary(df: pd.DataFrame, output_dir: Path) -> None:
 
     stats_df = pd.DataFrame(rows)
 
-    stats_df["psnr_rank"] = stats_df["psnr"].rank(ascending=False, method="min")
-    stats_df["time_rank"] = stats_df["time"].rank(ascending=True, method="min")
-    stats_df["eff_rank"] = stats_df["efficiency"].rank(
-        ascending=False, method="min"
-    )
+    for method_type, slug, caption_label in [
+        ("Clássico", "classical", "clássicos"),
+        ("DL", "dl", "de DL"),
+    ]:
+        type_df = stats_df[stats_df["type"] == method_type].copy()
+        if type_df.empty:
+            continue
 
-    stats_df = stats_df.sort_values("efficiency", ascending=False)
-
-    body: list[str] = []
-    for _, row in stats_df.iterrows():
-        psnr_cell = ranked_plain(row["psnr"], int(row["psnr_rank"]), ".2f")
-        if row["time"] < 0.01:
-            time_str = f"${row['time']:.4f}$"
-        elif row["time"] < 1:
-            time_str = f"${row['time']:.3f}$"
-        else:
-            time_str = f"${row['time']:.2f}$"
-        ranked_plain(row["time"], int(row["time_rank"]), ".3f")
-        eff_cell = ranked_plain(row["efficiency"], int(row["eff_rank"]), ".1f")
-        body.append(
-            f"{row['type']} & {tex_escape(str(row['method']))} & "
-            f"{psnr_cell} & {time_str} & {eff_cell} \\\\"
+        type_df["psnr_rank"] = type_df["psnr"].rank(
+            ascending=False, method="min"
         )
+        type_df["time_rank"] = type_df["time"].rank(
+            ascending=True, method="min"
+        )
+        type_df["eff_rank"] = type_df["efficiency"].rank(
+            ascending=False, method="min"
+        )
+        type_df = type_df.sort_values("efficiency", ascending=False)
 
-    tex = wrap_table(
-        body,
-        caption=(
-            "Velocidade e viabilidade prática (sem ruído). "
-            "PSNR/s indica eficiência. "
-            "Hardware: Rocky Linux 9.5, NVIDIA A100 80GB PCIe, "
-            "driver 550.90.07, CUDA 12.4/12.6.2."
-        ),
-        label="tab:runtime-speed",
-        col_spec="llccc",
-        header=(
-            r"Tipo & Método & PSNR (dB) $\uparrow$ "
-            r"& Tempo (s/patch) $\downarrow$ & PSNR/s $\uparrow$"
-        ),
-        resizebox=True,
-    )
-    write_tex(tex, output_dir / "runtime-speed.tex")
+        body: list[str] = []
+        for _, row in type_df.iterrows():
+            psnr_cell = ranked_plain(row["psnr"], int(row["psnr_rank"]), ".2f")
+            if row["time"] < 0.01:
+                time_str = f"${row['time']:.4f}$"
+            elif row["time"] < 1:
+                time_str = f"${row['time']:.3f}$"
+            else:
+                time_str = f"${row['time']:.2f}$"
+            eff_cell = ranked_plain(
+                row["efficiency"], int(row["eff_rank"]), ".1f"
+            )
+            body.append(
+                f"{row['type']} & {tex_escape(str(row['method']))} & "
+                f"{psnr_cell} & {time_str} & {eff_cell} \\\\"
+            )
+
+        tex = wrap_table(
+            body,
+            caption=(
+                f"Velocidade e viabilidade prática dos métodos {caption_label} "
+                "no cenário sem ruído. "
+                "PSNR/s indica eficiência. "
+                "Hardware: Rocky Linux 9.5, NVIDIA A100 80GB PCIe, "
+                "driver 550.90.07, CUDA 12.4/12.6.2."
+            ),
+            label=f"tab:runtime-speed-{slug}",
+            col_spec="llccc",
+            header=(
+                r"Tipo & Método & PSNR (dB) $\uparrow$ "
+                r"& Tempo (s/patch) $\downarrow$ & PSNR/s $\uparrow$"
+            ),
+            resizebox=True,
+        )
+        write_tex(tex, output_dir / f"runtime-speed-{slug}.tex")
 
 
 def main() -> None:

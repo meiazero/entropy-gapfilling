@@ -176,31 +176,45 @@ def _append_noise_section(
             body_iqr.append(" & ".join(cells_iqr) + r" \\")
 
 
-def table_global_scoreboard(df: pd.DataFrame, output_dir: Path) -> None:
-    """PSNR, SSIM, RMSE, SAM, ERGAS per method in one table."""
-    metrics = ["psnr", "ssim", "rmse", "sam", "ergas"]
-    higher_better = {
-        "psnr": True,
-        "ssim": True,
-        "rmse": False,
-        "sam": False,
-        "ergas": False,
-    }
+def _table_caption(group_label: str, *, use_iqr: bool) -> str:
+    spread = "mediana e IQR" if use_iqr else r"mediana e IC95\%"
+    return (
+        "Placar global multi-métrica "
+        f"dos métodos {group_label} "
+        "por nível de ruído "
+        f"({spread}). "
+        r"\textbf{Negrito}: melhor por métrica dentro do grupo."
+    )
+
+
+def _type_slug(method_type: str) -> str:
+    return "classical" if method_type == "Clássico" else "dl"
+
+
+def _write_type_table(
+    df: pd.DataFrame,
+    output_dir: Path,
+    *,
+    method_type: str,
+    metrics: list[str],
+    higher_better: dict[str, bool],
+) -> None:
+    type_df = df[df["type"] == method_type]
+    if type_df.empty:
+        return
 
     noise_levels = ["all"] + [
-        n for n in NOISE_ORDER if n in df["noise_level"].unique()
+        n for n in NOISE_ORDER if n in type_df["noise_level"].unique()
     ]
-
     body: list[str] = []
     body_iqr: list[str] = []
     for noise in noise_levels:
         if noise == "all":
-            subset = df
+            subset = type_df
             caption_noise = "todos os níveis de ruído"
         else:
-            subset = df[df["noise_level"] == noise]
+            subset = type_df[type_df["noise_level"] == noise]
             caption_noise = noise_label(noise)
-
         if subset.empty:
             continue
 
@@ -216,44 +230,56 @@ def table_global_scoreboard(df: pd.DataFrame, output_dir: Path) -> None:
     if not body:
         return
 
+    group_label = "clássicos" if method_type == "Clássico" else "de DL"
+    slug = _type_slug(method_type)
     header = (
         r"Tipo & Método & PSNR (dB) $\uparrow$ & SSIM $\uparrow$ "
         r"& RMSE $\downarrow$ & SAM $\downarrow$ & ERGAS $\downarrow$"
     )
     tex = wrap_table(
         body,
-        caption=(
-            "Placar global multi-métrica por nível de ruído "
-            r"(mediana e IC95\%). "
-            r"\textbf{Negrito}: melhor por métrica dentro de cada grupo "
-            "(DL e clássico)."
-        ),
-        label="tab:global-scoreboard",
+        caption=_table_caption(group_label, use_iqr=False),
+        label=f"tab:global-scoreboard-{slug}",
         col_spec="llccccc",
         header=header,
         env="table*",
         resizebox=True,
     )
-    write_tex(tex, output_dir / "global-scoreboard.tex")
+    write_tex(tex, output_dir / f"global-scoreboard-{slug}.tex")
 
     if not body_iqr:
         return
 
     tex_iqr = wrap_table(
         body_iqr,
-        caption=(
-            "Placar global multi-métrica por nível de ruído "
-            "(mediana e IQR). "
-            r"\textbf{Negrito}: melhor por métrica dentro de cada grupo "
-            "(DL e clássico)."
-        ),
-        label="tab:global-scoreboard-iqr",
+        caption=_table_caption(group_label, use_iqr=True),
+        label=f"tab:global-scoreboard-{slug}-iqr",
         col_spec="llccccc",
         header=header,
         env="table*",
         resizebox=True,
     )
-    write_tex(tex_iqr, output_dir / "global-scoreboard-iqr.tex")
+    write_tex(tex_iqr, output_dir / f"global-scoreboard-{slug}-iqr.tex")
+
+
+def table_global_scoreboard(df: pd.DataFrame, output_dir: Path) -> None:
+    """PSNR, SSIM, RMSE, SAM, ERGAS per method in one table."""
+    metrics = ["psnr", "ssim", "rmse", "sam", "ergas"]
+    higher_better = {
+        "psnr": True,
+        "ssim": True,
+        "rmse": False,
+        "sam": False,
+        "ergas": False,
+    }
+    for method_type in ["Clássico", "DL"]:
+        _write_type_table(
+            df,
+            output_dir,
+            method_type=method_type,
+            metrics=metrics,
+            higher_better=higher_better,
+        )
 
 
 def main() -> None:

@@ -4,8 +4,13 @@
 \subsection{Conjunto de Dados e Pré-processamento}
 \label{sec:dataset}
 
-Utiliza-se um conjunto de dados de recortes multiespectrais com dimensão $64\times64$ pixels e quatro bandas (B2, B3, B4 e B8) provenientes de quatro sensores: Sentinel-2, Landsat-8, Landsat-9 e MODIS.
-As estatísticas do conjunto de dados, incluindo o número de recortes por sensor e a partição em treino, validação e teste, são apresentadas na \Cref{tab:dataset-stats}.
+Utiliza-se um conjunto de recortes multiespectrais com dimensão espacial de $64\times64$ pixels e quatro bandas por amostra, correspondentes às bandas B2, B3, B4 e B8.
+Os recortes são provenientes de quatro sensores: Sentinel-2, Landsat-8, Landsat-9 e MODIS.
+Essa diversidade é importante porque expõe os métodos a cenários com diferenças de resolução, textura aparente e estrutura radiométrica, ampliando a relevância do estudo para aplicações reais.
+As estatísticas gerais do conjunto de dados, incluindo distribuição por sensor e partições de treino, validação e teste, são apresentadas na \Cref{tab:dataset-stats}.
+
+O pré-processamento organiza cada amostra em três componentes principais: imagem limpa de referência, máscara binária de lacuna e versão degradada observada pelo algoritmo de reconstrução.
+Essa organização permite controlar explicitamente a região a ser inferida e separar a dificuldade induzida pela ausência de dados daquela induzida pela degradação do contexto observado.
 
 \input{tables/dataset-stats}
 
@@ -24,12 +29,17 @@ onde a fração de lacuna é aproximadamente 10\%.
 Cada método recebe $(\mathbf{x}, \mathbf{z})$ e produz uma reconstrução $\hat{\mathbf{y}}$;
 as métricas de qualidade são computadas entre $\hat{\mathbf{y}}$ e $\mathbf{y}$ exclusivamente nos pixels de lacuna $\mathcal{G} = \{(h,w) : z_{hw} = 1\}$.
 
-Considera-se degradação por ruído em quatro níveis (\texttt{inf}, 40, 30 e 20 dB de \gls{SNR}), o que permite avaliar robustez sob cenários controlados.
+As métricas de qualidade são computadas exclusivamente na região mascarada.
+Essa escolha evita inflar artificialmente o desempenho por conta dos pixels já observados fora da lacuna, garantindo que a avaliação incida apenas sobre a parte efetivamente reconstruída.
+
+Considera-se degradação por ruído em quatro níveis, identificados como \texttt{inf}, 40, 30 e 20 dB de \gls{SNR}.
+O caso \texttt{inf} representa o cenário sem ruído adicional, enquanto os demais níveis produzem contextos progressivamente mais adversos.
+Essa gradação permite estudar robustez ao ruído de forma sistemática e comparável.
 
 \subsection{Entropia Local}
 \label{sec:entropy}
 
-A entropia de Shannon~\citep{shannon1948mathematical} quantifica a complexidade local da cena.
+A entropia local quantifica a dispersão tonal da vizinhança e é usada neste trabalho como descritor operacional da complexidade espacial da cena.
 Para um recorte limpo $\mathbf{y}$, as bandas são primeiro convertidas em escala de cinza (média das bandas), reescaladas para o intervalo $[0,255]$ e quantizadas em \texttt{uint8}.
 A entropia local é então calculada pixel a pixel em uma janela quadrada deslizante de lado $s \in \{7, 15, 31\}$:
 \[
@@ -44,7 +54,8 @@ Para obter um descritor escalar único por recorte, calculamos a média da entro
   \sum_{(h,w)\,\in\,\mathcal{G}} H_s(h,w).
 \]
 
-Como a interpretação de $H$ depende da escala espacial, cada janela é tratada como um preditor distinto nas análises, evitando colapsar múltiplas escalas em um único resumo.
+Como a interpretação de $H$ depende da escala espacial, cada janela é tratada como um preditor distinto nas análises.
+Essa decisão evita colapsar múltiplas escalas em um único resumo e preserva a possibilidade de detectar mudanças de comportamento entre estruturas locais finas, intermediárias e mais amplas.
 
 \subsection{Métodos Clássicos}
 \label{sec:interpolation-methods}
@@ -59,18 +70,22 @@ A seguir, descrevemos o princípio de funcionamento de cada família.
 
 \paragraph{Vizinho mais próximo.}
 Cada pixel de lacuna recebe o valor do pixel válido mais próximo em distância Euclidiana.
-O método é livre de parâmetros e preserva arestas nítidas, mas introduz artefatos em blocos.
+O método é livre de parâmetros e muito barato computacionalmente.
+Sua principal limitação é a introdução de artefatos em blocos e descontinuidades abruptas em superfícies que deveriam variar de forma suave.
 
 \paragraph{Bilinear.}
 Uma triangulação de Delaunay é construída a partir das coordenadas dos pixels válidos.
 Cada pixel de lacuna é interpolado como uma média ponderada dos três vértices do triângulo que o contém, via coordenadas baricêntricas, resultando em uma superfície $C^0$-contínua.
+O método favorece suavidade local, mas pode reduzir contraste em transições abruptas.
 
 \paragraph{Bicúbico.}
 A mesma triangulação é utilizada, mas um esquema cúbico por partes de Clough-Tocher substitui o interpolante linear, produzindo uma superfície $C^1$-contínua que captura curvatura local.
+Em geral, espera-se maior fidelidade de forma do que na interpolação bilinear, ao custo de maior sensibilidade a instabilidades locais.
 
 \paragraph{Lanczos.}
 Um algoritmo iterativo de Papoulis-Gerchberg é aplicado no domínio da frequência com janela Lanczos de ordem $a{=}3$.
 A cada iteração, os valores conhecidos são restaurados exatamente (projeção de fidelidade aos dados).
+Essa família tende a ser útil quando a cena possui conteúdo espectral e estrutural que pode ser parcialmente reconstruído a partir de regularidade em frequência.
 
 \subsubsection{Métodos de Kernel}
 
@@ -82,6 +97,7 @@ Cada pixel de lacuna é estimado como uma média ponderada de todos os pixels v�
   w_i = \frac{1}{d_i^{\,p} + \varepsilon},
 \]
 onde $d_i$ é a distância ao $i$-ésimo pixel válido e $\varepsilon = 10^{-10}$.
+O IDW explicita a hipótese de que proximidade espacial é um bom substituto para relevância local na reconstrução.
 
 \paragraph{Função de Base Radial (RBF).}
 Um interpolante RBF de spline de placa fina é construído a partir dos pixels válidos:
@@ -91,26 +107,31 @@ Um interpolante RBF de spline de placa fina é construído a partir dos pixels v
   \quad
   \varphi(r) = r^2 \ln r.
 \]
+O método procura uma superfície suave globalmente coerente e costuma produzir resultados fortes em cenários com ruído moderado e estrutura espacial bem comportada.
 
 \paragraph{Spline de placa fina.}
 Estruturalmente idêntico ao RBF com kernel de spline de placa fina, minimiza a energia de curvatura:
 \[
   E(u) = \iint \bigl(\nabla^2 u\bigr)^2 \, \mathrm{d}A.
 \]
+No contexto deste artigo, spline e RBF são avaliados como métodos aparentados, porém ainda capazes de apresentar diferenças práticas em estabilidade e custo.
 
 \subsubsection{Método Geoestatístico}
 
 \paragraph{Krigagem ordinária.}
 Um semivariograma empírico é ajustado usando modelo esférico com seis lags.
 A krigagem fornece o melhor preditor linear não enviesado (BLUP) derivado da estrutura de correlação espacial.
+Sua vantagem conceitual é incorporar explicitamente a dependência espacial da cena, o que tende a favorecer robustez em cenários degradados.
 
 \subsubsection{Domínio de Transformada}
 
 \paragraph{DCT-ISTA.}
 Algoritmo de Limiarização-Encolhimento Iterativo no domínio da DCT, com soft-limiarização em nível $\lambda{=}0{,}05$ e convergência após 50 iterações ou quando $\Delta_{\mathrm{RMSE}} < 10^{-4}$.
+Métodos dessa família assumem que a imagem pode ser representada de forma aproximadamente esparsa em uma base transformada.
 
 \paragraph{Wavelet-ISTA.}
 O mesmo arcabouço ISTA é utilizado com decomposição wavelet (Daubechies db4, $L{=}3$ níveis).
+Ao operar em base wavelet, o método tende a responder melhor a estruturas localizadas do que representações globais muito rígidas.
 
 \paragraph{Variação Total (TV).}
 Minimiza o funcional de regularização por variação total, promovendo reconstruções suaves por partes:
@@ -120,6 +141,7 @@ Minimiza o funcional de regularização por variação total, promovendo reconst
   \quad
   \mathrm{TV}(\hat{\mathbf{y}}) = \sum_{h,w} \|\nabla \hat{y}_{hw}\|_1.
 \]
+Essa formulação costuma preservar contornos mais intensos, mas pode atenuar textura fina e oscilações locais.
 
 \subsubsection{Sensoriamento Compressivo}
 
@@ -131,20 +153,33 @@ Formulações de sensoriamento compressivo que resolvem:
   \mathbf{M} \, \Psi \boldsymbol{\alpha} \approx \mathbf{x}_{\mathcal{G}},
 \]
 Onde $\Psi$ é a base de DCT ou wavelet e $\mathbf{M}$ é o operador de máscara.
+Esses modelos representam uma versão mais restritiva da hipótese de esparsidade, tratando a reconstrução como problema de recuperação de sinal sob observação parcial.
 
 \subsubsection{Métodos Patch-Based}
 
 \paragraph{Médias não-locais (NLM).}
 Estima cada pixel como uma média ponderada de todos os pixels com vizinhanças semelhantes, explorando a autossimilaridade global.
+Seu interesse prático está em reutilizar padrões repetidos da própria imagem em vez de depender apenas de proximidade espacial imediata.
 
 \paragraph{Inpainting baseado em exemplares.}
 Propaga textura de regiões válidas para lacunas por meio de busca de patches, priorizando regiões de borda para preservar a estrutura linear.
+Essa família é particularmente sensível à existência de padrões reutilizáveis no entorno da lacuna, o que a torna muito pertinente para uma análise orientada por complexidade espacial.
 
 \subsection{Baselines de Aprendizado Profundo}
 \label{sec:dl-models}
 
-Cinco baselines de aprendizado profundo (\gls{AE}~\citep{hinton2006reducing}, \gls{VAE}~\citep{kingma2014auto}, \gls{GAN}~\citep{goodfellow2014generative,isola2017image}, U-Net~\citep{ronneberger2015unet} e \gls{ViT}~\citep{dosovitskiy2021image}) são incluídos para comparação no sensor Sentinel-2.
-A \Cref{tab:dl-architectures} resume as arquiteturas e funções de perda. Todos os modelos utilizam o otimizador AdamW~\citep{kingma2015adam,loshchilov2019decoupled} com parada antecipada por paciência, inicialização de Kaiming~\citep{he2015delving} e ativação \gls{GELU}~\citep{hendrycks2016gaussian} onde aplicável.
-Os hiperparâmetros foram selecionados por busca em grade (\emph{grid search}) com subconjunto reduzido e avaliados com 10 sementes experimentais.
+Cinco baselines de aprendizado profundo são incluídos para comparação no sensor Sentinel-2: \gls{AE}, \gls{VAE}, \gls{GAN}, U-Net e \gls{ViT}.
+A \Cref{tab:dl-architectures} resume as arquiteturas e funções de perda.
+Esses modelos representam estratégias distintas de reconstrução.
+AE e VAE enfatizam compressão em espaço latente.
+GAN combina perda de reconstrução com treinamento adversarial.
+U-Net explora conexões de atalho para preservar informação multiescala.
+ViT utiliza atenção para modelar relações espaciais de longo alcance.
+
+Todos os modelos utilizam otimizador AdamW, parada antecipada por paciência, inicialização compatível com redes profundas e ativação \gls{GELU} quando aplicável.
+Os hiperparâmetros são selecionados por busca em grade sobre subconjunto reduzido e, depois disso, cada arquitetura é treinada com configuração fixa para avaliação comparativa no conjunto de teste.
+
+A presença dos modelos de aprendizado profundo neste artigo não substitui a análise dos métodos clássicos.
+Ela cria um segundo bloco experimental, com dinâmica própria, em que a comparação relevante é interna entre arquiteturas submetidas ao mesmo domínio de dados.
 
 \input{tables/dl-architectures}

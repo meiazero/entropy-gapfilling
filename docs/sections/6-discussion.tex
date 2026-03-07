@@ -1,2 +1,74 @@
 \section{Discussão}
 \label{sec:discussion}
+
+Os resultados apresentados ao longo do artigo indicam que o preenchimento de lacunas em imagens de satélite deve ser tratado como um problema multicritério e dependente do contexto.
+Essa afirmação pode parecer intuitiva, mas as evidências reunidas aqui permitem detalhá-la com maior precisão.
+O comportamento dos métodos não depende apenas de sua formulação matemática ou de sua capacidade média de reduzir erro.
+Ele depende também da estrutura espacial da cena, do nível de ruído no entorno observado e do custo computacional admissível para a aplicação final.
+
+No bloco dos métodos clássicos, a principal implicação prática é que qualidade alta pode vir acompanhada de custo operacional elevado demais para determinadas aplicações.
+Kriging, RBF e spline aparecem repetidamente entre os métodos de melhor qualidade, mas não ocupam a mesma posição quando o tempo de inferência entra explicitamente na análise.
+Esse resultado relativiza leituras puramente quantitativas baseadas em PSNR ou SSIM.
+Em sistemas de produção, processamento em lote ou cenários de resposta rápida, a melhor técnica pode não ser aquela com maior qualidade média, e sim aquela que mantém desempenho competitivo sem comprometer a viabilidade computacional.
+
+Esse ponto ajuda a explicar por que exemplar\_based surge como método particularmente interessante no bloco clássico.
+Ele não domina todo o placar, mas se mantém próximo dos melhores em qualidade sem atingir o custo extremo de kriging ou spline.
+Isso o posiciona como solução intermediária robusta em cenários nos quais a qualidade precisa ser alta, mas o custo não pode crescer sem controle.
+Ao mesmo tempo, o artigo mostra que essa atratividade depende da cena.
+Quando a lacuna ocorre em áreas cuja autossimilaridade é baixa, o ganho do método tende a diminuir.
+
+Outro resultado relevante é a ausência de uma relação simples e universal entre entropia local e dificuldade de reconstrução no bloco clássico.
+As análises por correlação, degradação percentual e inclinação das curvas de PSNR mostram que a entropia afeta os métodos de forma heterogênea.
+Em alguns algoritmos, o aumento da entropia coincide com piora consistente de qualidade.
+Em outros, o efeito é fraco, próximo de zero ou depende fortemente da métrica observada.
+Isso significa que a entropia não deve ser interpretada como marcador universal de dificuldade com direção fixa.
+Ela funciona melhor como variável moderadora, que reorganiza o regime de erro conforme o método e a escala espacial considerados.
+
+Esse resultado é particularmente importante para o desenho de estudos futuros.
+Se a entropia local fosse um marcador monotônico universal, bastaria estratificar o conjunto de dados em baixa, média e alta complexidade e esperar uma degradação regular em todos os métodos.
+Os resultados mostram algo mais rico e mais desafiador.
+Existe um regime intermediário de complexidade em que vários algoritmos se tornam especialmente instáveis.
+Isso sugere que a dificuldade da reconstrução não cresce apenas com a diversidade tonal, mas também com a forma como essa diversidade se organiza espacialmente no entorno da lacuna.
+
+No bloco de aprendizado profundo, a discussão assume outra forma.
+A dominância da U-Net em qualidade absoluta é clara e consistente, o que reforça a efetividade da modelagem multiescala com conexões de atalho para esse problema.
+No entanto, a análise de robustez mostra que qualidade absoluta e estabilidade relativa não são sinônimos.
+GAN e ViT frequentemente degradam menos em termos percentuais quando o ruído aumenta.
+Isso significa que a escolha da arquitetura depende do critério de desempenho considerado mais relevante para a aplicação final.
+
+Essa distinção tem consequências práticas.
+Se o objetivo é maximizar a qualidade final da reconstrução em um domínio semelhante ao do treinamento, a U-Net é a opção mais convincente entre as arquiteturas avaliadas.
+Se o objetivo é obter comportamento mais previsível sob degradação do sinal observado, GAN e ViT passam a merecer atenção maior.
+AE e VAE, embora inferiores em qualidade absoluta, continuam relevantes como referências de eficiência e simplicidade arquitetural.
+Em outras palavras, o bloco de aprendizado profundo não produz apenas um vencedor.
+Ele organiza um espaço de decisão com compromissos diferentes entre precisão, robustez e custo marginal.
+
+Uma contribuição metodológica importante desta versão do manuscrito é a separação explícita entre os blocos clássico e profundo.
+Essa escolha melhora a validade interpretativa do artigo porque reduz o risco de conclusões indevidas baseadas em comparação direta entre domínios experimentais heterogêneos.
+Métodos clássicos foram analisados em regime multissensor com forte ênfase em custo e interpretabilidade.
+Modelos de aprendizado profundo foram analisados no domínio Sentinel-2, com foco em diferenças arquiteturais internas.
+Tratar esses dois contextos como se fossem intercambiáveis produziria uma narrativa mais simples, porém menos correta.
+
+Essa decisão também afeta a forma como as evidências são apresentadas.
+Ao separar tabelas de placar global, decomposição espectral, robustez e velocidade em blocos independentes, o artigo deixa mais claro o escopo de cada conclusão.
+Essa reorganização não é apenas editorial.
+Ela evita que a forma de apresentação produza uma inferência implícita de comparabilidade que os dados não sustentam com a mesma força.
+
+Apesar da consistência interna dos resultados, o estudo possui limitações que precisam ser explicitadas.
+A primeira é que o bloco clássico opera sobre um conjunto consolidado de avaliação balanceado, adotado para preservar comparabilidade e viabilidade computacional.
+Isso fortalece a análise relativa entre métodos, mas restringe o alcance de generalização para todo o universo de recortes disponíveis no repositório.
+A segunda limitação é a diferença de escopo entre os blocos clássico e profundo, que impede transformar a presença simultânea das duas famílias em argumento conclusivo de superioridade universal.
+
+A terceira limitação diz respeito à modelagem estatística multivariada com múltiplas janelas de entropia.
+Embora a regressão robusta seja útil para mostrar que a estrutura da cena permanece associada ao desempenho mesmo sob controle de método e ruído, as escalas de entropia são naturalmente correlacionadas entre si.
+Isso enfraquece a interpretação isolada de coeficientes e recomenda cautela na leitura de efeitos marginais específicos.
+Em outras palavras, o modelo é forte como evidência de associação multivariada, mas menos apropriado como instrumento de interpretação causal fina entre escalas.
+
+Também é importante reconhecer que o artigo avalia qualidade de reconstrução, não impacto em tarefa final.
+Uma técnica que preserve bem PSNR, RMSE, SAM e ERGAS ainda precisa ser validada em aplicações posteriores, como classificação temática, análise temporal ou estimativa biofísica.
+Esse ponto delimita o alcance das conclusões sem diminuir sua relevância.
+O estudo entrega um retrato consistente da reconstrução em si, que pode servir como base para avaliações orientadas a tarefa em trabalhos futuros.
+
+Em síntese, a principal contribuição da discussão não está em declarar um único método vencedor.
+Ela está em mostrar que a escolha metodológica correta depende da combinação entre estrutura local da cena, severidade da degradação, critério de desempenho e restrição operacional.
+Ao explicitar essas dependências, o artigo oferece uma leitura mais útil e mais defensável do problema do que uma comparação direta e indiscriminada entre todas as técnicas avaliadas.

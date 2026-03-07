@@ -3,19 +3,26 @@
 
 \subsection{Amostragem e Avaliação}
 
-Os métodos clássicos apresentam custo computacional heterogêneo e, por esse motivo, a avaliação multi-sensor é conduzida em um subconjunto balanceado de até 30 recortes por sensor e por semente experimental, com 10 sementes.
-Esse desenho preserva comparabilidade entre sensores ao mesmo tempo em que mantém a execução viável.
+O protocolo experimental foi estruturado para responder a duas questões complementares sem misturar regimes de avaliação distintos.
+No bloco clássico, a meta é comparar métodos sob cenário multissensor e diferentes níveis de ruído, observando qualidade, estabilidade e custo.
+No bloco de aprendizado profundo, a meta é comparar arquiteturas entre si em um domínio controlado, restrito ao sensor Sentinel-2.
+
+Os métodos clássicos apresentam custo computacional fortemente heterogêneo.
+Por esse motivo, a avaliação multissensor é conduzida sobre um subconjunto balanceado de recortes por sensor e por nível de ruído.
+Esse desenho preserva comparabilidade entre sensores e mantém a execução viável mesmo para métodos de alto custo, como spline e kriging.
+Mais importante do que o tamanho absoluto do conjunto consolidado é o fato de que todos os métodos clássicos são submetidos exatamente ao mesmo protocolo de avaliação.
 
 Para aprendizado profundo, a avaliação é restrita ao sensor Sentinel-2, utilizando a partição de teste indicada na \Cref{tab:dataset-stats}.
-Quando a comparação entre métodos clássicos e modelos de \gls{DL} é apresentada, os resultados clássicos são filtrados para Sentinel-2, evitando confundir diferenças metodológicas com diferenças de sensor.
+Essa escolha é coerente com o regime de treinamento dos modelos e evita transferir para as arquiteturas profundas uma heterogeneidade de domínio que não foi explorada no mesmo grau durante o aprendizado.
+Como consequência, as conclusões do bloco de \gls{DL} são formuladas como comparações internas entre arquiteturas, e não como afirmações universais sobre superioridade da família profunda frente aos métodos clássicos.
 
-Os hiperparâmetros dos modelos de \gls{DL} foram selecionados por busca em grade (\emph{grid search}) em subconjunto de 10 recortes, avaliando combinações de taxa de aprendizado, tamanho de lote, decaimento de peso e parâmetros específicos de cada arquitetura.
-A configuração de melhor desempenho no conjunto de validação foi adotada para o treinamento final.
+Os hiperparâmetros dos modelos de \gls{DL} são selecionados por busca em grade em subconjunto reduzido, avaliando taxa de aprendizado, tamanho de lote, decaimento de peso e parâmetros específicos de cada arquitetura.
+A configuração de melhor desempenho no conjunto de validação é então adotada para o treinamento final e para a avaliação no conjunto de teste correspondente.
 
 \subsection{Métricas de Qualidade}
 \label{sec:metrics}
 
-Todas as métricas são computadas exclusivamente nos pixels de lacuna $\mathcal{G} = \{(h,w) : z_{hw}=1\}$ para evitar diluir o sinal com pixels observado.
+Todas as métricas são computadas exclusivamente nos pixels de lacuna $\mathcal{G} = \{(h,w) : z_{hw}=1\}$ para evitar diluir o sinal com pixels já observados.
 
 \paragraph{PSNR.}
 Relação Sinal-Ruído de Pico, em decibéis:
@@ -30,6 +37,9 @@ Relação Sinal-Ruído de Pico, em decibéis:
 \paragraph{SSIM.}
 Índice de Similaridade Estrutural.
 O mapa completo de \gls{SSIM} entre $\mathbf{y}$ e $\hat{\mathbf{y}}$ é computado e a média é calculada sobre $\mathcal{G}$.
+Na interpretação dos resultados, PSNR e SSIM são lidos como métricas complementares, e não redundantes.
+PSNR resume fidelidade radiométrica média.
+SSIM enfatiza preservação de estrutura e contraste local.
 
 \paragraph{RMSE.}
 Raiz do Erro Quadrático Médio, computada por banda e depois agregada:
@@ -56,14 +66,20 @@ Mapeador de Ângulo Espectral, que mede a distorsão espectral como o ângulo en
   },
 \]
 onde $\mu_c$ é a média da banda $c$ nos pixels de referência.
+O uso conjunto de RMSE por banda, SAM e ERGAS é especialmente importante quando o interesse não se limita ao erro global e passa a incluir coerência espectral da reconstrução.
 
 \subsection{Análise Estatística}
 
-Adota-se correlação de Spearman~\cite{spearman1904proof} para quantificar associações monotônicas entre entropia local e métricas de qualidade, com correção por \gls{FDR}~\cite{benjamini1995controlling} em múltiplos testes.
-Para comparar distribuições de desempenho entre métodos, utiliza-se o teste de Kruskal-Wallis~\cite{kruskal1952use}, seguido de comparações par a par com correção conservadora para múltiplas hipóteses e medidas de tamanho de efeito.
+Adota-se correlação de Spearman para quantificar associações monotônicas entre entropia local e métricas de qualidade, com correção por \gls{FDR} para múltiplos testes.
+Essa escolha é apropriada porque as relações investigadas não precisam ser lineares nem gaussianas.
 
-Como análise complementar, ajusta-se regressão robusta (\gls{RLM}~\cite{huber1964robust} com norma de Huber) para modelar métricas como função das entropias em múltiplas escalas, controlando por método e nível de ruído.
-Intervalos de confiança são obtidos via bootstrap, com reamostragem em cluster por \texttt{patch\_id}, para reduzir dependência intra-recorte.
+Para comparar distribuições de desempenho entre métodos dentro de um mesmo bloco analítico, utiliza-se o teste de Kruskal-Wallis, seguido de comparações par a par com correção conservadora para múltiplas hipóteses e relato de tamanho de efeito.
+Essa combinação permite distinguir diferença estatística de diferença substantiva.
+
+Como análise complementar, ajusta-se regressão robusta com norma de Huber para modelar métricas como função das entropias em múltiplas escalas, controlando por método e nível de ruído.
+O objetivo dessa etapa não é produzir interpretação causal, mas verificar se o sinal da complexidade espacial permanece detectável quando a heterogeneidade experimental é explicitamente controlada.
+
+Intervalos de confiança são obtidos via bootstrap com reamostragem em cluster por \texttt{patch\_id}, reduzindo o efeito da dependência intra-recorte.
 
 \subsection{Ambiente de Execução}
 Os experimentos foram executados em Rocky Linux 9.5 com NVIDIA A100 80GB PCIe,

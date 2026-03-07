@@ -1,138 +1,46 @@
-"""Select best table variants for the article.
-
-Decision rule: pick the noise level that maximizes median PSNR and the
-entropy window default (15 when available). Copy only the corresponding
-tables to docs/tables with stable filenames and labels.
-"""
+"""Copy only the curated paper tables into docs/tables."""
 
 from __future__ import annotations
 
-import argparse
+import shutil
 from pathlib import Path
-
-import pandas as pd
-
-from .data_loader import ENTROPY_WINDOWS, NOISE_ORDER, load_combined
-
-
-def _best_noise(df: pd.DataFrame) -> str:
-    if "noise_level" not in df.columns:
-        return "inf"
-    med = (
-        df
-        .groupby("noise_level", observed=True)["psnr"]
-        .median()
-        .reindex([n for n in NOISE_ORDER if n in df["noise_level"].unique()])
-    )
-    if med.empty:
-        return "inf"
-    return str(med.idxmax())
-
-
-def _select_noise(df: pd.DataFrame, *, preferred: str) -> str:
-    if "noise_level" not in df.columns:
-        return "inf"
-    available = set(df["noise_level"].dropna().astype(str).unique().tolist())
-    if preferred in available:
-        return preferred
-    return _best_noise(df)
-
-
-def _best_entropy_window(df: pd.DataFrame) -> int:
-    if 15 in ENTROPY_WINDOWS and "entropy_15" in df.columns:
-        return 15
-    return ENTROPY_WINDOWS[0]
-
-
-def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Select paper table assets")
-    parser.add_argument(
-        "--noise",
-        default="inf",
-        help=(
-            "Noise level to use as reference (default: inf). "
-            "If not available, falls back to the level with best median PSNR."
-        ),
-    )
-    return parser.parse_args()
-
-
-def _rewrite_label(content: str, new_label: str) -> str:
-    lines = []
-    for line in content.splitlines():
-        if line.strip().startswith("\\label{"):
-            lines.append(f"\\label{{{new_label}}}")
-        else:
-            lines.append(line)
-    return "\n".join(lines) + "\n"
-
-
-def _copy_with_label(src: Path, dst: Path, label: str) -> None:
-    if not src.exists():
-        print(f"WARN missing table: {src.name}")
-        return
-    content = src.read_text(encoding="utf-8")
-    dst.write_text(_rewrite_label(content, label), encoding="utf-8")
 
 
 def main() -> None:
-    args = _parse_args()
     root = Path(__file__).resolve().parent.parent
-    tables_dir = root / "docs" / "tables"
+    source_dir = root / "paper_assets" / "tables"
     output_dir = root / "docs" / "tables"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Clean previous best outputs
-    for old in output_dir.glob("*_best.tex"):
-        old.unlink(missing_ok=True)
-
-    df = load_combined()
-    if df.empty:
-        print("No data loaded. Skipping selection.")
-        return
-
-    best_noise = _select_noise(df, preferred=str(args.noise))
-    best_entropy = _best_entropy_window(df)
-    suffix = best_noise.replace("inf", "gap_only")
-
-    selection = {
-        "global-scoreboard.tex": (
-            "global_scoreboard_best.tex",
-            "tab:global-scoreboard-best",
-        ),
-        f"spectral-rmse-{suffix}.tex": (
-            "spectral_rmse_best.tex",
-            "tab:spectral-rmse-best",
-        ),
-        f"psnr-drop-entropy-{best_entropy}.tex": (
-            "psnr_drop_entropy_best.tex",
-            "tab:degradation-psnr-best",
-        ),
-        f"psnr-noise-slope-entropy-{best_entropy}.tex": (
-            "psnr_noise_slope_entropy_best.tex",
-            "tab:noise-slope-psnr-best",
-        ),
-        f"spearman-entropy-{best_entropy}.tex": (
-            "spearman_entropy_best.tex",
-            "tab:spearman-entropy-best",
-        ),
-        "runtime-speed.tex": (
-            "runtime_speed_best.tex",
-            "tab:runtime-speed",
-        ),
-    }
+    selected = [
+        "dataset-stats.tex",
+        "methods.tex",
+        "dl-architectures.tex",
+        "global-scoreboard-classical.tex",
+        "global-scoreboard-dl.tex",
+        "spectral-rmse-classical.tex",
+        "spectral-rmse-dl.tex",
+        "runtime-speed-classical.tex",
+        "runtime-speed-dl.tex",
+        "psnr-drop-entropy-classical.tex",
+        "psnr-drop-entropy-dl.tex",
+        "psnr-noise-slope-entropy-classical.tex",
+        "psnr-noise-slope-entropy-dl.tex",
+        "spearman-entropy-classical-15.tex",
+        "spearman-entropy-dl-15.tex",
+    ]
 
     copied = 0
-    for src_name, (dst_name, label) in selection.items():
-        src = tables_dir / src_name
-        dst = output_dir / dst_name
-        if src.exists():
-            copied += 1
-        _copy_with_label(src, dst, label)
+    for name in selected:
+        src = source_dir / name
+        dst = output_dir / name
+        if not src.exists():
+            print(f"WARN missing table: {name}")
+            continue
+        shutil.copy2(src, dst)
+        copied += 1
 
-    print("Selected noise:", best_noise)
-    print("Selected entropy window:", best_entropy)
-    print("Copied", copied, "of", len(selection), "tables")
+    print("Copied", copied, "of", len(selected), "tables")
 
 
 if __name__ == "__main__":

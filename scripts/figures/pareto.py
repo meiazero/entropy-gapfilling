@@ -1,4 +1,4 @@
-"""Figure 1: Pareto front (time x quality)."""
+"""Classical Pareto front (time x quality)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from ..data_loader import NOISE_ORDER, noise_label
 from .cli import run_with_df
 from .common import FONT_SIZE, save_figure, style_axes
 
@@ -50,7 +49,6 @@ def _plot_pareto(
     stats_df: pd.DataFrame,
     output_dir: Path,
     name: str,
-    title: str,
     type_filter: str | None = None,
 ) -> None:
     fig, ax = plt.subplots(figsize=(5, 3.5))
@@ -93,7 +91,6 @@ def _plot_pareto(
     ax.set_xscale("log")
     style_axes(
         ax,
-        title=title,
         xlabel="Tempo de Inferência (s/patch, mediana - IQR)",
         ylabel="PSNR (dB, mediana)",
     )
@@ -103,75 +100,37 @@ def _plot_pareto(
     plt.close(fig)
 
 
-def _plot_pareto_variants(
-    stats_df: pd.DataFrame,
-    subset: pd.DataFrame,
-    output_dir: Path,
-    suffix: str,
-    noise: str,
-) -> None:
-    title = (
-        "Trade-off Qualidade x Velocidade - "
-        f"{noise_label(noise) if noise != 'all' else 'Global'}"
-    )
-    _plot_pareto(stats_df, output_dir, f"pareto_{suffix}", title)
-
-    _plot_pareto(
-        stats_df,
-        output_dir,
-        f"pareto_classic_{suffix}",
-        f"Clássicos: Qualidade x Velocidade - {noise_label(noise)}",
-        type_filter="Clássico",
-    )
-
-    if "satellite" in subset.columns:
-        classic = subset[subset["type"] == "Clássico"]
-        for sat in sorted(classic["satellite"].unique()):
-            sat_df = _pareto_stats(classic[classic["satellite"] == sat])
-            if sat_df.empty:
-                continue
-            _plot_pareto(
-                sat_df,
-                output_dir,
-                f"pareto_classic_{sat}_{suffix}",
-                f"Clássicos ({sat}) - {noise_label(noise)}",
-                type_filter="Clássico",
-            )
-
-    if "satellite" in subset.columns:
-        sent2 = subset[subset["satellite"] == "sentinel2"]
-        if not sent2.empty:
-            sent_stats = _pareto_stats(sent2)
-            if not sent_stats.empty:
-                _plot_pareto(
-                    sent_stats,
-                    output_dir,
-                    f"pareto_sentinel2_{suffix}",
-                    f"Sentinel-2: Clássico vs DL - {noise_label(noise)}",
-                )
-
-
 def fig1_pareto(df: pd.DataFrame, output_dir: Path) -> None:
-    """Scatter plot of PSNR vs elapsed_s with median/IQR time."""
+    """Scatter plot of PSNR vs elapsed_s for classical methods only."""
     if "elapsed_s" not in df.columns:
         log.warning("No elapsed_s for fig1")
         return
 
-    noises = ["all"] + [
-        n for n in NOISE_ORDER if n in df["noise_level"].unique()
-    ]
+    classic = df[df["type"] == "Clássico"] if "type" in df.columns else df
+    if classic.empty:
+        log.warning("No classical data for pareto figure")
+        return
 
-    for noise in noises:
-        subset = df if noise == "all" else df[df["noise_level"] == noise]
-        if subset.empty:
-            continue
-        suffix = noise.replace("inf", "gap_only")
+    preferred_noise = "inf" if "noise_level" in classic.columns else None
+    subset = (
+        classic[classic["noise_level"] == preferred_noise]
+        if preferred_noise is not None
+        and preferred_noise in set(classic["noise_level"].unique())
+        else classic
+    )
+    if subset.empty:
+        return
 
-        stats_df = _pareto_stats(subset)
-        if stats_df.empty:
-            continue
+    stats_df = _pareto_stats(subset)
+    if stats_df.empty:
+        return
 
-        _plot_pareto_variants(stats_df, subset, output_dir, suffix, noise)
+    _plot_pareto(
+        stats_df,
+        output_dir,
+        "fig_classical_pareto",
+        type_filter="Clássico",
+    )
 
 
 def main() -> None:

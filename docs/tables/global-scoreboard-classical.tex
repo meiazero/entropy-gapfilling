@@ -1,0 +1,38 @@
+\begin{table*}[htbp]
+\centering
+\caption{Placar global multi-métrica dos métodos clássicos por nível de ruído (mediana e IC95\%). \textbf{Negrito}: melhor por métrica dentro do grupo.}
+\label{tab:global-scoreboard-classical}
+\footnotesize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{llccccc}
+\toprule
+Tipo & Método & PSNR (dB) $\uparrow$ & SSIM $\uparrow$ & RMSE $\downarrow$ & SAM $\downarrow$ & ERGAS $\downarrow$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Nível de ruído: todos os níveis de ruído}} \\
+Clássico & kriging & $\mathbf{20.90_{\pm 1.355}}$ & $0.57_{\pm 0.038}$ & $\mathbf{0.09_{\pm 0.014}}$ & $\mathbf{6.27_{\pm 0.772}}$ & $\mathbf{31.98_{\pm 3.236}}$ \\
+Clássico & rbf & $20.40_{\pm 1.255}$ & $0.58_{\pm 0.031}$ & $0.10_{\pm 0.014}$ & $7.69_{\pm 0.825}$ & $33.86_{\pm 2.915}$ \\
+Clássico & spline & $20.40_{\pm 1.255}$ & $0.58_{\pm 0.031}$ & $0.10_{\pm 0.014}$ & $7.69_{\pm 0.825}$ & $33.86_{\pm 2.915}$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Nível de ruído: Sem ruído}} \\
+Clássico & rbf & $\mathbf{21.13_{\pm 1.271}}$ & $\mathbf{0.63_{\pm 0.043}}$ & $\mathbf{0.09_{\pm 0.013}}$ & $5.95_{\pm 0.933}$ & $32.62_{\pm 3.276}$ \\
+Clássico & spline & $\mathbf{21.13_{\pm 1.271}}$ & $\mathbf{0.63_{\pm 0.043}}$ & $\mathbf{0.09_{\pm 0.013}}$ & $5.95_{\pm 0.933}$ & $32.62_{\pm 3.276}$ \\
+Clássico & exemplar\_based & $21.08_{\pm 1.223}$ & $0.63_{\pm 0.050}$ & $0.09_{\pm 0.012}$ & $\mathbf{5.74_{\pm 0.853}}$ & $\mathbf{31.04_{\pm 3.178}}$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Nível de ruído: 40 dB}} \\
+Clássico & rbf & $\mathbf{21.18_{\pm 1.263}}$ & $\mathbf{0.62_{\pm 0.042}}$ & $\mathbf{0.09_{\pm 0.013}}$ & $6.29_{\pm 0.893}$ & $32.42_{\pm 3.386}$ \\
+Clássico & spline & $\mathbf{21.18_{\pm 1.263}}$ & $\mathbf{0.62_{\pm 0.042}}$ & $\mathbf{0.09_{\pm 0.013}}$ & $6.29_{\pm 0.893}$ & $32.42_{\pm 3.386}$ \\
+Clássico & exemplar\_based & $21.01_{\pm 1.407}$ & $0.62_{\pm 0.048}$ & $0.09_{\pm 0.014}$ & $6.00_{\pm 0.912}$ & $\mathbf{30.90_{\pm 2.994}}$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Nível de ruído: 30 dB}} \\
+Clássico & kriging & $\mathbf{20.95_{\pm 1.475}}$ & $0.57_{\pm 0.047}$ & $\mathbf{0.09_{\pm 0.015}}$ & $6.17_{\pm 0.786}$ & $32.09_{\pm 3.473}$ \\
+Clássico & rbf & $20.80_{\pm 1.411}$ & $0.60_{\pm 0.032}$ & $0.09_{\pm 0.015}$ & $7.42_{\pm 0.716}$ & $33.49_{\pm 3.474}$ \\
+Clássico & spline & $20.80_{\pm 1.411}$ & $0.60_{\pm 0.032}$ & $0.09_{\pm 0.015}$ & $7.42_{\pm 0.716}$ & $33.49_{\pm 3.474}$ \\
+\midrule
+\multicolumn{7}{l}{\textbf{Nível de ruído: 20 dB}} \\
+Clássico & kriging & $\mathbf{20.74_{\pm 1.260}}$ & $\mathbf{0.53_{\pm 0.034}}$ & $\mathbf{0.09_{\pm 0.013}}$ & $\mathbf{6.90_{\pm 1.080}}$ & $\mathbf{33.29_{\pm 3.622}}$ \\
+Clássico & bilinear & $19.55_{\pm 0.995}$ & $0.48_{\pm 0.027}$ & $0.11_{\pm 0.012}$ & $8.38_{\pm 0.756}$ & $36.55_{\pm 3.803}$ \\
+Clássico & exemplar\_based & $19.53_{\pm 0.905}$ & $0.52_{\pm 0.023}$ & $0.11_{\pm 0.011}$ & $9.99_{\pm 0.917}$ & $39.52_{\pm 3.761}$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table*}

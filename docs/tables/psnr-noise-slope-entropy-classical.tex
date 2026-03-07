@@ -1,0 +1,28 @@
+\begin{table}[htbp]
+\centering
+\caption{Inclinação do PSNR vs ruído (20/30/40 dB, mediana, IC95\%) para os métodos clássicos, estratificada por faixa de entropia e janela de cálculo.}
+\label{tab:noise-slope-psnr-classical}
+\footnotesize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lccc}
+\toprule
+Método & Baixa & Média & Alta \\
+\midrule
+\multicolumn{4}{l}{\textbf{Janela de entropia: 7x7}} \\
+exemplar\_based & $0.040_{\pm 0.036}$ & $0.128_{\pm 0.093}$ & $0.061_{\pm 0.051}$ \\
+rbf & $0.052_{\pm 0.044}$ & $0.171_{\pm 0.092}$ & $0.084_{\pm 0.055}$ \\
+spline & $0.052_{\pm 0.044}$ & $0.171_{\pm 0.092}$ & $0.084_{\pm 0.055}$ \\
+\midrule
+\multicolumn{4}{l}{\textbf{Janela de entropia: 15x15}} \\
+exemplar\_based & $0.027_{\pm 0.064}$ & $0.096_{\pm 0.095}$ & $0.085_{\pm 0.075}$ \\
+rbf & $0.060_{\pm 0.062}$ & $0.125_{\pm 0.085}$ & $0.090_{\pm 0.071}$ \\
+spline & $0.060_{\pm 0.062}$ & $0.125_{\pm 0.085}$ & $0.090_{\pm 0.071}$ \\
+\midrule
+\multicolumn{4}{l}{\textbf{Janela de entropia: 31x31}} \\
+exemplar\_based & $0.078_{\pm 0.064}$ & $0.037_{\pm 0.054}$ & $0.115_{\pm 0.095}$ \\
+rbf & $0.108_{\pm 0.068}$ & $0.073_{\pm 0.060}$ & $0.132_{\pm 0.100}$ \\
+spline & $0.108_{\pm 0.068}$ & $0.073_{\pm 0.060}$ & $0.132_{\pm 0.100}$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table}

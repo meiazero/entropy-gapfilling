@@ -13,22 +13,38 @@ from __future__ import annotations
 
 import argparse
 import logging
+import sys
 from pathlib import Path
 
-from .data_loader import load_combined
-from .figures.common import SETTINGS, configure_settings, setup_style
-from .figures.correlation_heatmap import fig7_correlation_heatmap
-from .figures.dl_comparison import fig11_dl_comparison
-from .figures.dl_components import fig10_components
-from .figures.dl_loss import fig8_dl_loss
-from .figures.dl_val_metrics import fig9_dl_val_metrics
-from .figures.entropy_sensitivity import fig3_sensitivity
-from .figures.f1_threshold import fig5_f1_threshold
-from .figures.multisensor import fig4_multisensor
-from .figures.pareto import fig1_pareto
-from .figures.psnr_entropy import fig6_psnr_entropy
-from .figures.spectral_bar import fig2_spectral_bar
-from .figures.spectral_dotplot import fig2_spectral_dotplot
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from scripts.data_loader import load_combined
+    from scripts.figures.classical_noise_robustness import (
+        fig_classical_noise_robustness,
+    )
+    from scripts.figures.classical_spectral_profile import (
+        fig_classical_spectral_profile,
+    )
+    from scripts.figures.common import SETTINGS, configure_settings, setup_style
+    from scripts.figures.correlation_heatmap import (
+        fig_classical_correlation_heatmap,
+    )
+    from scripts.figures.dl_comparison import fig_dl_comparison
+    from scripts.figures.dl_noise_robustness import fig_dl_noise_robustness
+    from scripts.figures.pareto import fig1_pareto
+else:
+    from .data_loader import load_combined
+    from .figures.classical_noise_robustness import (
+        fig_classical_noise_robustness,
+    )
+    from .figures.classical_spectral_profile import (
+        fig_classical_spectral_profile,
+    )
+    from .figures.common import SETTINGS, configure_settings, setup_style
+    from .figures.correlation_heatmap import fig_classical_correlation_heatmap
+    from .figures.dl_comparison import fig_dl_comparison
+    from .figures.dl_noise_robustness import fig_dl_noise_robustness
+    from .figures.pareto import fig1_pareto
 
 logging.basicConfig(
     level=logging.INFO,
@@ -81,14 +97,10 @@ def main(argv: list[str] | None = None) -> None:
     # ── Evaluation data figures ──
     if not df.empty:
         eval_figs = [
-            ("Fig 1: Pareto", fig1_pareto),
-            ("Fig 2a: Spectral Bar", fig2_spectral_bar),
-            ("Fig 2b: Spectral Dotplot", fig2_spectral_dotplot),
-            ("Fig 3: Entropy Sensitivity", fig3_sensitivity),
-            ("Fig 4: Multi-Sensor Violin", fig4_multisensor),
-            ("Fig 5: F1 Threshold", fig5_f1_threshold),
-            ("Fig 6: PSNR by Entropy", fig6_psnr_entropy),
-            ("Fig 7: Correlation Heatmap", fig7_correlation_heatmap),
+            ("Classic Pareto", fig1_pareto),
+            ("Classic Spectral Profile", fig_classical_spectral_profile),
+            ("Classic Noise Robustness", fig_classical_noise_robustness),
+            ("Classic Correlation Heatmap", fig_classical_correlation_heatmap),
         ]
         for name, func in eval_figs:
             try:
@@ -99,12 +111,9 @@ def main(argv: list[str] | None = None) -> None:
     else:
         log.warning("No evaluation data loaded. Skipping eval figures.")
 
-    # ── DL training history figures ──
     dl_figs = [
-        ("Fig 8: DL Loss Curves", fig8_dl_loss),
-        ("Fig 9: DL Val Metrics", fig9_dl_val_metrics),
-        ("Fig 10: VAE/GAN Components", fig10_components),
-        ("Fig 11: DL Comparison", fig11_dl_comparison),
+        ("DL Comparison", fig_dl_comparison),
+        ("DL Noise Robustness", fig_dl_noise_robustness),
     ]
     for name, func in dl_figs:
         try:

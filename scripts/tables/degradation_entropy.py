@@ -117,99 +117,76 @@ def _build_degradation_rows(
 
 def table_degradation_entropy(df: pd.DataFrame, output_dir: Path) -> None:
     """PSNR drop (%) from gap_only to 20dB, stratified by entropy."""
-    top_classic = select_top_n(df[df["type"] == "Clássico"], n=3)
-    top_dl = select_top_n(df[df["type"] == "DL"], n=3)
     entropy_bins = ["baixa", "média", "alta"]
-    if not (top_classic or top_dl):
-        return
-
     header = "Método & " + " & ".join(b.capitalize() for b in entropy_bins)
-    body: list[str] = []
-    body_iqr: list[str] = []
 
-    for ws in ENTROPY_WINDOWS:
-        ecol = f"entropy_{ws}"
-        if ecol not in df.columns:
+    for method_type, slug, caption_label in [
+        ("Clássico", "classical", "clássicos"),
+        ("DL", "dl", "de DL"),
+    ]:
+        type_df = df[df["type"] == method_type]
+        methods = select_top_n(type_df, n=3)
+        if not methods:
             continue
 
-        df_binned = entropy_terciles(df, entropy_col=ecol)
+        body: list[str] = []
+        body_iqr: list[str] = []
+        for ws in ENTROPY_WINDOWS:
+            ecol = f"entropy_{ws}"
+            if ecol not in type_df.columns:
+                continue
 
-        if body:
-            body.append(r"\midrule")
-        if body_iqr:
-            body_iqr.append(r"\midrule")
-        section_title = tex_escape(f"Janela de entropia: {ws}x{ws}")
-        section_line = _section_header_line(
-            section_title, len(entropy_bins) + 1
-        )
-        body.append(section_line)
-        body_iqr.append(section_line)
-
-        if top_classic:
-            classic_line = _section_header_line(
-                tex_escape("Clássico"),
-                len(entropy_bins) + 1,
-            )
-            body.append(classic_line)
-            body_iqr.append(classic_line)
-            rows, rows_iqr = _build_degradation_rows(
-                df_binned,
-                top_classic,
-                entropy_bins,
-            )
-            body.extend(rows)
-            body_iqr.extend(rows_iqr)
-
-        if top_dl:
-            if top_classic:
+            df_binned = entropy_terciles(type_df, entropy_col=ecol)
+            if body:
                 body.append(r"\midrule")
+            if body_iqr:
                 body_iqr.append(r"\midrule")
-            dl_line = _section_header_line(
-                tex_escape("DL"),
-                len(entropy_bins) + 1,
+            section_title = tex_escape(f"Janela de entropia: {ws}x{ws}")
+            section_line = _section_header_line(
+                section_title, len(entropy_bins) + 1
             )
-            body.append(dl_line)
-            body_iqr.append(dl_line)
+            body.append(section_line)
+            body_iqr.append(section_line)
             rows, rows_iqr = _build_degradation_rows(
                 df_binned,
-                top_dl,
+                methods,
                 entropy_bins,
             )
             body.extend(rows)
             body_iqr.extend(rows_iqr)
 
-    if not body:
-        return
+        if not body:
+            continue
 
-    tex = wrap_table(
-        body,
-        caption=(
-            r"Queda percentual no PSNR (mediana, IC95\%) "
-            "(sem ruído → 20 dB), estratificada por faixa de entropia e "
-            "janela de cálculo. Top-3 clássicos + top-3 DL."
-        ),
-        label="tab:degradation-psnr",
-        col_spec="l" + "c" * len(entropy_bins),
-        header=header,
-        env="table",
-        resizebox=True,
-    )
-    write_tex(tex, output_dir / "psnr-drop-entropy.tex")
+        tex = wrap_table(
+            body,
+            caption=(
+                r"Queda percentual no PSNR (mediana, IC95\%) "
+                f"(sem ruído → 20 dB) para os métodos {caption_label}, "
+                "estratificada por faixa de entropia e janela de cálculo."
+            ),
+            label=f"tab:degradation-psnr-{slug}",
+            col_spec="l" + "c" * len(entropy_bins),
+            header=header,
+            env="table",
+            resizebox=True,
+        )
+        write_tex(tex, output_dir / f"psnr-drop-entropy-{slug}.tex")
 
-    tex_iqr = wrap_table(
-        body_iqr,
-        caption=(
-            "Queda percentual no PSNR (mediana, IQR) "
-            "(sem ruído → 20 dB), estratificada por faixa de entropia e "
-            "janela de cálculo. Top-3 clássicos + top-3 DL."
-        ),
-        label="tab:degradation-psnr-iqr",
-        col_spec="l" + "c" * len(entropy_bins),
-        header=header,
-        env="table",
-        resizebox=True,
-    )
-    write_tex(tex_iqr, output_dir / "psnr-drop-entropy-iqr.tex")
+        tex_iqr = wrap_table(
+            body_iqr,
+            caption=(
+                "Queda percentual no PSNR (mediana, IQR) "
+                f"(sem ruído → 20 dB) para os métodos {caption_label}, "
+                "estratificada por faixa de entropia e janela de cálculo."
+            ),
+            label=f"tab:degradation-psnr-{slug}-iqr",
+            col_spec="l" + "c" * len(entropy_bins),
+            header=header,
+            env="table",
+            resizebox=True,
+        )
+        write_tex(tex_iqr, output_dir / f"psnr-drop-entropy-{slug}-iqr.tex")
 
 
 def main() -> None:

@@ -103,7 +103,7 @@ def table_overview_dataset(_df: object, output_dir: Path) -> None:
         r" Todos os patches são de $64 \times 64$ pixels com 4 bandas "
         r"espectrais (vermelha, azul, verde e IR).",
         r" Divisão dos dados: 80\% treino, 10\% validação e 10\% teste.}",
-        r"\resizebox{\linewidth}{!}{%"
+        r"\resizebox{\linewidth}{!}{%",
         r" \label{tab:dataset-stats}",
         r" \begin{tabular}{lrrrr}",
         r" \toprule",

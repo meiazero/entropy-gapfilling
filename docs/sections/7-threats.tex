@@ -1,0 +1,68 @@
+\section{Ameaças à Validade}
+\label{sec:threats}
+
+Esta seção explicita os principais fatores que limitam o alcance das conclusões e define como os resultados devem ser interpretados.
+O objetivo não é enfraquecer o estudo, mas delimitar com precisão o que os dados sustentam, em que condições a comparação é válida e quais extensões ainda são necessárias.
+
+\subsection{Validade Interna}
+
+A primeira ameaça à validade interna decorre da heterogeneidade de regime entre os dois blocos analíticos do artigo.
+Os métodos clássicos foram avaliados em cenário multissensor, com forte preocupação com viabilidade computacional e equilíbrio entre sensores e níveis de ruído.
+Os modelos de aprendizado profundo, por sua vez, foram avaliados no domínio Sentinel-2, coerente com seu regime de treinamento.
+Essa diferença não inviabiliza o estudo, mas impede interpretar a presença simultânea dos dois blocos como evidência de um ranking universal entre todas as técnicas.
+Por isso, as conclusões foram formuladas como comparações internas a cada família metodológica.
+
+Uma segunda ameaça interna está associada ao custo computacional muito desigual entre os métodos clássicos.
+Para preservar comparabilidade prática, a avaliação consolidada desse bloco foi realizada sobre um subconjunto balanceado de recortes.
+Essa decisão é metodologicamente defensável, porque todos os métodos clássicos foram submetidos exatamente ao mesmo protocolo, mas reduz a cobertura empírica em relação ao universo completo de amostras disponíveis no repositório.
+Assim, a inferência principal deve ser lida como comparação relativa sob desenho controlado, e não como medição exaustiva de desempenho em toda a base potencial.
+
+A terceira ameaça interna diz respeito à variabilidade experimental efetivamente observada nos resultados agregados.
+Embora o pipeline contemple controle de sementes e reamostragem, parte importante das tabelas finais reflete variação entre recortes, sensores e níveis de ruído mais do que replicações independentes de treinamento ou execução para todas as combinações possíveis.
+Isso significa que os intervalos de confiança resumem incerteza empírica relevante, mas não eliminam por completo o risco de sensibilidade a escolhas específicas de amostragem, particionamento e configuração.
+
+\subsection{Validade de Construção}
+
+Uma ameaça de construção vem da própria escolha das métricas.
+PSNR, SSIM, RMSE, SAM e ERGAS capturam aspectos centrais da reconstrução, mas não são equivalentes a utilidade em tarefa final.
+Um método pode apresentar ótimo desempenho radiométrico e espectral sem necessariamente produzir a melhor entrada para classificação, detecção de mudança ou estimativa biofísica.
+Portanto, este artigo avalia a qualidade da reconstrução em si, e não o impacto downstream em toda cadeia de sensoriamento remoto.
+
+Outra limitação de construção envolve a interpretação da entropia local.
+Ela foi utilizada como variável organizadora da análise por representar complexidade espacial da cena, mas não esgota todos os fatores que afetam a dificuldade do preenchimento de lacunas.
+Geometria de bordas, textura direcional, autocorrelação espacial, presença de objetos raros e contraste espectral entre bandas também podem influenciar fortemente o comportamento dos métodos.
+Logo, entropia não deve ser lida como sinônimo completo de dificuldade, e sim como um moderador útil, porém parcial, do regime de erro.
+
+Há ainda uma limitação associada à discretização por tercis e ao uso de janelas fixas de entropia.
+Essa escolha facilita comparação entre tabelas e figuras, mas comprime uma estrutura contínua em faixas agregadas.
+Com isso, transições locais mais finas podem ser atenuadas, especialmente em cenas cuja complexidade espacial muda de modo gradual no entorno da lacuna.
+
+\subsection{Validade Estatística}
+
+Do ponto de vista estatístico, a principal ameaça está na dependência entre variáveis explicativas derivadas em múltiplas escalas.
+As entropias calculadas em janelas 7x7, 15x15 e 31x31 são naturalmente correlacionadas entre si.
+Por essa razão, modelos multivariados com todas as escalas simultaneamente são úteis para detectar associação global entre estrutura da cena e desempenho, mas não devem ser interpretados de maneira causal ou isolada coeficiente a coeficiente.
+
+Também é necessário cautela ao interpretar significância estatística em um conjunto amplo de comparações.
+O uso de correção por \gls{FDR}, testes não paramétricos e bootstrap em cluster reduz o risco de inferências espúrias, mas não substitui análise substantiva do tamanho de efeito.
+Diferenças pequenas podem atingir significância em cenários com muitas observações, enquanto diferenças operacionalmente importantes podem aparecer de forma mais localizada e depender do regime de ruído ou da faixa de entropia.
+
+Além disso, a reamostragem por \texttt{patch\_id} trata adequadamente a dependência intra-recorte, mas não torna o conjunto equivalente a uma amostra aleatória simples do espaço completo de cenas de sensoriamento remoto.
+Os intervalos de confiança devem ser interpretados como medida de estabilidade dentro do desenho experimental adotado, e não como garantia automática de generalização irrestrita.
+
+\subsection{Validade Externa}
+
+A validade externa do bloco clássico é condicionada pelo conjunto de sensores e pelo protocolo de degradação artificial utilizados.
+Os resultados são informativos para Sentinel-2, Landsat-8, Landsat-9 e MODIS sob máscaras e níveis de ruído controlados, mas não cobrem automaticamente outros sensores, outras resoluções espaciais, outros padrões de lacuna ou ruídos com distribuição distinta.
+
+No bloco de aprendizado profundo, a limitação externa é ainda mais clara.
+As arquiteturas foram treinadas e avaliadas em domínio Sentinel-2, de modo que as conclusões sobre U-Net, GAN, ViT, AE e VAE devem ser entendidas como válidas para esse contexto experimental específico.
+Generalizar a mesma hierarquia arquitetural para cenário multissensor, para outras estações do ano ou para distribuições geográficas muito diferentes exigirá reavaliação empírica dedicada.
+
+Por fim, o artigo analisa recortes estáticos e não incorpora dependência temporal explícita.
+Em aplicações reais, lacunas podem ocorrer em sequências temporais nas quais redundância entre datas sucessivas altera substancialmente o problema.
+Assim, as conclusões aqui obtidas são mais fortes para reconstrução espacial monodata do que para cenários completos de fusão espaço-temporal.
+
+Em síntese, as ameaças à validade não anulam os achados centrais do estudo, mas definem seu escopo correto.
+Os resultados sustentam com boa consistência comparações internas entre métodos clássicos e comparações internas entre arquiteturas de aprendizado profundo no desenho experimental adotado.
+O que eles não sustentam, sem extensões adicionais, é uma afirmação universal sobre superioridade entre famílias metodológicas em qualquer sensor, qualquer regime de ruído e qualquer tarefa posterior.

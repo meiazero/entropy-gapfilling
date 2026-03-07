@@ -1,2 +1,226 @@
 \section{Resultados}
 \label{sec:results}
+
+Esta seção organiza os resultados em dois blocos independentes.
+Primeiro, discute-se o comportamento dos métodos clássicos em termos de qualidade, custo, robustez ao ruído e relação com a entropia local.
+Em seguida, analisa-se o bloco de aprendizado profundo, focado na comparação interna entre arquiteturas treinadas no domínio Sentinel-2.
+Essa separação é parte do rigor interpretativo do trabalho, pois evita atribuir a diferenças algorítmicas aquilo que pode decorrer de diferenças de escopo experimental.
+
+\subsection{Resultados dos Métodos Clássicos}
+
+O panorama global dos métodos clássicos é apresentado na \Cref{tab:global-scoreboard-classical}.
+O primeiro aspecto que a tabela evidencia é a ausência de dominância universal.
+Não existe um método que lidere simultaneamente em qualidade radiométrica, preservação estrutural, coerência espectral e custo computacional.
+Em lugar de um vencedor absoluto, observa-se um grupo relativamente pequeno de métodos fortes, com perfis distintos e compensações claras entre desempenho e viabilidade prática.
+
+\input{tables/global-scoreboard-classical}
+
+Nos cenários sem ruído e com 40 dB, RBF e spline aparecem de forma recorrente entre os melhores valores de PSNR e SSIM.
+Esse resultado sugere que métodos baseados em superfícies suaves e coerência global exploram bem o contexto espacial quando a observação disponível é limpa ou moderadamente degradada.
+Exemplar\_based também aparece competitivo em várias métricas, especialmente quando a estrutura local da cena oferece textura ou padrões reutilizáveis próximos à lacuna.
+Nesse regime, a capacidade de reutilizar patches informativos parece compensar a ausência de um modelo global explícito.
+
+À medida que o ruído aumenta, a hierarquia se altera.
+No nível de 20 dB, kriging passa a ocupar posição de destaque em várias métricas centrais.
+Essa mudança de liderança é importante porque revela que o melhor método clássico depende do regime de operação.
+Em condições mais degradadas, a modelagem explícita da dependência espacial parece oferecer estabilidade superior à obtida por interpolantes suaves puramente geométricos ou por estratégias patch-based.
+Isso reforça a necessidade de não interpretar o cenário sem ruído como resumo suficiente do problema.
+
+Outro aspecto decisivo do bloco clássico é o custo computacional.
+A \Cref{tab:runtime-speed-classical} mostra que o ganho em qualidade de métodos como kriging, RBF e spline vem acompanhado de um aumento substancial no tempo de inferência por recorte.
+Esse é um ponto central da contribuição do artigo, porque desloca a análise de uma lógica de ranking puro para uma lógica multicritério.
+Em cenários operacionais de larga escala, um método com desempenho levemente inferior pode ser preferível se mantiver custo muito menor e estabilidade aceitável.
+
+\input{tables/runtime-speed-classical}
+
+A \Cref{fig:classical-pareto} torna essa relação particularmente clara.
+Quando qualidade e tempo de inferência são colocados no mesmo espaço, vê-se que vários métodos deixam de ser competitivos assim que custo entra no critério de decisão.
+Nearest ocupa uma posição extrema de baixo custo, funcionando como referência prática inferior.
+Exemplar\_based aparece como um dos compromissos mais interessantes entre qualidade alta e custo ainda administrável.
+Kriging preserva qualidade forte, mas seu custo o desloca para uma região de uso mais restrito.
+
+\begin{figure*}[htbp]
+\centering
+\includegraphics[width=0.78\linewidth]{figures/fig_classical_pareto}
+\caption{Compromisso entre qualidade e custo de inferência para os métodos clássicos no cenário sem ruído.}
+\label{fig:classical-pareto}
+\end{figure*}
+
+Do ponto de vista espectral, a \Cref{tab:spectral-rmse-classical} mostra que os métodos mais fortes no ranking global tendem a manter erro competitivo ao longo das quatro bandas analisadas.
+Isso é relevante porque evita uma interpretação superficial em que PSNR global elevado mascararia erro excessivo em bandas específicas.
+Os melhores métodos clássicos não aparecem fortes apenas por uma média agregada favorável.
+Eles sustentam desempenho relativamente uniforme ao longo do espectro disponível.
+
+\input{tables/spectral-rmse-classical}
+
+A \Cref{fig:classical-spectral-profile} reforça essa leitura ao resumir o RMSE mediano por banda dos principais métodos clássicos.
+Visualmente, a figura mostra que métodos fracos tendem a exibir maior separação entre bandas, enquanto os mais fortes preservam perfil espectral mais compacto.
+Essa regularidade sugere que a qualidade observada não é apenas radiométrica em sentido amplo, mas também espectralmente consistente.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{figures/fig_classical_spectral_profile}
+\caption{Perfil espectral do RMSE mediano para os métodos clássicos mais competitivos no cenário sem ruído.}
+\label{fig:classical-spectral-profile}
+\end{figure}
+
+O segundo eixo do bloco clássico é a robustez ao ruído.
+As tabelas \Cref{tab:degradation-psnr-classical} e \Cref{tab:noise-slope-psnr-classical} mostram que qualidade absoluta e estabilidade não coincidem perfeitamente.
+Métodos muito fortes em cenário limpo nem sempre apresentam a menor perda relativa quando o ruído aumenta.
+Esse resultado tem implicação direta para aplicações reais, pois distingue métodos que maximizam qualidade em condição ideal daqueles que mantêm desempenho mais previsível em condição adversa.
+
+\input{tables/psnr-drop-entropy-classical}
+
+\input{tables/psnr-noise-slope-entropy-classical}
+
+As tabelas de robustez também mostram que a relação entre entropia e degradação não é monotônica simples.
+Em várias combinações de método e janela, a faixa média de entropia se comporta de forma mais instável do que a faixa alta.
+Isso sugere a existência de um regime intermediário particularmente difícil, em que a cena contém complexidade suficiente para desafiar métodos locais simples, mas ainda não oferece repetição estrutural ou regularidade global suficiente para favorecer de forma consistente abordagens mais sofisticadas.
+
+Esse comportamento aparece de forma mais intuitiva na \Cref{fig:classical-noise-robustness}.
+Os três painéis, separados por faixa de entropia na janela 15x15, mostram que a ordenação relativa entre os métodos sofre pequenas mudanças conforme o cenário se torna mais adverso.
+Esses cruzamentos seriam menos visíveis em tabelas isoladas e ajudam a sustentar a ideia de que robustez ao ruído deve ser tratada como dimensão própria do problema.
+
+\begin{figure*}[htbp]
+\centering
+\begin{subfigure}[t]{0.32\linewidth}
+\centering
+\includegraphics[width=\linewidth]{figures/fig_classical_noise_robustness_baixa}
+\caption{Baixa entropia.}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.32\linewidth}
+\centering
+\includegraphics[width=\linewidth]{figures/fig_classical_noise_robustness_media}
+\caption{Entropia média.}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.32\linewidth}
+\centering
+\includegraphics[width=\linewidth]{figures/fig_classical_noise_robustness_alta}
+\caption{Alta entropia.}
+\end{subfigure}
+\caption{Robustez ao ruído dos principais métodos clássicos, resumida pelo PSNR mediano em cada faixa de entropia para a janela 15x15.}
+\label{fig:classical-noise-robustness}
+\end{figure*}
+
+O terceiro eixo da análise clássica é a associação entre entropia local e qualidade de reconstrução.
+Na \Cref{tab:spearman-entropy-classical-e15}, observa-se que a correlação entre entropia e desempenho varia com o método e com a métrica.
+Alguns algoritmos apresentam associação fraca ou próxima de zero em PSNR, mas associação mais marcada em SSIM, SAM ou ERGAS.
+Em outros casos, a direção do efeito muda conforme a escala da entropia ou o indicador analisado.
+
+\input{tables/spearman-entropy-classical-15}
+
+Esse resultado é conceitualmente importante porque impede uma interpretação simplificada do tipo “mais entropia implica pior reconstrução”.
+O que os dados mostram é algo mais rico.
+A complexidade espacial altera o regime de erro dos métodos, mas essa alteração depende da família algorítmica, do nível de ruído e da métrica que sintetiza o desempenho.
+Logo, a entropia funciona melhor como variável moderadora do comportamento do método do que como marcador universal de dificuldade com direção invariável.
+
+A \Cref{fig:classical-correlation-heatmap} sintetiza essa leitura em um único painel.
+Ao reunir correlações entre múltiplas janelas de entropia e várias métricas, a figura evidencia o caráter multiescala e multi-métrica do problema.
+Também chama atenção o fato de que nem todas as associações são fortes.
+Isso é relevante porque mostra que a entropia local explica parte importante da variação de desempenho, mas não esgota a heterogeneidade observada entre métodos e cenas.
+
+\begin{figure*}[htbp]
+\centering
+\includegraphics[width=0.90\linewidth]{figures/fig_classical_correlation_heatmap}
+\caption{Mapa de correlação entre entropia local e métricas de qualidade para os métodos clássicos.}
+\label{fig:classical-correlation-heatmap}
+\end{figure*}
+
+Em conjunto, o bloco clássico sustenta três conclusões centrais.
+Primeiro, existe um grupo pequeno de métodos claramente superiores ao restante, mas sem dominância universal entre qualidade, custo e estabilidade.
+Segundo, kriging se destaca como solução particularmente robusta em cenários mais ruidosos, enquanto RBF, spline e exemplar\_based se mostram muito fortes em qualidade absoluta sob condições menos adversas.
+Terceiro, a complexidade espacial da cena altera o comportamento relativo dos métodos de forma dependente da métrica e da escala de entropia considerada.
+
+\subsection{Resultados dos Modelos de Aprendizado Profundo}
+
+O bloco de aprendizado profundo apresenta uma dinâmica interna distinta da observada nos métodos clássicos.
+Aqui, a questão principal não é o custo extremo de inferência, mas a diferença de perfil entre arquiteturas que compartilham o mesmo domínio de avaliação.
+A \Cref{tab:global-scoreboard-dl} fornece o resumo mais direto dessa comparação.
+
+\input{tables/global-scoreboard-dl}
+
+A tabela mostra que U-Net domina a qualidade absoluta de forma consistente.
+Ela lidera em PSNR, SSIM, RMSE, SAM e ERGAS em todos os níveis de ruído considerados, o que indica forte equilíbrio entre fidelidade radiométrica, preservação estrutural e coerência espectral.
+Esse resultado sugere que as conexões de atalho e a propagação multiescala de contexto continuam sendo uma estratégia muito eficaz para reconstrução de lacunas no domínio Sentinel-2.
+
+GAN e ViT formam um segundo patamar relativamente próximo entre si.
+Eles não alcançam a qualidade absoluta da U-Net, mas também não colapsam para o nível de AE e VAE.
+Isso sugere que tanto a modelagem adversarial quanto a atenção conseguem capturar regularidades importantes do problema, embora ainda não superem a vantagem arquitetural oferecida pela combinação de codificação multiescala e skip connections.
+AE e VAE, por sua vez, mantêm papel analítico importante como baselines de gargalo latente, mostrando que compressão simples do contexto observado não é suficiente para atingir o melhor nível de fidelidade.
+
+Em termos de custo, a \Cref{tab:runtime-speed-dl} revela um cenário diferente do bloco clássico.
+Embora existam diferenças entre arquiteturas, todas permanecem em uma faixa operacional muito mais favorável do que os métodos clássicos mais pesados.
+AE e VAE aparecem como os modelos mais rápidos e com melhor relação PSNR/s, enquanto U-Net cobra um custo adicional em troca de qualidade superior.
+Esse custo, porém, é marginal quando comparado ao salto de tempo observado entre os clássicos de alto custo e os demais métodos.
+
+\input{tables/runtime-speed-dl}
+
+Essa distinção muda a interpretação prática do ranking.
+No bloco de aprendizado profundo, a discussão de eficiência diz respeito principalmente ao preço marginal pago por qualidade adicional.
+No bloco clássico, por outro lado, a discussão frequentemente separa métodos viáveis de métodos muito caros.
+Isso ajuda a entender por que a U-Net continua sendo atraente mesmo não liderando em velocidade.
+O ganho absoluto de qualidade é suficientemente alto para justificar o custo extra em muitas aplicações.
+
+A \Cref{fig:dl-comparison} sintetiza esse padrão comparando os modelos no cenário \texttt{entropy\_all}.
+Visualmente, a figura reforça que a superioridade da U-Net não está restrita a uma única métrica.
+O modelo aparece consistentemente forte em critérios complementares, o que reduz a chance de sua liderança ser artefato de um único indicador.
+
+\begin{figure*}[htbp]
+\centering
+\includegraphics[width=0.82\linewidth]{figures/fig_dl_comparison}
+\caption{Comparação interna entre arquiteturas de aprendizado profundo no cenário \texttt{entropy\_all}.}
+\label{fig:dl-comparison}
+\end{figure*}
+
+O segundo eixo do bloco de \gls{DL} é a robustez ao ruído.
+As tabelas \Cref{tab:degradation-psnr-dl} e \Cref{tab:noise-slope-psnr-dl} mostram que a liderança absoluta da U-Net não implica dominância completa em estabilidade relativa.
+GAN e ViT frequentemente exibem menor degradação percentual em vários cenários, mesmo permanecendo abaixo da U-Net em valor absoluto de PSNR.
+
+\input{tables/psnr-drop-entropy-dl}
+
+\input{tables/psnr-noise-slope-entropy-dl}
+
+Essa diferença é relevante porque explicita a tensão entre nível final de qualidade e sensibilidade do desempenho ao aumento de ruído.
+Um modelo pode partir de um patamar mais alto e ainda assim perder mais, em termos relativos, quando a condição experimental piora.
+Logo, a arquitetura mais precisa não é necessariamente a mais estável.
+Para aplicações em que previsibilidade sob degradação importa tanto quanto qualidade final, essa distinção muda o critério de escolha.
+
+A \Cref{fig:dl-noise-robustness} resume esse comportamento ao longo dos quatro níveis de ruído.
+As curvas mostram que U-Net permanece à frente em termos absolutos, mas também deixam visível que as inclinações não são idênticas entre arquiteturas.
+GAN e ViT preservam parte do desempenho relativo de forma mais estável, enquanto AE e VAE ocupam um regime inferior, porém regular.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{figures/fig_dl_noise_robustness}
+\caption{Robustez ao ruído dos principais modelos de aprendizado profundo no cenário \texttt{entropy\_all}.}
+\label{fig:dl-noise-robustness}
+\end{figure}
+
+No que diz respeito à relação entre entropia e qualidade, a \Cref{tab:spearman-entropy-dl-e15} mostra um padrão mais uniforme do que o observado no bloco clássico.
+As correlações entre entropia e PSNR ou SSIM tendem a ser mais claramente negativas para a maioria das arquiteturas, sugerindo que o aumento de complexidade espacial atua como fator de dificuldade relativamente consistente dentro do conjunto de modelos profundos analisado.
+
+\input{tables/spearman-entropy-dl-15}
+
+Esse resultado é interessante porque diferencia os dois blocos do artigo.
+Nos métodos clássicos, a entropia reorganiza o comportamento dos algoritmos de forma bastante heterogênea.
+Nos modelos de \gls{DL}, a direção do efeito tende a ser mais estável, ainda que a magnitude varie entre arquiteturas.
+Uma leitura plausível é que o treinamento supervisionado leva os modelos a internalizar um padrão mais uniforme de dificuldade associado à estrutura espacial da cena.
+
+Em síntese, o bloco de aprendizado profundo sustenta três conclusões principais.
+Primeiro, U-Net é a melhor arquitetura em qualidade absoluta no domínio avaliado.
+Segundo, essa liderança não implica melhor robustez relativa em todos os cenários, já que GAN e ViT exibem degradação percentual menor em várias condições.
+Terceiro, AE e VAE permanecem úteis como referências eficientes e simples, mas não alcançam o mesmo nível de fidelidade das arquiteturas mais expressivas.
+
+\subsection{Síntese dos Achados Empíricos}
+
+Quando os dois blocos são observados em conjunto, o resultado mais importante do artigo não é a produção de um ranking universal entre todas as técnicas.
+O resultado mais importante é a demonstração de que o desempenho em preenchimento de lacunas depende do regime analítico adotado.
+No bloco clássico, a principal tensão é entre qualidade alta, robustez ao ruído e custo computacional.
+No bloco de aprendizado profundo, a principal tensão é entre qualidade absoluta, estabilidade relativa e perfil arquitetural.
+
+Isso significa que a melhor escolha metodológica depende da pergunta prática que se quer responder.
+Se a prioridade recai sobre métodos clássicos interpretáveis com forte análise multicritério, kriging, RBF, spline e exemplar\_based aparecem como candidatos centrais, cada um com vantagens e limitações específicas.
+Se a prioridade recai sobre melhor qualidade absoluta no domínio Sentinel-2, a U-Net emerge como solução mais forte.
+Se o foco se desloca para estabilidade relativa ou eficiência dentro do bloco de \gls{DL}, a decisão torna-se mais plural e abre espaço para GAN, ViT, AE e VAE conforme o objetivo operacional.

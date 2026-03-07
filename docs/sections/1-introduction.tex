@@ -1,8 +1,47 @@
 \section{Introdução}
 \label{sec:introduction}
 
-\begin{itemize}
-  \item \textbf{H1.} A relação entre entropia local e qualidade de reconstrução depende do método e da escala, podendo mudar de sinal entre janelas.
-  \item \textbf{H2.} Métodos com priors espaciais mais fortes (regularização, patch-based ou geoestatísticos) são menos sensíveis à entropia em cenas de baixa complexidade.
-  \item \textbf{H3.} Para cada janela de entropia analisada separadamente, a entropia é um preditor estatisticamente significativo das métricas de qualidade, controlando por método e por ruído.
-\end{itemize}
+O preenchimento de lacunas em imagens de satélite é um problema recorrente em aplicações de sensoriamento remoto que dependem de observação espacial contínua, consistente e radiometricamente confiável.
+Lacunas podem surgir por presença de nuvens, falhas instrumentais, problemas de transmissão, oclusões temporárias ou estratégias de aquisição que deixam partes da cena incompletas.
+Quando isso ocorre, não é apenas a inspeção visual da imagem que se deteriora.
+Toda a cadeia posterior de análise pode ser afetada, incluindo classificação, segmentação, monitoramento ambiental, análise multitemporal e exploração espectral.
+
+Apesar da grande variedade de métodos disponíveis para reconstrução, a escolha do algoritmo adequado permanece difícil porque o desempenho depende fortemente do contexto em que a lacuna aparece.
+Uma região homogênea, de baixa complexidade espacial, impõe um desafio diferente daquele encontrado em áreas urbanas, mosaicos agrícolas, transições entre alvos ou cenas com forte textura local.
+Isso significa que avaliar apenas a média global de uma métrica de erro pode ocultar parte importante do comportamento real dos métodos.
+Um algoritmo pode parecer competitivo em média e ainda assim ser muito sensível ao aumento de complexidade da cena ou ao ruído no entorno observado.
+
+Este trabalho parte da premissa de que a entropia local é um descritor útil para organizar essa análise.
+Em vez de tratá-la como uma estatística secundária, a entropia é incorporada como variável central para entender como a estrutura espacial da vizinhança da lacuna se relaciona com a qualidade da reconstrução.
+Como a noção de complexidade depende da escala observada, a entropia é calculada em múltiplas janelas, permitindo avaliar se o efeito da estrutura local muda quando a análise enfatiza padrões finos, intermediários ou mais amplos.
+
+O estudo foi organizado em dois blocos metodológicos com objetivos distintos.
+O primeiro bloco compara métodos clássicos de preenchimento de lacunas em cenário multissensor, incluindo interpoladores espaciais, métodos baseados em kernel, formulações geoestatísticas, regularização em domínio de transformada, sensoriamento compressivo e abordagens baseadas em recortes.
+O segundo bloco compara arquiteturas de aprendizado profundo treinadas e avaliadas no domínio Sentinel-2, incluindo autoencoder, autoencoder variacional, modelo adversarial, U-Net e Vision Transformer.
+Essa separação não é apenas conveniente.
+Ela é necessária para preservar validade interpretativa, pois os dois blocos não compartilham exatamente o mesmo regime experimental.
+
+Com isso, a pergunta central do artigo deixa de ser qual método vence todos os outros em qualquer condição.
+Em vez disso, o trabalho procura responder a duas questões mais precisas.
+Entre os métodos clássicos, quais técnicas oferecem o melhor compromisso entre qualidade de reconstrução, robustez ao ruído, estabilidade espectral e custo computacional.
+Entre os modelos de aprendizado profundo, quais arquiteturas apresentam o melhor perfil relativo de desempenho no domínio avaliado.
+Essa mudança de foco reduz o risco de conclusões excessivamente amplas e torna a discussão mais útil para decisões práticas.
+
+As hipóteses que orientam a análise são três.
+Primeiro, a relação entre entropia local e qualidade de reconstrução depende simultaneamente do método e da escala usada para medir a entropia.
+Segundo, métodos clássicos com modelagem espacial mais forte tendem a ser mais robustos em cenários ruidosos, ainda que nem sempre sejam a melhor opção em custo.
+Terceiro, no bloco de aprendizado profundo, a arquitetura que apresenta melhor qualidade absoluta não é necessariamente a arquitetura com menor degradação relativa quando o ruído aumenta.
+
+As contribuições deste trabalho podem ser resumidas em quatro pontos.
+Primeiro, o artigo propõe um protocolo integrado de avaliação para preenchimento de lacunas multiespectral, reunindo qualidade radiométrica, estrutura, coerência espectral e eficiência computacional.
+Segundo, introduz uma leitura orientada por entropia local em múltiplas escalas, tornando observável a relação entre complexidade espacial e comportamento dos métodos.
+Terceiro, separa explicitamente a análise dos métodos clássicos da análise dos modelos de aprendizado profundo, evitando comparações diretas indevidas entre regimes experimentais distintos.
+Quarto, reorganiza as evidências do estudo em tabelas e figuras que enfatizam interpretação, e não apenas listagem de métricas.
+
+O restante do artigo está organizado da seguinte forma.
+A \Cref{sec:background} apresenta a fundamentação conceitual do problema e discute por que entropia, qualidade espectral e custo computacional precisam ser considerados em conjunto.
+A \Cref{sec:methods} descreve os dados, o modelo de degradação, o cálculo da entropia local e os métodos avaliados.
+A \Cref{sec:experimental} detalha o protocolo experimental e os procedimentos estatísticos adotados.
+A \Cref{sec:results} apresenta os resultados separadamente para os blocos clássico e de aprendizado profundo.
+A \Cref{sec:discussion} discute implicações, limitações e validade das conclusões.
+Por fim, a \Cref{sec:conclusion} sintetiza os principais achados e aponta desdobramentos futuros.
